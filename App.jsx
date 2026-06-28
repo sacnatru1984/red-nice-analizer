@@ -531,6 +531,7 @@ const Icons = {
   Megaphone: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>,
   GitBranch: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>,
   Home: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  TrendUp: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
 }
 
 const s = (styles) => styles
@@ -2991,11 +2992,545 @@ function PanelArchivos({ archivos, onCargar, duplicados }) {
   )
 }
 
+// ════════════════════════════════════════════════════
+// PANEL REPORTES COMPARATIVOS
+// ════════════════════════════════════════════════════
+
+const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+function detectarMesDeNombre(nombre) {
+  const n = nombre.toLowerCase()
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+  for (let i = 0; i < meses.length; i++) { if (n.includes(meses[i])) return i + 1 }
+  const m = nombre.match(/[-_\s](\d{1,2})[-_\s]/)
+  if (m) { const v = parseInt(m[1]); if (v >= 1 && v <= 12) return v }
+  return new Date().getMonth() + 1
+}
+function detectarAnioDeNombre(nombre) {
+  const m = nombre.match(/20\d{2}/)
+  return m ? parseInt(m[0]) : new Date().getFullYear()
+}
+
+const RANGO_ORDEN_LIST = ['SIN','EIN','COBRE','BRONCE','PLATA','ORO','ORO_EXPERTO','ORO_PREMIER','ORO_ELITE','PLATINO','ORO_EJECUTIVO','ORO_SENIOR','ORO_MASTER','DIAMANTE','DIAMANTE_MASTER','DOBLE_DIAMANTE']
+function rangoOrden(id) { const i = RANGO_ORDEN_LIST.indexOf(id); return i < 0 ? 0 : i }
+
+function computePeriodStats(afs) {
+  const total = afs.length
+  const activos = afs.filter(a => (a.pp||0)+(a.pg||0) > 0).length
+  const totalPP = afs.reduce((s,a) => s+(a.pp||0), 0)
+  const totalPG = afs.reduce((s,a) => s+(a.pg||0), 0)
+  const orosPlus = afs.filter(a => esOroPlus(a)).length
+  const frontales1 = afs.filter(a => (a.gen||0) === 1).length
+  return { total, activos, totalPP, totalPG, volumen: totalPP+totalPG, orosPlus, frontales1, pctActividad: total > 0 ? Math.round(activos/total*100) : 0 }
+}
+
+function computeComparativo(anterior, actual) {
+  if (!anterior || !actual) return null
+  const mapAnt = {}
+  anterior.forEach(a => { if (a.ein) mapAnt[a.ein] = a })
+  const nuevos = actual.filter(a => a.ein && !mapAnt[a.ein])
+  const reactivados = [], desactivados = [], ascensos = [], descensos = []
+  actual.forEach(curr => {
+    const prev = mapAnt[curr.ein]
+    if (!prev) return
+    const rBef = rangoOrden(getRango(prev.rango).id), rAft = rangoOrden(getRango(curr.rango).id)
+    if (rAft > rBef) ascensos.push({ a: curr, de: getRango(prev.rango), a2: getRango(curr.rango) })
+    if (rAft < rBef) descensos.push({ a: curr, de: getRango(prev.rango), a2: getRango(curr.rango) })
+    const pAct = (prev.pp||0)+(prev.pg||0) > 0, cAct = (curr.pp||0)+(curr.pg||0) > 0
+    if (!pAct && cAct) reactivados.push(curr)
+    if (pAct && !cAct) desactivados.push(curr)
+  })
+  const retenidos = actual.filter(c => { const p = mapAnt[c.ein]; return p && (p.pp||0)+(p.pg||0)>0 && (c.pp||0)+(c.pg||0)>0 })
+  const activosAnt = anterior.filter(a => (a.pp||0)+(a.pg||0)>0).length
+  return { nuevos, reactivados, desactivados, ascensos, descensos, retenidos, retencion: activosAnt>0 ? Math.round(retenidos.length/activosAnt*100) : 0 }
+}
+
+function EvolucionBars({ datos }) {
+  if (!datos || datos.length === 0) return null
+  const maxV = Math.max(...datos.map(d => d.pp+d.pg), 1)
+  const H = 120, padBot = 24, barH = H - 10 - padBot
+  const n = datos.length, slotW = 100/n, bw = Math.max(3, slotW*0.38)
+  return (
+    <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" style={{width:'100%',height:H*1.8+'px'}}>
+      {datos.map((d,i) => {
+        const cx = i*slotW + slotW/2
+        const ppH = Math.max(0,(d.pp/maxV)*barH), pgH = Math.max(0,(d.pg/maxV)*barH)
+        const yBot = H-padBot
+        return (
+          <g key={i}>
+            <rect x={cx-bw/2} y={yBot-ppH} width={bw} height={Math.max(1,ppH)} rx={1.5} fill="#3A8FF2"/>
+            <rect x={cx-bw/2} y={yBot-ppH-pgH} width={bw} height={Math.max(1,pgH)} rx={1.5} fill="#A78BFA"/>
+            <text x={cx} y={H-4} textAnchor="middle" fontSize="5" fill="var(--win-muted)">{d.label}</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
+  const fileRef = useRef()
+  const [pendiente, setPendiente] = useState(null)
+  const [pMes, setPMes] = useState(new Date().getMonth()+1)
+  const [pAnio, setPAnio] = useState(new Date().getFullYear())
+  const [vista, setVista] = useState('resumen')
+
+  const ordenados = [...periodos].sort((a,b) => a.año*12+a.mes - (b.año*12+b.mes))
+  const periodoActual = ordenados[ordenados.length-1]
+  const periodoAnterior = ordenados.length > 1 ? ordenados[ordenados.length-2] : null
+  const statsActual = periodoActual ? computePeriodStats(periodoActual.afiliados) : null
+  const statsAnterior = periodoAnterior ? computePeriodStats(periodoAnterior.afiliados) : null
+  const comp = periodoActual && periodoAnterior ? computeComparativo(periodoAnterior.afiliados, periodoActual.afiliados) : null
+  const datosBars = ordenados.map(p => { const s = computePeriodStats(p.afiliados); return { label: p.label, pp: s.totalPP, pg: s.totalPG } })
+
+  const procesarFile = async (file) => {
+    try {
+      const afs = await parseWorkbookFile(file)
+      setPMes(detectarMesDeNombre(file.name)); setPAnio(detectarAnioDeNombre(file.name))
+      setPendiente({ nombre: file.name, afiliados: computeFrontalesOro(afs) })
+    } catch(e) { console.error('Error al cargar período:', e) }
+  }
+
+  const confirmar = () => {
+    if (!pendiente) return
+    onAgregarPeriodo({ id:`${pAnio}-${String(pMes).padStart(2,'0')}-${Date.now()}`, nombre:pendiente.nombre, afiliados:pendiente.afiliados, mes:pMes, año:pAnio, label:`${MESES_CORTO[pMes-1]} ${pAnio}`, labelLargo:`${MESES_ES[pMes-1]} ${pAnio}`, fecha:new Date().toLocaleDateString('es-MX') })
+    setPendiente(null)
+  }
+
+  const VISTAS = [
+    {id:'resumen', l:'Resumen'},
+    {id:'evolucion', l:'Evolución'},
+    {id:'ascensos', l:'Ascensos'},
+    {id:'lideres', l:'Líderes'},
+    {id:'retencion', l:'Retención'},
+  ]
+
+  if (periodos.length === 0 && !pendiente) return (
+    <div style={{maxWidth:680}}>
+      <div style={{...S.card, marginBottom:16, padding:'20px 24px', background:'linear-gradient(120deg,var(--win-surface) 60%, var(--win-accent-l))'}}>
+        <div style={{fontSize:15,fontWeight:700,color:'var(--win-title)',marginBottom:4}}>Reportes Comparativos de Red</div>
+        <div style={{fontSize:12,color:'var(--win-muted)',lineHeight:1.7,marginBottom:14}}>Sube los tableros Excel de NICE de cada mes para generar reportes de crecimiento, ascensos, retención y análisis histórico de tu red.</div>
+        <div style={{fontSize:12,color:'var(--win-text)',background:'var(--win-surface2)',border:'1px solid var(--win-border)',borderRadius:8,padding:'12px 16px',marginBottom:14,lineHeight:1.8}}>
+          <strong>¿Cómo obtener los archivos?</strong><br/>
+          1. Entra a tu backoffice en <strong>niceonline.com</strong><br/>
+          2. Ve a tu tablero de red / afiliados y descarga el Excel mensual<br/>
+          3. Sube aquí un archivo por mes para comparar períodos
+        </div>
+        <div style={{fontSize:11,color:'var(--win-muted)',background:'var(--win-surface2)',border:'1px solid var(--win-border)',borderRadius:7,padding:'10px 14px',marginBottom:20,display:'flex',gap:8,alignItems:'flex-start'}}>
+          <span style={{color:'#F59E0B',fontSize:14,flexShrink:0}}>ℹ</span>
+          <span>La conexión directa al backoffice no es posible desde el navegador (restricción CORS de seguridad). Los archivos Excel descargados manualmente funcionan perfectamente para el análisis comparativo.</span>
+        </div>
+        <div onClick={()=>fileRef.current.click()} style={{border:'2px dashed var(--win-border2)',borderRadius:12,padding:'32px 20px',textAlign:'center',cursor:'pointer',background:'var(--win-surface)',transition:'.2s'}}>
+          <div style={{width:44,height:44,background:'var(--win-accent-l)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',color:'var(--win-accent)'}}><div style={{width:24,height:24}}><Icons.Upload/></div></div>
+          <div style={{fontSize:14,fontWeight:700,color:'var(--win-title)',marginBottom:4}}>Subir primer período (mes)</div>
+          <div style={{fontSize:12,color:'var(--win-muted)'}}>Arrastra o haz clic · formato .xlsx del portal NICE</div>
+        </div>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f)procesarFile(f)}}/>
+      </div>
+      <div style={{...S.card, padding:'16px 20px'}}>
+        <div style={{fontSize:13,fontWeight:700,color:'var(--win-title)',marginBottom:10}}>Qué incluye cada reporte</div>
+        {[
+          {icon:'📊', t:'Resumen ejecutivo', d:'KPIs clave del período con comparativo vs. mes anterior: afiliados, actividad, volumen PP+PG, Oros+.'},
+          {icon:'📈', t:'Evolución mensual', d:'Gráficas de tendencia de volumen y actividad a lo largo de todos los períodos cargados.'},
+          {icon:'⬆️', t:'Ascensos de rango', d:'Quién subió de rango, nuevos ingresos, reactivados y afiliados que se desactivaron.'},
+          {icon:'🏆', t:'Líderes de la red', d:'Top 10 por PP y PG en el período actual, con comparativo vs. período anterior.'},
+          {icon:'🔄', t:'Retención y riesgo', d:'Tasa de retención del equipo e identificación de afiliados en riesgo (2+ meses sin movimiento).'},
+        ].map(item => (
+          <div key={item.t} style={{display:'flex',gap:12,padding:'10px 0',borderBottom:'1px solid var(--win-border)'}}>
+            <span style={{fontSize:18,flexShrink:0}}>{item.icon}</span>
+            <div><div style={{fontSize:12,fontWeight:700,color:'var(--win-title)',marginBottom:2}}>{item.t}</div><div style={{fontSize:11,color:'var(--win-muted)'}}>{item.d}</div></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  if (pendiente) return (
+    <div style={{maxWidth:480}}>
+      <div style={{...S.card, padding:'24px'}}>
+        <div style={{fontSize:15,fontWeight:700,color:'var(--win-title)',marginBottom:4}}>Asignar período al archivo</div>
+        <div style={{fontSize:12,color:'var(--win-muted)',marginBottom:20}}>{pendiente.nombre} · {pendiente.afiliados.length} afiliados detectados</div>
+        <div style={{display:'flex',gap:12,marginBottom:20}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',marginBottom:6}}>MES</div>
+            <select value={pMes} onChange={e=>setPMes(+e.target.value)} style={{width:'100%',padding:'9px 10px',borderRadius:7,border:'1px solid var(--win-border)',background:'var(--win-surface)',color:'var(--win-text)',fontSize:13,fontFamily:'inherit'}}>
+              {MESES_ES.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
+            </select>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',marginBottom:6}}>AÑO</div>
+            <select value={pAnio} onChange={e=>setPAnio(+e.target.value)} style={{width:'100%',padding:'9px 10px',borderRadius:7,border:'1px solid var(--win-border)',background:'var(--win-surface)',color:'var(--win-text)',fontSize:13,fontFamily:'inherit'}}>
+              {[2023,2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={()=>setPendiente(null)} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface)',color:'var(--win-text)',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Cancelar</button>
+          <button onClick={confirmar} style={{flex:2,padding:'10px',borderRadius:8,border:'none',background:'var(--win-accent)',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+            Guardar: {MESES_ES[pMes-1]} {pAnio}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div>
+      {/* Barra de períodos */}
+      <div style={{...S.card, marginBottom:14, padding:'12px 16px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',flexShrink:0,letterSpacing:'.05em'}}>PERÍODOS:</span>
+          {ordenados.map(p => (
+            <div key={p.id} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:20,background:p===periodoActual?'var(--win-accent-l)':'var(--win-surface2)',border:`1px solid ${p===periodoActual?'var(--win-accent)':'var(--win-border)'}`,fontSize:12,fontWeight:600,color:p===periodoActual?'var(--win-accent)':'var(--win-text)'}}>
+              {p.label}
+              <button onClick={()=>onEliminarPeriodo(p.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--win-muted)',padding:0,fontSize:13,lineHeight:1,marginLeft:1}}>×</button>
+            </div>
+          ))}
+          <button onClick={()=>fileRef.current.click()} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 11px',borderRadius:20,border:'1px dashed var(--win-border2)',background:'none',color:'var(--win-accent)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            <div style={{width:12,height:12}}><Icons.Upload/></div>+ Agregar mes
+          </button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f){procesarFile(f);e.target.value=''}}}/>
+          {periodoActual && <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>{periodoActual.labelLargo||periodoActual.label} · {statsActual?.total} afiliados</span>}
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{display:'flex',gap:2,marginBottom:14,background:'var(--win-surface)',borderRadius:10,padding:4,border:'1px solid var(--win-border)'}}>
+        {VISTAS.map(v => (
+          <button key={v.id} onClick={()=>setVista(v.id)} style={{flex:1,padding:'7px 8px',borderRadius:7,border:'none',background:vista===v.id?'var(--win-accent)':'none',color:vista===v.id?'#fff':'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'.12s'}}>
+            {v.l}
+          </button>
+        ))}
+      </div>
+
+      {/* ── VISTA: RESUMEN EJECUTIVO ── */}
+      {vista==='resumen' && statsActual && (
+        <div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:12,marginBottom:14}}>
+            {[
+              {l:'Total afiliados', v:statsActual.total, d:comp?statsActual.total-statsAnterior.total:null, c:'var(--win-accent)'},
+              {l:'Activos este mes', v:statsActual.activos, d:comp?statsActual.activos-statsAnterior.activos:null, c:'var(--win-green)'},
+              {l:'% Actividad', v:`${statsActual.pctActividad}%`, d:comp?statsActual.pctActividad-statsAnterior.pctActividad:null, c:'var(--win-green)', sfx:'pp'},
+              {l:'PP + PG total', v:statsActual.volumen.toLocaleString(), d:comp?statsActual.volumen-statsAnterior.volumen:null, c:'var(--win-gold)'},
+              {l:'Líderes Oro+', v:statsActual.orosPlus, d:comp?statsActual.orosPlus-statsAnterior.orosPlus:null, c:'var(--win-gold)'},
+              {l:'Gen. 1 (directos)', v:statsActual.frontales1, d:comp?statsActual.frontales1-statsAnterior.frontales1:null, c:'var(--win-cyan)'},
+            ].map(k => {
+              const pos = k.d > 0, neu = k.d === 0 || k.d === null || k.d === undefined
+              const dStr = k.d !== null && k.d !== undefined ? `${pos?'+':''}${typeof k.d==='number'&&k.d>999?k.d.toLocaleString():k.d}${k.sfx||''}` : null
+              return (
+                <div key={k.l} style={{...S.card, padding:'14px 16px'}}>
+                  <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:5}}>{k.l.toUpperCase()}</div>
+                  <div style={{fontSize:24,fontWeight:800,color:k.c,lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{k.v}</div>
+                  {dStr && !neu && <div style={{fontSize:11,fontWeight:600,color:pos?'var(--win-green)':'var(--win-red)',marginTop:5}}>{pos?'▲ ':'▼ '}{dStr} vs. anterior</div>}
+                  {k.d===0 && <div style={{fontSize:11,color:'var(--win-muted)',marginTop:5}}>= sin cambio</div>}
+                </div>
+              )
+            })}
+          </div>
+          {comp && (
+            <div style={{...S.card, marginBottom:14}}>
+              <div style={S.cardHeader}><span style={S.cardTitle}>Comparativo: {periodoAnterior.label} → {periodoActual.label}</span></div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:1,background:'var(--win-border)'}}>
+                {[
+                  {l:'Nuevos ingresos', v:comp.nuevos.length, c:'var(--win-green)', icon:'🆕'},
+                  {l:'Ascensos de rango', v:comp.ascensos.length, c:'var(--win-gold)', icon:'⬆️'},
+                  {l:'Reactivados', v:comp.reactivados.length, c:'var(--win-accent)', icon:'⚡'},
+                  {l:'Se desactivaron', v:comp.desactivados.length, c:'var(--win-red)', icon:'⚠️'},
+                ].map(item => (
+                  <div key={item.l} style={{padding:'16px 20px',background:'var(--win-surface)',display:'flex',alignItems:'center',gap:14}}>
+                    <span style={{fontSize:22}}>{item.icon}</span>
+                    <div>
+                      <div style={{fontSize:11,color:'var(--win-muted)',marginBottom:2}}>{item.l}</div>
+                      <div style={{fontSize:22,fontWeight:800,color:item.c,fontVariantNumeric:'tabular-nums'}}>{item.v}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {ordenados.length >= 2 && (
+            <div style={{...S.card, marginBottom:14}}>
+              <div style={S.cardHeader}><span style={S.cardTitle}>Evolución de volumen PP+PG</span></div>
+              <div style={{padding:'16px 16px 8px'}}>
+                <EvolucionBars datos={datosBars}/>
+                <div style={{display:'flex',gap:16,marginTop:8,justifyContent:'center'}}>
+                  {[{c:'#3A8FF2',l:'PP (Puntos Personales)'},{c:'#A78BFA',l:'PG (Puntos de Grupo)'}].map(x=>(
+                    <div key={x.l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'var(--win-muted)'}}><div style={{width:10,height:10,borderRadius:2,background:x.c,flexShrink:0}}/>{x.l}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── VISTA: EVOLUCIÓN ── */}
+      {vista==='evolucion' && (
+        <div>
+          <div style={{...S.card, marginBottom:14}}>
+            <div style={S.cardHeader}><span style={S.cardTitle}>Evolución mensual</span></div>
+            <div style={{padding:'16px'}}>
+              {ordenados.length < 2 ? (
+                <div style={{textAlign:'center',padding:'32px',color:'var(--win-muted)',fontSize:13}}>Agrega al menos 2 períodos para ver la evolución.</div>
+              ) : (
+                <>
+                  <EvolucionBars datos={datosBars}/>
+                  <div style={{display:'flex',gap:16,margin:'10px 0 20px',justifyContent:'center'}}>
+                    {[{c:'#3A8FF2',l:'PP (Puntos Personales)'},{c:'#A78BFA',l:'PG (Puntos de Grupo)'}].map(x=>(
+                      <div key={x.l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'var(--win-muted)'}}><div style={{width:10,height:10,borderRadius:2,background:x.c,flexShrink:0}}/>{x.l}</div>
+                    ))}
+                  </div>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                    <thead><tr style={{borderBottom:'1px solid var(--win-border)',background:'var(--win-surface2)'}}>
+                      {['Período','Afiliados','Activos','%Act','PP','PG','Volumen total'].map(h=>(
+                        <th key={h} style={{padding:'7px 12px',textAlign:h==='Período'?'left':'right',fontSize:10,fontWeight:600,color:'var(--win-muted)',letterSpacing:'.04em'}}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {ordenados.map((p,i) => {
+                        const s = computePeriodStats(p.afiliados)
+                        const prev = ordenados[i-1] ? computePeriodStats(ordenados[i-1].afiliados) : null
+                        const diff = prev ? s.volumen - prev.volumen : null
+                        return (
+                          <tr key={p.id} style={{borderBottom:'1px solid var(--win-border)',background:p===periodoActual?'var(--win-accent-l)':'none'}}>
+                            <td style={{padding:'9px 12px',fontWeight:600,color:'var(--win-title)'}}>{p.labelLargo||p.label}</td>
+                            <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{s.total}</td>
+                            <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums',color:'var(--win-green)',fontWeight:600}}>{s.activos}</td>
+                            <td style={{padding:'9px 12px',textAlign:'right',color:'var(--win-muted)'}}>{s.pctActividad}%</td>
+                            <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums',color:'#3A8FF2'}}>{s.totalPP.toLocaleString()}</td>
+                            <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums',color:'#7C3AED'}}>{s.totalPG.toLocaleString()}</td>
+                            <td style={{padding:'9px 12px',textAlign:'right',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>
+                              {s.volumen.toLocaleString()}
+                              {diff !== null && <span style={{fontSize:10,marginLeft:5,color:diff>0?'var(--win-green)':diff<0?'var(--win-red)':'var(--win-muted)'}}>{diff>0?'▲+':'▼'}{Math.abs(diff).toLocaleString()}</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── VISTA: ASCENSOS ── */}
+      {vista==='ascensos' && (
+        <div>
+          {!comp ? (
+            <div style={{...S.card,padding:'40px',textAlign:'center',color:'var(--win-muted)',fontSize:13}}>Agrega al menos 2 períodos para ver los cambios de rango.</div>
+          ) : (
+            <>
+              {comp.ascensos.length > 0 && (
+                <div style={{...S.card, marginBottom:14}}>
+                  <div style={S.cardHeader}>
+                    <span style={{fontSize:15}}>⬆️</span>
+                    <span style={S.cardTitle}>Ascensos de rango ({comp.ascensos.length})</span>
+                    <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>{periodoAnterior?.label} → {periodoActual?.label}</span>
+                  </div>
+                  {comp.ascensos.map((item,i) => (
+                    <div key={item.a.ein} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderBottom:i<comp.ascensos.length-1?'1px solid var(--win-border)':'none'}}>
+                      <div style={{width:36,height:36,borderRadius:'50%',background:item.a2.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:`2px solid ${item.a2.color}`,overflow:'hidden'}}>
+                        {RANGO_IMG[item.a2.id]?<img src={RANGO_IMG[item.a2.id]} alt={item.a2.label} style={{width:30,height:30,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:item.a2.color}}>{getInitials(item.a.nombre)}</span>}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:700,color:'var(--win-title)'}}>{item.a.nombre}</div>
+                        <div style={{fontSize:11,color:'var(--win-muted)',marginTop:2}}>EIN {item.a.ein} · Gen. {item.a.gen}</div>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:7}}>
+                        <RankBadge rangoStr={item.de.label}/>
+                        <span style={{color:'var(--win-green)',fontWeight:700,fontSize:16}}>→</span>
+                        <RankBadge rangoStr={item.a2.label}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {comp.nuevos.length > 0 && (
+                <div style={{...S.card, marginBottom:14}}>
+                  <div style={S.cardHeader}>
+                    <span style={{fontSize:15}}>🆕</span>
+                    <span style={S.cardTitle}>Nuevos ingresos ({comp.nuevos.length})</span>
+                  </div>
+                  {comp.nuevos.slice(0,12).map((a,i) => (
+                    <div key={a.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:i<Math.min(11,comp.nuevos.length-1)?'1px solid var(--win-border)':'none'}}>
+                      <div style={{width:30,height:30,borderRadius:'50%',background:getRango(a.rango).bg,border:`1.5px solid ${getRango(a.rango).color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
+                        {RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:24,height:24,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</div>
+                        <div style={{fontSize:11,color:'var(--win-muted)'}}>EIN {a.ein} · Gen. {a.gen}</div>
+                      </div>
+                      <RankBadge rangoStr={a.rango}/>
+                      <div style={{fontSize:12,fontWeight:700,color:'var(--win-gold)',minWidth:50,textAlign:'right'}}>{((a.pp||0)+(a.pg||0)).toLocaleString()} pts</div>
+                    </div>
+                  ))}
+                  {comp.nuevos.length > 12 && <div style={{padding:'8px 16px',fontSize:11,color:'var(--win-muted)'}}>... y {comp.nuevos.length-12} más</div>}
+                </div>
+              )}
+              {comp.reactivados.length > 0 && (
+                <div style={{...S.card, marginBottom:14}}>
+                  <div style={S.cardHeader}>
+                    <span style={{fontSize:15}}>⚡</span>
+                    <span style={S.cardTitle}>Reactivados ({comp.reactivados.length})</span>
+                    <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>Tenían 0 pts el mes anterior y ahora tienen actividad</span>
+                  </div>
+                  {comp.reactivados.slice(0,8).map((a,i) => (
+                    <div key={a.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:i<Math.min(7,comp.reactivados.length-1)?'1px solid var(--win-border)':'none'}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:'var(--win-accent)',flexShrink:0}}/>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</div><div style={{fontSize:11,color:'var(--win-muted)'}}>EIN {a.ein} · {getRango(a.rango).label}</div></div>
+                      <div style={{fontSize:12,fontWeight:700,color:'var(--win-green)'}}>{((a.pp||0)+(a.pg||0)).toLocaleString()} pts</div>
+                    </div>
+                  ))}
+                  {comp.reactivados.length > 8 && <div style={{padding:'8px 16px',fontSize:11,color:'var(--win-muted)'}}>... y {comp.reactivados.length-8} más</div>}
+                </div>
+              )}
+              {comp.desactivados.length > 0 && (
+                <div style={{...S.card}}>
+                  <div style={S.cardHeader}>
+                    <span style={{fontSize:15}}>⚠️</span>
+                    <span style={S.cardTitle}>Se desactivaron ({comp.desactivados.length})</span>
+                    <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>Tenían PP/PG el mes anterior · 0 este mes</span>
+                  </div>
+                  {comp.desactivados.slice(0,10).map((a,i) => (
+                    <div key={a.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:i<Math.min(9,comp.desactivados.length-1)?'1px solid var(--win-border)':'none'}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:'var(--win-red)',flexShrink:0}}/>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</div><div style={{fontSize:11,color:'var(--win-muted)'}}>EIN {a.ein} · {getRango(a.rango).label}</div></div>
+                      <span style={{fontSize:11,color:'var(--win-red)',fontWeight:600,padding:'2px 8px',borderRadius:20,background:'var(--win-red-l)'}}>Sin movimiento</span>
+                    </div>
+                  ))}
+                  {comp.desactivados.length > 10 && <div style={{padding:'8px 16px',fontSize:11,color:'var(--win-muted)'}}>... y {comp.desactivados.length-10} más</div>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── VISTA: LÍDERES ── */}
+      {vista==='lideres' && periodoActual && (
+        <div>
+          {[{campo:'pg',label:'PG',color:'#7C3AED',titulo:'Puntos de Grupo'},{campo:'pp',label:'PP',color:'var(--win-accent)',titulo:'Puntos Personales'}].map(({campo,label,color,titulo}) => (
+            <div key={campo} style={{...S.card, marginBottom:14}}>
+              <div style={S.cardHeader}><span style={S.cardTitle}>Top 10 por {titulo} · {periodoActual.label}</span></div>
+              {[...periodoActual.afiliados]
+                .filter(a => (a[campo]||0) > 0)
+                .sort((a,b) => (b[campo]||0)-(a[campo]||0))
+                .slice(0,10)
+                .map((a,i) => {
+                  const prevP = periodoAnterior?.afiliados.find(p=>p.ein===a.ein)
+                  const diff = prevP ? (a[campo]||0)-(prevP[campo]||0) : null
+                  return (
+                    <div key={a.ein} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 16px',borderBottom:i<9?'1px solid var(--win-border)':'none'}}>
+                      <div style={{width:22,height:22,borderRadius:'50%',background:i<3?'#FEF9EC':'var(--win-surface2)',border:i<3?'1.5px solid #C47F17':'1px solid var(--win-border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:i<3?'#C47F17':'var(--win-muted)',flexShrink:0}}>{i+1}</div>
+                      <div style={{width:30,height:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden',border:`1.5px solid ${getRango(a.rango).color}`}}>
+                        {RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:24,height:24,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</div>
+                        <div style={{fontSize:11,color:'var(--win-muted)'}}>{getRango(a.rango).label} · EIN {a.ein}</div>
+                      </div>
+                      <div style={{textAlign:'right'}}>
+                        <div style={{fontSize:14,fontWeight:800,color,fontVariantNumeric:'tabular-nums'}}>{(a[campo]||0).toLocaleString()} {label}</div>
+                        {diff!==null && <div style={{fontSize:10,color:diff>0?'var(--win-green)':diff<0?'var(--win-red)':'var(--win-muted)'}}>{diff>0?'▲+':'▼'}{Math.abs(diff).toLocaleString()}</div>}
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── VISTA: RETENCIÓN ── */}
+      {vista==='retencion' && (
+        <div>
+          {!comp ? (
+            <div style={{...S.card,padding:'40px',textAlign:'center',color:'var(--win-muted)',fontSize:13}}>Agrega al menos 2 períodos para ver el análisis de retención.</div>
+          ) : (
+            <>
+              <div style={{...S.card, marginBottom:14, padding:'20px 24px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:22,flexWrap:'wrap'}}>
+                  <div>
+                    <svg width="86" height="86" viewBox="0 0 86 86">
+                      <circle cx="43" cy="43" r="34" fill="none" stroke="var(--win-border)" strokeWidth="11"/>
+                      <circle cx="43" cy="43" r="34" fill="none" stroke={comp.retencion>=70?'var(--win-green)':comp.retencion>=50?'#F59E0B':'var(--win-red)'} strokeWidth="11"
+                        strokeDasharray={`${(comp.retencion/100)*213.6} 213.6`} strokeDashoffset="53.4" strokeLinecap="round"/>
+                      <text x="43" y="48" textAnchor="middle" fontSize="15" fontWeight="800" fill="var(--win-title)">{comp.retencion}%</text>
+                    </svg>
+                  </div>
+                  <div style={{flex:1,minWidth:180}}>
+                    <div style={{fontSize:16,fontWeight:700,color:'var(--win-title)',marginBottom:4}}>Tasa de retención</div>
+                    <div style={{fontSize:12,color:'var(--win-muted)',lineHeight:1.7,marginBottom:8}}>
+                      {comp.retenidos.length} afiliados activos en {periodoAnterior.label} siguieron activos en {periodoActual.label}.
+                    </div>
+                    <div style={{fontSize:13,fontWeight:700,color:comp.retencion>=70?'var(--win-green)':comp.retencion>=50?'#F59E0B':'var(--win-red)'}}>
+                      {comp.retencion>=70?'Excelente retención 💪':comp.retencion>=50?'Retención media · hay oportunidad de mejora':'Retención baja · priorizar acompañamiento y seguimiento'}
+                    </div>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,minWidth:200}}>
+                    {[
+                      {l:'Se mantuvieron activos', v:comp.retenidos.length, c:'var(--win-green)'},
+                      {l:'Se desactivaron', v:comp.desactivados.length, c:'var(--win-red)'},
+                      {l:'Se reactivaron', v:comp.reactivados.length, c:'var(--win-accent)'},
+                      {l:'Nuevos ingresos', v:comp.nuevos.length, c:'var(--win-muted)'},
+                    ].map(k => (
+                      <div key={k.l} style={{textAlign:'center'}}>
+                        <div style={{fontSize:20,fontWeight:800,color:k.c,fontVariantNumeric:'tabular-nums'}}>{k.v}</div>
+                        <div style={{fontSize:10,color:'var(--win-muted)',lineHeight:1.3}}>{k.l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* Afiliados en riesgo: inactivos en los últimos 2+ períodos */}
+              {ordenados.length >= 3 && (() => {
+                const ult = ordenados.slice(-3)
+                const einMap = {}
+                ult[2].afiliados.forEach(a => { einMap[a.ein] = { curr:a, p1:null, p2:null } })
+                ult[1].afiliados.forEach(a => { if (einMap[a.ein]) einMap[a.ein].p1 = a })
+                ult[0].afiliados.forEach(a => { if (einMap[a.ein]) einMap[a.ein].p2 = a })
+                const enRiesgo = Object.values(einMap).filter(({curr,p1}) =>
+                  (curr.pp||0)+(curr.pg||0)===0 && p1 && (p1.pp||0)+(p1.pg||0)===0
+                )
+                if (enRiesgo.length === 0) return null
+                return (
+                  <div style={S.card}>
+                    <div style={S.cardHeader}>
+                      <span style={{fontSize:15}}>🔴</span>
+                      <span style={S.cardTitle}>En riesgo: inactivos 2+ meses ({enRiesgo.length})</span>
+                      <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-red)',fontWeight:600,padding:'2px 8px',borderRadius:20,background:'var(--win-red-l)'}}>Requieren contacto urgente</span>
+                    </div>
+                    {enRiesgo.slice(0,10).map(({curr},i) => (
+                      <div key={curr.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:i<Math.min(9,enRiesgo.length-1)?'1px solid var(--win-border)':'none'}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:'var(--win-red)',flexShrink:0}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{curr.nombre}</div>
+                          <div style={{fontSize:11,color:'var(--win-muted)'}}>EIN {curr.ein} · {getRango(curr.rango).label} · Gen. {curr.gen}</div>
+                        </div>
+                        <span style={{fontSize:11,color:'var(--win-red)',fontWeight:600,padding:'2px 8px',borderRadius:20,background:'var(--win-red-l)'}}>2+ meses sin movimiento</span>
+                      </div>
+                    ))}
+                    {enRiesgo.length > 10 && <div style={{padding:'8px 16px',fontSize:11,color:'var(--win-muted)'}}>... y {enRiesgo.length-10} más</div>}
+                  </div>
+                )
+              })()}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [tab, setTab] = useState('red')
   const [afiliados, setAfiliados] = useState([])
   const [archivos, setArchivos] = useState([])
   const [duplicados, setDuplicados] = useState([])
+  const [periodos, setPeriodos] = useState([])
   const [cargado, setCargado] = useState(false)
   const [genealogiaEin, setGenealogiaEin] = useState(null)
   const [theme, setTheme] = useState(() => {
@@ -3018,8 +3553,22 @@ function App() {
   const onCargar = useCallback((nombre, nuevos, dups) => {
     const procesados = computeFrontalesOro(nuevos)
     setAfiliados(procesados); setDuplicados(dups)
-    setArchivos(prev => [{nombre, afiliados:nuevos.length, dups:dups.length, fecha:new Date().toLocaleDateString('es-MX')}, ...prev])
+    const now = new Date()
+    setArchivos(prev => [{nombre, afiliados:nuevos.length, dups:dups.length, fecha:now.toLocaleDateString('es-MX')}, ...prev])
+    const mes = now.getMonth()+1, año = now.getFullYear()
+    setPeriodos(prev => {
+      const sin = prev.filter(x => !(x.mes===mes && x.año===año))
+      return [...sin, {id:`${año}-${String(mes).padStart(2,'0')}-main`, nombre, afiliados:procesados, mes, año, label:`${MESES_CORTO[mes-1]} ${año}`, labelLargo:`${MESES_ES[mes-1]} ${año}`, fecha:now.toLocaleDateString('es-MX')}].sort((a,b)=>a.año*12+a.mes-(b.año*12+b.mes))
+    })
     setCargado(true); setTab('red')
+  }, [])
+
+  const onAgregarPeriodo = useCallback((p) => {
+    setPeriodos(prev => { const sin = prev.filter(x => !(x.mes===p.mes && x.año===p.año)); return [...sin, p].sort((a,b)=>a.año*12+a.mes-(b.año*12+b.mes)) })
+  }, [])
+
+  const onEliminarPeriodo = useCallback((id) => {
+    setPeriodos(prev => prev.filter(x => x.id !== id))
   }, [])
 
   const [demoLoading, setDemoLoading] = useState(false)
@@ -3056,7 +3605,7 @@ function App() {
     })
   }
 
-  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'arbol',l:'Árbol',I:Icons.Tree},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
+  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'arbol',l:'Árbol',I:Icons.Tree},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
   const self = afiliadosCalc[0]
 
   return (
@@ -3098,7 +3647,7 @@ function App() {
       <div style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
         <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{TABS.find(t=>t.id===tab)?.l}</div>
         <div style={{fontSize:12,color:'var(--win-muted)',marginTop:2}}>
-          {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&'Carga un archivo Excel del portal NICE para comenzar'}
+          {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&'Carga un archivo Excel del portal NICE para comenzar'}
           {cargado&&tab==='red'&&`${afiliados.length} afiliados · ${archivos[0]?.fecha}`}
           {cargado&&tab==='arbol'&&`Árbol jerárquico · ${afiliados.length} afiliados`}
           {cargado&&tab==='genealogia'&&`Genealogía visual ramificada · ${afiliados.length} afiliados`}
@@ -3106,12 +3655,14 @@ function App() {
           {tab==='rangos'&&'Plan de carrera NICE oficial · Actualización Enero 2025'}
           {tab==='anuncios'&&'Generador de anuncios con IA · vende más joyería NICE'}
           {tab==='archivos'&&`${archivos.length} archivo${archivos.length!==1?'s':''} cargado${archivos.length!==1?'s':''}`}
+          {tab==='reportes'&&`Análisis comparativo multi-período · ${periodos.length} período${periodos.length!==1?'s':''} cargado${periodos.length!==1?'s':''}`}
         </div>
       </div>
 
       {/* Body */}
       <div className="rn-body" style={{flex:1,overflowY:'auto',background:'var(--win-bg)'}}>
-        {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&(
+        {tab==='reportes'&&<PanelReportes periodos={periodos} onAgregarPeriodo={onAgregarPeriodo} onEliminarPeriodo={onEliminarPeriodo}/>}
+        {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&(
           <div className="rn-welcome">
             <div className="rn-welcome__bg"/>
             <div className="rn-welcome__scrim"/>
@@ -3146,7 +3697,7 @@ function App() {
             </div>
           </div>
         )}
-        {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios')&&(
+        {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios')&&tab!=='reportes'&&(
           <>
             {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc}/>}
             {tab==='arbol'&&<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia}/>}
