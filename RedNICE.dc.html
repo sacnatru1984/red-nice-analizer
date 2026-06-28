@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" rx="20" fill="#14213D"/>
+    <circle cx="50" cy="40" r="16" fill="#E0A93C"/>
+    <path d="M50 30l3.2 6.5 7.2 1-5.2 5.1 1.2 7.2L50 52.6l-6.4 3.4 1.2-7.2-5.2-5.1 7.2-1z" fill="#14213D"/>
+    <rect x="28" y="64" width="44" height="6" rx="3" fill="#2563EB"/>
+    <rect x="36" y="76" width="28" height="6" rx="3" fill="#3D4759"/>
+  </svg>
+</template>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Cormorant+Garamond:wght@500;600&family=Great+Vibes&display=swap" rel="stylesheet">
+  <meta name="ext-resource-dependency" content="./assets/fondo-red.jpg" data-resource-id="fondoRed" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script src="./rango-medals.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+    :root {
+      --win-bg: #EEF2F8;
+      --win-surface: #FFFFFF;
+      --win-surface2: #F5F8FC;
+      --win-border: #E2E8F2;
+      --win-border2: #CFD8E6;
+      --win-title: #14213D;
+      --win-text: #3D4759;
+      --win-muted: #8A93A6;
+      --win-accent: #2563EB;
+      --win-accent-l: #EBF1FE;
+      --win-green: #16A34A;
+      --win-green-l: #ECFDF3;
+      --win-gold: #C47F17;
+      --win-purple: #7C3AED;
+      --win-red: #DC2626;
+      --win-red-l: #FEF2F2;
+      --win-cyan: #0E9BD6;
+      --win-amber: #E08A2B;
+      --win-link: #9FB6D8;
+      --win-link-glow: none;
+      --win-glow-cyan: rgba(56,198,244,.0);
+      --shadow-md: 0 8px 24px rgba(20,33,61,.10);
+      --win-tooltip-bg: #14213D;
+      --win-tooltip-fg: #FFFFFF;
+    }
+    [data-theme="dark"] {
+      --win-bg: #0E1320;
+      --win-surface: #161C2B;
+      --win-surface2: #1E2638;
+      --win-border: #2A3346;
+      --win-border2: #3A4459;
+      --win-title: #F1F4FA;
+      --win-text: #C4CCDA;
+      --win-muted: #7C879C;
+      --win-accent: #5B8DEF;
+      --win-accent-l: #1C2A45;
+      --win-green: #34D399;
+      --win-green-l: #14271F;
+      --win-gold: #E0A93C;
+      --win-purple: #A78BFA;
+      --win-red: #F87171;
+      --win-red-l: #2A1A1C;
+      --win-cyan: #4FD0F5;
+      --win-amber: #F2A742;
+      --win-link: #38C6F4;
+      --win-link-glow: 0 0 7px rgba(56,198,244,.55);
+      --win-glow-cyan: rgba(56,198,244,.18);
+      --shadow-md: 0 8px 24px rgba(0,0,0,.45);
+      --win-tooltip-bg: #F1F4FA;
+      --win-tooltip-fg: #14213D;
+    }
+    body { background: var(--win-bg); }
+
+    /* Capa atmosférica sutil (modo claro) */
+    :root body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(800px 460px at 82% -8%, rgba(37,99,235,.06), transparent 60%),
+        radial-gradient(640px 420px at 8% 4%, rgba(14,155,214,.05), transparent 62%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Capa atmosférica de la red (solo modo oscuro) */
+    [data-theme="dark"] body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(900px 520px at 78% -10%, rgba(56,198,244,.16), transparent 60%),
+        radial-gradient(760px 460px at 12% 8%, rgba(37,99,235,.18), transparent 62%),
+        radial-gradient(600px 420px at 60% 108%, rgba(242,167,66,.07), transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Pantalla de bienvenida full-bleed */
+    .rn-welcome {
+      position: relative;
+      height: 100%;
+      min-height: 460px;
+      margin: -20px -24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      overflow: hidden;
+      background: #081523;
+    }
+    .rn-welcome__bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('./assets/fondo-red.jpg');
+      background-size: cover;
+      background-position: center 35%;
+      transform: scale(1.06);
+      animation: rnDrift 26s ease-in-out infinite alternate;
+    }
+    .rn-welcome__scrim {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(120% 90% at 50% 18%, rgba(8,21,35,.18) 0%, rgba(8,21,35,.62) 52%, rgba(8,21,35,.92) 100%),
+        linear-gradient(180deg, rgba(8,21,35,.30) 0%, rgba(8,21,35,.55) 100%);
+    }
+    .rn-welcome__content { position: relative; z-index: 2; padding: 32px; max-width: 560px; }
+    @keyframes rnDrift {
+      from { transform: scale(1.06) translate3d(0,0,0); }
+      to   { transform: scale(1.12) translate3d(-1.5%, -1.5%, 0); }
+    }
+    @keyframes rnspin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .rn-welcome__bg { animation: none; }
+    }
+
+    .rn-glass-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 13px 30px; border-radius: 12px;
+      background: linear-gradient(180deg, #2E8FF0 0%, #1E6FE0 100%);
+      color: #fff; font-size: 15px; font-weight: 600;
+      font-family: inherit; border: 1px solid rgba(120,200,255,.5);
+      cursor: pointer;
+      box-shadow: 0 8px 28px rgba(20,120,230,.45), inset 0 1px 0 rgba(255,255,255,.35);
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .rn-glass-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(20,120,230,.55), inset 0 1px 0 rgba(255,255,255,.4); }
+    .rn-ghost-btn {
+      background: none; border: none; color: #BFE4FB; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit; text-decoration: underline; text-underline-offset: 3px;
+    }
+    .rn-ghost-btn:hover { color: #fff; }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--win-border2); border-radius: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* Layout helpers the ported app relies on */
+    .rn-hero {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 24px;
+      background: var(--win-surface);
+      border: 1px solid var(--win-border);
+      border-radius: 14px;
+      padding: 22px 26px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-md);
+    }
+    .rn-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .rn-twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .rn-tabs { display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+    .rn-tabs::-webkit-scrollbar { display: none; }
+    .rn-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .rn-body { padding: 20px 24px; }
+
+    /* Asegurar que el shell quede sobre la capa atmosférica */
+    .rn-taskbar, .rn-body { position: relative; z-index: 1; }
+
+    @media (max-width: 900px) {
+      .rn-hero { grid-template-columns: 1fr; gap: 16px; }
+      .rn-stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .rn-twocol { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .rn-tab-label { display: none; }
+      .rn-user-chip { display: none !important; }
+      .rn-body { padding: 14px 14px 28px; }
+      .rn-reemb { grid-template-columns: 1fr !important; }
+      .rn-anuncios { grid-template-columns: 1fr !important; }
+    }
+    @media (max-width: 480px) {
+      .rn-stats-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</helmet>
+<div style="width:100vw;height:100vh;overflow:hidden">
+  <x-import component-from-global-scope="App" from="./App.jsx" hint-size="100%,100%"></x-import>
+</div>
+</x-dc>
+</body>
+</html>
