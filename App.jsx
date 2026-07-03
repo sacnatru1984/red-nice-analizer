@@ -1527,7 +1527,7 @@ function bucketRangoGen(id) {
   return id
 }
 
-function PanelGenealogia({ afiliados, rootEin, onChangeRoot }) {
+function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
   const tree = buildTree(afiliados)
   const [q, setQ] = useState('')
   const [drop, setDrop] = useState(false)
@@ -1757,6 +1757,94 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot }) {
                   <div style={{width:15,height:15}}><Icons.Download/></div>
                   Descargar Árbol
                 </button>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── Tabla de puntos y valor por nivel ── */}
+        {raiz && (() => {
+          const tcVal = tc || TC_FALLBACK
+          const nivelStats = {}
+          const walkNivel = (n, d) => {
+            if (d > 0) {
+              const rangoId = getRango(n.rango).id
+              if (!nivelStats[d]) nivelStats[d] = { personas: 0, pp: 0, pg: 0, mxn: 0 }
+              nivelStats[d].personas++
+              nivelStats[d].pp += (n.pp || 0)
+              nivelStats[d].pg += (n.pg || 0)
+              nivelStats[d].mxn += (n.pp || 0) * valorPuntoDe(rangoId)
+            }
+            const hijos = (n.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
+            for (const c of hijos) walkNivel(c, d + 1)
+          }
+          walkNivel(raiz, 0)
+          const niveles = Object.keys(nivelStats).map(Number).sort((a, b) => a - b)
+          if (!niveles.length) return null
+          const tot = niveles.reduce((acc, d) => {
+            acc.personas += nivelStats[d].personas
+            acc.pp += nivelStats[d].pp
+            acc.pg += nivelStats[d].pg
+            acc.mxn += nivelStats[d].mxn
+            return acc
+          }, { personas: 0, pp: 0, pg: 0, mxn: 0 })
+          const fMXN = v => '$' + Math.round(v).toLocaleString('es-MX')
+          const fUSD = v => 'USD $' + Math.round(v / tcVal).toLocaleString('en-US')
+          const TH = ({ children, right }) => (
+            <th style={{ padding: '5px 10px', textAlign: right ? 'right' : 'left', color: 'var(--win-muted)', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', whiteSpace: 'nowrap', background: 'var(--win-surface2)', borderBottom: '2px solid var(--win-border)' }}>{children}</th>
+          )
+          return (
+            <div style={{ borderBottom: '1px solid var(--win-border)', background: 'var(--win-surface)', padding: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C47F17', boxShadow: '0 0 6px #C47F17' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Puntos y valor por nivel</span>
+                <span style={{ fontSize: 10, color: 'var(--win-muted)', marginLeft: 4 }}>· TC: ${tcVal.toFixed(2)} MXN/USD</span>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
+                  <thead>
+                    <tr>
+                      <TH>Nivel</TH>
+                      <TH right>Personas</TH>
+                      <TH right>PP</TH>
+                      <TH right>PG</TH>
+                      <TH right>Valor MXN</TH>
+                      <TH right>Valor USD</TH>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {niveles.map((d, i) => {
+                      const s = nivelStats[d]
+                      return (
+                        <tr key={d} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--win-accent-l)'}
+                          onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--win-surface2)'}>
+                          <td style={{ padding: '7px 10px', fontWeight: 700, color: 'var(--win-title)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--win-border)' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                              <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--win-accent-l)', color: 'var(--win-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{d}</span>
+                              Nivel {d}
+                            </span>
+                          </td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-text)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.personas}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: 'var(--win-gold)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.pp.toLocaleString()}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#7C3AED', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.pg.toLocaleString()}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#16A34A', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{fMXN(s.mxn)}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-accent)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{fUSD(s.mxn)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: 'var(--win-surface2)', borderTop: '2px solid var(--win-border)' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 800, color: 'var(--win-title)', fontSize: 12 }}>Total</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-title)', fontVariantNumeric: 'tabular-nums' }}>{tot.personas}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: 'var(--win-gold)', fontVariantNumeric: 'tabular-nums' }}>{tot.pp.toLocaleString()}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#7C3AED', fontVariantNumeric: 'tabular-nums' }}>{tot.pg.toLocaleString()}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#16A34A', fontVariantNumeric: 'tabular-nums' }}>{fMXN(tot.mxn)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)', fontVariantNumeric: 'tabular-nums' }}>{fUSD(tot.mxn)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
           )
@@ -2090,6 +2178,13 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
   const res = q.length > 1 ? afiliados.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase()) || a.ein.includes(q)).slice(0, 8) : []
   const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false) }
   const limpiar = () => { setSel(null); setQ(''); setDrop(false) }
+  const hasData = afiliados.length > 0
+  useEffect(() => {
+    if (hasData && !sel) {
+      const yo = afiliados.find(a => a.gen === 0) || afiliados[0]
+      if (yo) { setSel(yo); setQ(yo.nombre) }
+    }
+  }, [hasData])
   const r = sel ? getRango(sel.rango) : null
   const sig = sel ? getSiguienteRangoObjetivo(sel) : null
   const pct = sel && sig ? getProgresoPct(sel, sig) : 0
@@ -2241,6 +2336,113 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
                       </div>
                     ))}
                   </div>
+                </div>
+              )
+            })()}
+
+            {/* ── Seguimiento prioritario · Red directa ── */}
+            {(() => {
+              const directos = afiliados.filter(a => a.einPresentador === sel.ein)
+              if (!directos.length) return null
+              const orosInactivos = directos.filter(a => esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0)
+              const sinMovimiento = directos.filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0)
+              const candidatosOro = directos
+                .filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) > 0)
+                .map(a => ({ a, total: (a.pp || 0) + (a.pg || 0), falta: Math.max(0, 3000 - ((a.pp || 0) + (a.pg || 0))) }))
+                .sort((x, y) => x.falta - y.falta)
+                .slice(0, 5)
+              if (!orosInactivos.length && !sinMovimiento.length && !candidatosOro.length) return null
+              return (
+                <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', boxShadow: '0 0 6px #F59E0B', flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--win-title)' }}>Seguimiento prioritario · Gen. 1 directa</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--win-muted)' }}>{directos.length} personas en tu primera generación</span>
+                  </div>
+                  {orosInactivos.length > 0 && (
+                    <div style={{ borderBottom: '1px solid var(--win-border)' }}>
+                      <div style={{ padding: '8px 16px', background: '#FEF2F2', display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '.06em' }}>🔴 Oros sin movimiento ({orosInactivos.length}) — contacto urgente</span>
+                      </div>
+                      {orosInactivos.map((a, i) => {
+                        const rr = getRango(a.rango)
+                        return (
+                          <div key={a.ein} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < orosInactivos.length - 1 ? '1px solid var(--win-border)' : 'none', background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}>
+                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: rr.bg, border: `2px solid ${rr.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                              {RANGO_IMG[rr.id] ? <img src={RANGO_IMG[rr.id]} alt='' style={{ width: 26, height: 26, objectFit: 'contain' }} /> : <span style={{ fontSize: 9, fontWeight: 700, color: rr.color }}>{getInitials(a.nombre)}</span>}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</div>
+                              <div style={{ fontSize: 11, color: 'var(--win-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ background: rr.bg, color: rr.color, padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 600 }}>{rr.label}</span>
+                                {a.telefono && <span>{a.telefono}</span>}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 600, flexShrink: 0 }}>0 pts este mes</span>
+                            {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g, '')}`} target='_blank' rel='noopener noreferrer' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 WA</a>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {candidatosOro.length > 0 && (
+                    <div style={{ borderBottom: sinMovimiento.length > 0 ? '1px solid var(--win-border)' : 'none' }}>
+                      <div style={{ padding: '8px 16px', background: '#FEF7E6', display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#C47F17', textTransform: 'uppercase', letterSpacing: '.06em' }}>⭐ Candidatos a Oro — empújalos esta semana</span>
+                      </div>
+                      {candidatosOro.map(({ a, total, falta }, i) => {
+                        const rr = getRango(a.rango)
+                        const pct = Math.min(100, Math.round(total / 3000 * 100))
+                        return (
+                          <div key={a.ein} style={{ padding: '10px 16px', borderBottom: i < candidatosOro.length - 1 ? '1px solid var(--win-border)' : 'none', background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: rr.bg, border: `2px solid ${rr.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                                {RANGO_IMG[rr.id] ? <img src={RANGO_IMG[rr.id]} alt='' style={{ width: 26, height: 26, objectFit: 'contain' }} /> : <span style={{ fontSize: 9, fontWeight: 700, color: rr.color }}>{getInitials(a.nombre)}</span>}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)' }}>{a.nombre}</span>
+                                  <span style={{ background: rr.bg, color: rr.color, padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 600 }}>{rr.label}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <div style={{ flex: 1, height: 6, background: 'var(--win-surface2)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--win-border)' }}>
+                                    <div style={{ width: pct + '%', height: '100%', background: '#C47F17', borderRadius: 2 }} />
+                                  </div>
+                                  <span style={{ fontSize: 11, color: 'var(--win-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{total.toLocaleString()} / 3,000 · faltan {falta.toLocaleString()}</span>
+                                </div>
+                              </div>
+                              {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g, '')}`} target='_blank' rel='noopener noreferrer' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 WA</a>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {sinMovimiento.length > 0 && (
+                    <div>
+                      <div style={{ padding: '8px 16px', background: 'var(--win-surface2)', borderBottom: '1px solid var(--win-border)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>⚪ Sin movimiento este mes ({sinMovimiento.length})</span>
+                      </div>
+                      <div style={{ padding: '0 16px' }}>
+                        {sinMovimiento.slice(0, 8).map((a, i) => {
+                          const rr = getRango(a.rango)
+                          return (
+                            <div key={a.ein} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: i < Math.min(7, sinMovimiento.length - 1) ? '1px solid var(--win-border)' : 'none' }}>
+                              <div style={{ width: 26, height: 26, borderRadius: '50%', background: rr.bg, border: `1.5px solid ${rr.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                                {RANGO_IMG[rr.id] ? <img src={RANGO_IMG[rr.id]} alt='' style={{ width: 22, height: 22, objectFit: 'contain' }} /> : <span style={{ fontSize: 8, fontWeight: 700, color: rr.color }}>{getInitials(a.nombre)}</span>}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--win-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{a.nombre}</span>
+                                {a.telefono && <span style={{ fontSize: 10, color: 'var(--win-muted)' }}>{a.telefono}</span>}
+                              </div>
+                              {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g, '')}`} target='_blank' rel='noopener noreferrer' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 WA</a>}
+                            </div>
+                          )
+                        })}
+                        {sinMovimiento.length > 8 && <div style={{ padding: '8px 0', fontSize: 11, color: 'var(--win-muted)' }}>... y {sinMovimiento.length - 8} más sin movimiento este mes</div>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -3701,7 +3903,7 @@ function App() {
           <>
             {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc}/>}
             {tab==='arbol'&&<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia}/>}
-            {tab==='genealogia'&&<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin}/>}
+            {tab==='genealogia'&&<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc}/>}
             {tab==='plan'&&<PanelPlan afiliados={afiliadosCalc} tc={tc} volBase={volBase} setVolBase={setVolBase} umbralUSD={umbralUSD} setUmbralUSD={setUmbralUSD}/>}
             {tab==='rangos'&&<PanelRangos afiliados={afiliadosCalc}/>}
             {tab==='anuncios'&&<PanelAnuncios/>}
