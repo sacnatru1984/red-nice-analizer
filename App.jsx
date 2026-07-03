@@ -1,4 +1,4 @@
-// ===== utils (NICE business logic) =====
+﻿// ===== utils (NICE business logic) =====
 // ── Imágenes de rangos ──
 const _MED = (typeof window !== 'undefined' && window.RANGO_MEDALS) || {}
 const _mi = (file, key) => _MED[key] || './rangos/' + file
@@ -3863,7 +3863,7 @@ function App() {
 
       {/* Body */}
       <div className="rn-body" style={{flex:1,overflowY:'auto',background:'var(--win-bg)'}}>
-        {tab==='reportes'&&<PanelReportes periodos={periodos} onAgregarPeriodo={onAgregarPeriodo} onEliminarPeriodo={onEliminarPeriodo}/>}
+        {tab==='reportes'&&<PanelReportes periodos={periodos} onAgregarPeriodo={onAgregarPeriodo} onEliminarPeriodo={onEliminarPeriodo} tc={tc}/>}
         {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&(
           <div className="rn-welcome">
             <div className="rn-welcome__bg"/>
