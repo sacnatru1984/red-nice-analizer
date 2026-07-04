@@ -3271,12 +3271,14 @@ function EvolucionBars({ datos }) {
   )
 }
 
-function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
+function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
   const fileRef = useRef()
   const [pendiente, setPendiente] = useState(null)
   const [pMes, setPMes] = useState(new Date().getMonth()+1)
   const [pAnio, setPAnio] = useState(new Date().getFullYear())
   const [vista, setVista] = useState('resumen')
+  const [fichaQ, setFichaQ] = useState('')
+  const [fichaEin, setFichaEin] = useState(null)
 
   const ordenados = [...periodos].sort((a,b) => a.año*12+a.mes - (b.año*12+b.mes))
   const periodoActual = ordenados[ordenados.length-1]
@@ -3306,6 +3308,10 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
     {id:'ascensos', l:'Ascensos'},
     {id:'lideres', l:'Líderes'},
     {id:'retencion', l:'Retención'},
+    {id:'porRango', l:'Por Rango'},
+    {id:'pipeline', l:'Pipeline Oro'},
+    {id:'ficha', l:'Ficha Persona'},
+    {id:'salud', l:'Salud'},
   ]
 
   if (periodos.length === 0 && !pendiente) return (
@@ -3398,9 +3404,9 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
       </div>
 
       {/* Sub-tabs */}
-      <div style={{display:'flex',gap:2,marginBottom:14,background:'var(--win-surface)',borderRadius:10,padding:4,border:'1px solid var(--win-border)'}}>
+      <div style={{display:'flex',gap:2,marginBottom:14,background:'var(--win-surface)',borderRadius:10,padding:4,border:'1px solid var(--win-border)',overflowX:'auto',scrollbarWidth:'none'}}>
         {VISTAS.map(v => (
-          <button key={v.id} onClick={()=>setVista(v.id)} style={{flex:1,padding:'7px 8px',borderRadius:7,border:'none',background:vista===v.id?'var(--win-accent)':'none',color:vista===v.id?'#fff':'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'.12s'}}>
+          <button key={v.id} onClick={()=>setVista(v.id)} style={{flex:'0 0 auto',padding:'7px 10px',borderRadius:7,border:'none',background:vista===v.id?'var(--win-accent)':'none',color:vista===v.id?'#fff':'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'.12s',whiteSpace:'nowrap'}}>
             {v.l}
           </button>
         ))}
@@ -3430,6 +3436,25 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
               )
             })}
           </div>
+          {periodoActual && (() => {
+            const tcVal = tc || TC_FALLBACK
+            const totalMXN = periodoActual.afiliados.reduce((s, a) => s + (a.pp||0) * valorPuntoDe(getRango(a.rango).id), 0)
+            const totalUSD = totalMXN / tcVal
+            return (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12,marginBottom:14}}>
+                <div style={{...S.card,padding:'14px 16px',background:'linear-gradient(120deg,var(--win-surface),#F0FDF4)'}}>
+                  <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:5}}>VALOR DEL EQUIPO EN MXN</div>
+                  <div style={{fontSize:22,fontWeight:800,color:'var(--win-green)',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>${Math.round(totalMXN).toLocaleString('es-MX')}</div>
+                  <div style={{fontSize:11,color:'var(--win-muted)',marginTop:5}}>PP x factor de inversion por rango</div>
+                </div>
+                <div style={{...S.card,padding:'14px 16px',background:'linear-gradient(120deg,var(--win-surface),#EFF4FF)'}}>
+                  <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:5}}>VALOR DEL EQUIPO EN USD</div>
+                  <div style={{fontSize:22,fontWeight:800,color:'var(--win-accent)',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>USD ${Math.round(totalUSD).toLocaleString('en-US')}</div>
+                  <div style={{fontSize:11,color:'var(--win-muted)',marginTop:5}}>TC: ${tcVal.toFixed(2)} MXN/USD</div>
+                </div>
+              </div>
+            )
+          })()}
           {comp && (
             <div style={{...S.card, marginBottom:14}}>
               <div style={S.cardHeader}><span style={S.cardTitle}>Comparativo: {periodoAnterior.label} → {periodoActual.label}</span></div>
@@ -3620,12 +3645,12 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
               {[...periodoActual.afiliados]
                 .filter(a => (a[campo]||0) > 0)
                 .sort((a,b) => (b[campo]||0)-(a[campo]||0))
-                .slice(0,10)
+                .slice(0,20)
                 .map((a,i) => {
                   const prevP = periodoAnterior?.afiliados.find(p=>p.ein===a.ein)
                   const diff = prevP ? (a[campo]||0)-(prevP[campo]||0) : null
                   return (
-                    <div key={a.ein} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 16px',borderBottom:i<9?'1px solid var(--win-border)':'none'}}>
+                    <div key={a.ein} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 16px',borderBottom:i<19?'1px solid var(--win-border)':'none'}}>
                       <div style={{width:22,height:22,borderRadius:'50%',background:i<3?'#FEF9EC':'var(--win-surface2)',border:i<3?'1.5px solid #C47F17':'1px solid var(--win-border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:i<3?'#C47F17':'var(--win-muted)',flexShrink:0}}>{i+1}</div>
                       <div style={{width:30,height:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden',border:`1.5px solid ${getRango(a.rango).color}`}}>
                         {RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:24,height:24,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}
@@ -3638,6 +3663,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
                         <div style={{fontSize:14,fontWeight:800,color,fontVariantNumeric:'tabular-nums'}}>{(a[campo]||0).toLocaleString()} {label}</div>
                         {diff!==null && <div style={{fontSize:10,color:diff>0?'var(--win-green)':diff<0?'var(--win-red)':'var(--win-muted)'}}>{diff>0?'▲+':'▼'}{Math.abs(diff).toLocaleString()}</div>}
                       </div>
+                      {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g,'')}`} target='_blank' rel='noopener noreferrer' style={{display:'inline-flex',alignItems:'center',gap:4,padding:'4px 9px',borderRadius:7,background:'#25D36620',color:'#128C7E',fontSize:10,fontWeight:700,textDecoration:'none',whiteSpace:'nowrap',border:'1px solid #25D36640',flexShrink:0}}>📲 WA</a>}
                     </div>
                   )
                 })}
@@ -3688,15 +3714,22 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
                 </div>
               </div>
               {/* Afiliados en riesgo: inactivos en los últimos 2+ períodos */}
-              {ordenados.length >= 3 && (() => {
-                const ult = ordenados.slice(-3)
-                const einMap = {}
-                ult[2].afiliados.forEach(a => { einMap[a.ein] = { curr:a, p1:null, p2:null } })
-                ult[1].afiliados.forEach(a => { if (einMap[a.ein]) einMap[a.ein].p1 = a })
-                ult[0].afiliados.forEach(a => { if (einMap[a.ein]) einMap[a.ein].p2 = a })
-                const enRiesgo = Object.values(einMap).filter(({curr,p1}) =>
-                  (curr.pp||0)+(curr.pg||0)===0 && p1 && (p1.pp||0)+(p1.pg||0)===0
-                )
+              {ordenados.length >= 2 && (() => {
+                const periodosRev = [...ordenados].reverse()
+                const einRiesgoMap = {}
+                periodosRev[0].afiliados.forEach(a => {
+                  einRiesgoMap[a.ein] = { curr: a, meses: (a.pp||0)+(a.pg||0)===0 ? 1 : 0 }
+                })
+                for (let pi = 1; pi < periodosRev.length; pi++) {
+                  periodosRev[pi].afiliados.forEach(a => {
+                    if (einRiesgoMap[a.ein] && einRiesgoMap[a.ein].meses === pi && (a.pp||0)+(a.pg||0)===0) {
+                      einRiesgoMap[a.ein].meses++
+                    }
+                  })
+                }
+                const enRiesgo = Object.values(einRiesgoMap)
+                  .filter(({meses}) => meses >= 2)
+                  .sort((a,b) => b.meses - a.meses)
                 if (enRiesgo.length === 0) return null
                 return (
                   <div style={S.card}>
@@ -3705,22 +3738,373 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo }) {
                       <span style={S.cardTitle}>En riesgo: inactivos 2+ meses ({enRiesgo.length})</span>
                       <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-red)',fontWeight:600,padding:'2px 8px',borderRadius:20,background:'var(--win-red-l)'}}>Requieren contacto urgente</span>
                     </div>
-                    {enRiesgo.slice(0,10).map(({curr},i) => (
-                      <div key={curr.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:i<Math.min(9,enRiesgo.length-1)?'1px solid var(--win-border)':'none'}}>
-                        <div style={{width:8,height:8,borderRadius:'50%',background:'var(--win-red)',flexShrink:0}}/>
+                    {enRiesgo.slice(0,12).map(({curr,meses},i) => (
+                      <div key={curr.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:i<Math.min(11,enRiesgo.length-1)?'1px solid var(--win-border)':'none'}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:meses>=3?'#B91C1C':'var(--win-red)',flexShrink:0}}/>
                         <div style={{flex:1}}>
                           <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{curr.nombre}</div>
                           <div style={{fontSize:11,color:'var(--win-muted)'}}>EIN {curr.ein} · {getRango(curr.rango).label} · Gen. {curr.gen}</div>
                         </div>
-                        <span style={{fontSize:11,color:'var(--win-red)',fontWeight:600,padding:'2px 8px',borderRadius:20,background:'var(--win-red-l)'}}>2+ meses sin movimiento</span>
+                        <span style={{fontSize:11,color:'var(--win-red)',fontWeight:600,padding:'2px 8px',borderRadius:20,background:'var(--win-red-l)',whiteSpace:'nowrap'}}>{meses} mes{meses!==1?'es':''} sin movimiento</span>
+                        {curr.telefono && <a href={`https://wa.me/52${curr.telefono.toString().replace(/\D/g,'')}`} target='_blank' rel='noopener noreferrer' style={{display:'inline-flex',alignItems:'center',gap:4,padding:'4px 9px',borderRadius:7,background:'#25D36620',color:'#128C7E',fontSize:10,fontWeight:700,textDecoration:'none',whiteSpace:'nowrap',border:'1px solid #25D36640',flexShrink:0}}>📲 WA</a>}
                       </div>
                     ))}
-                    {enRiesgo.length > 10 && <div style={{padding:'8px 16px',fontSize:11,color:'var(--win-muted)'}}>... y {enRiesgo.length-10} más</div>}
+                    {enRiesgo.length > 12 && <div style={{padding:'8px 16px',fontSize:11,color:'var(--win-muted)'}}>... y {enRiesgo.length-12} mas</div>}
                   </div>
                 )
               })()}
             </>
           )}
+          {/* ── Vista: Por Rango ── */}
+          {vista==='porRango' && periodoActual && (() => {
+            const tcVal = tc || TC_FALLBACK
+            const byRango = {}
+            periodoActual.afiliados.forEach(a => {
+              const r = getRango(a.rango)
+              if (!byRango[r.id]) byRango[r.id] = { label:r.label, color:r.color, bg:r.bg, orden:rangoOrden(r.id), personas:0, pp:0, pg:0, mxn:0 }
+              byRango[r.id].personas++
+              byRango[r.id].pp += (a.pp||0)
+              byRango[r.id].pg += (a.pg||0)
+              byRango[r.id].mxn += (a.pp||0) * valorPuntoDe(r.id)
+            })
+            const filas = Object.values(byRango).sort((a,b) => b.orden - a.orden)
+            const totales = filas.reduce((s,f) => ({ personas:s.personas+f.personas, pp:s.pp+f.pp, pg:s.pg+f.pg, mxn:s.mxn+f.mxn }), {personas:0,pp:0,pg:0,mxn:0})
+            const prevPorRango = periodoAnterior ? {} : null
+            if (prevPorRango) periodoAnterior.afiliados.forEach(a => {
+              const r = getRango(a.rango)
+              if (!prevPorRango[r.id]) prevPorRango[r.id] = { pp:0, personas:0 }
+              prevPorRango[r.id].personas++
+              prevPorRango[r.id].pp += (a.pp||0)
+            })
+            return (
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                <div style={S.card}>
+                  <div style={S.cardHeader}>
+                    <span style={{fontSize:15}}>🏅</span>
+                    <span style={S.cardTitle}>Distribución por Rango — {periodoActual.label}</span>
+                    <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>TC ${(tcVal).toFixed(2)}</span>
+                  </div>
+                  <div style={{overflowX:'auto'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                      <thead>
+                        <tr style={{background:'var(--win-surface2)'}}>
+                          {['Rango','Personas','PP','PG','Valor MXN','Valor USD','vs anterior'].map(h => (
+                            <th key={h} style={{padding:'8px 12px',textAlign:h==='Rango'?'left':'right',fontWeight:700,fontSize:11,color:'var(--win-muted)',whiteSpace:'nowrap',borderBottom:'1px solid var(--win-border)'}}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filas.map((f,i) => {
+                          const prev = prevPorRango?.[Object.keys(byRango).find(k => byRango[k]===f)]
+                          const diffPersonas = prev ? f.personas - prev.personas : null
+                          return (
+                            <tr key={f.label} style={{borderBottom:i<filas.length-1?'1px solid var(--win-border)':'none',background:i%2===0?'transparent':'var(--win-surface2)'}}>
+                              <td style={{padding:'9px 12px',fontWeight:700}}>
+                                <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
+                                  <span style={{width:8,height:8,borderRadius:'50%',background:f.color,display:'inline-block',flexShrink:0}}/>
+                                  <span style={{color:f.color}}>{f.label}</span>
+                                </span>
+                              </td>
+                              <td style={{padding:'9px 12px',textAlign:'right',fontWeight:600,fontVariantNumeric:'tabular-nums'}}>{f.personas.toLocaleString()}</td>
+                              <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{f.pp.toLocaleString()}</td>
+                              <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{f.pg.toLocaleString()}</td>
+                              <td style={{padding:'9px 12px',textAlign:'right',fontWeight:600,color:'var(--win-green)',fontVariantNumeric:'tabular-nums'}}>${Math.round(f.mxn).toLocaleString('es-MX')}</td>
+                              <td style={{padding:'9px 12px',textAlign:'right',color:'var(--win-accent)',fontVariantNumeric:'tabular-nums'}}>USD ${Math.round(f.mxn/tcVal).toLocaleString('en-US')}</td>
+                              <td style={{padding:'9px 12px',textAlign:'right',fontSize:11}}>
+                                {diffPersonas!==null && <span style={{color:diffPersonas>0?'var(--win-green)':diffPersonas<0?'var(--win-red)':'var(--win-muted)',fontWeight:600}}>{diffPersonas>0?'+':''}{diffPersonas}</span>}
+                                {diffPersonas===null && <span style={{color:'var(--win-muted)'}}>—</span>}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{borderTop:'2px solid var(--win-border)',fontWeight:700,background:'var(--win-surface2)'}}>
+                          <td style={{padding:'9px 12px'}}>Total</td>
+                          <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{totales.personas.toLocaleString()}</td>
+                          <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{totales.pp.toLocaleString()}</td>
+                          <td style={{padding:'9px 12px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{totales.pg.toLocaleString()}</td>
+                          <td style={{padding:'9px 12px',textAlign:'right',color:'var(--win-green)',fontVariantNumeric:'tabular-nums'}}>${Math.round(totales.mxn).toLocaleString('es-MX')}</td>
+                          <td style={{padding:'9px 12px',textAlign:'right',color:'var(--win-accent)',fontVariantNumeric:'tabular-nums'}}>USD ${Math.round(totales.mxn/tcVal).toLocaleString('en-US')}</td>
+                          <td/>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+                {/* Bar chart por personas */}
+                <div style={S.card}>
+                  <div style={{...S.cardHeader,marginBottom:12}}>
+                    <span style={{fontSize:14}}>📊</span>
+                    <span style={S.cardTitle}>Personas por rango</span>
+                  </div>
+                  {filas.map(f => (
+                    <div key={f.label} style={{marginBottom:8}}>
+                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontSize:11}}>
+                        <span style={{color:f.color,fontWeight:600}}>{f.label}</span>
+                        <span style={{color:'var(--win-muted)'}}>{f.personas} · {Math.round(f.personas/totales.personas*100)}%</span>
+                      </div>
+                      <div style={{background:'var(--win-border)',borderRadius:4,height:7,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:`${f.personas/totales.personas*100}%`,background:f.color,borderRadius:4,transition:'width .3s'}}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+          {/* ── Vista: Pipeline Oro ── */}
+          {vista==='pipeline' && periodoActual && (() => {
+            const candidatos = periodoActual.afiliados
+              .filter(a => !esOroPlus(a))
+              .map(a => {
+                const r = getRango(a.rango)
+                const pp = a.pp||0
+                const pg = a.pg||0
+                const total = pp + pg
+                const metaOro = 3000
+                const pct = Math.min(100, Math.round(total / metaOro * 100))
+                const prevA = periodoAnterior?.afiliados.find(p => p.ein===a.ein)
+                const prevTotal = prevA ? (prevA.pp||0)+(prevA.pg||0) : null
+                const tendencia = prevTotal !== null ? total - prevTotal : null
+                return { ...a, pp, pg, total, pct, tendencia, rangoLabel:r.label, rangoColor:r.color }
+              })
+              .sort((a,b) => b.total - a.total)
+              .slice(0,15)
+            if (candidatos.length === 0) return (
+              <div style={{...S.card,padding:'24px',textAlign:'center',color:'var(--win-muted)'}}>No hay datos de candidatos a Oro en este periodo.</div>
+            )
+            return (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <div style={{...S.card,padding:'14px 16px',background:'linear-gradient(120deg,var(--win-surface),#FFFBEB)'}}>
+                  <div style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',marginBottom:4}}>PIPELINE A ORO (45%)</div>
+                  <div style={{fontSize:12,color:'var(--win-text)',lineHeight:1.6}}>Candidatos con mayor volumen acumulado (PP+PG). Meta: 3,000 en 1-2 periodos.</div>
+                </div>
+                {candidatos.map((a,i) => (
+                  <div key={a.ein} style={{...S.card,padding:'14px 16px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                      <div style={{width:26,height:26,borderRadius:'50%',background:'var(--win-surface2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'var(--win-muted)',flexShrink:0}}>{i+1}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:700,color:'var(--win-title)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.nombre}</div>
+                        <div style={{fontSize:10,color:'var(--win-muted)'}}>{a.rangoLabel} · EIN {a.ein} · Gen. {a.gen}</div>
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0}}>
+                        <div style={{fontSize:14,fontWeight:800,color:a.pct>=66?'var(--win-green)':a.pct>=33?'#F59E0B':'var(--win-muted)',fontVariantNumeric:'tabular-nums'}}>{a.pct}%</div>
+                        <div style={{fontSize:10,color:'var(--win-muted)'}}>{a.total.toLocaleString()} / 3,000</div>
+                      </div>
+                      {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g,'')}`} target='_blank' rel='noopener noreferrer' style={{display:'inline-flex',alignItems:'center',gap:4,padding:'4px 8px',borderRadius:7,background:'#25D36620',color:'#128C7E',fontSize:10,fontWeight:700,textDecoration:'none',border:'1px solid #25D36640',flexShrink:0}}>📲 WA</a>}
+                    </div>
+                    <div style={{background:'var(--win-border)',borderRadius:5,height:8,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:`${a.pct}%`,background:a.pct>=66?'var(--win-green)':a.pct>=33?'#F59E0B':'var(--win-accent)',borderRadius:5,transition:'width .3s'}}/>
+                    </div>
+                    {a.tendencia !== null && (
+                      <div style={{marginTop:5,fontSize:10,color:a.tendencia>0?'var(--win-green)':a.tendencia<0?'var(--win-red)':'var(--win-muted)'}}>
+                        {a.tendencia>0?'▲':'▼'} {Math.abs(a.tendencia).toLocaleString()} vs periodo anterior
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+          {/* ── Vista: Ficha Persona ── */}
+          {vista==='ficha' && (() => {
+            const todos = periodoActual?.afiliados || []
+            const resultados = fichaQ.trim().length >= 2
+              ? todos.filter(a => a.nombre?.toLowerCase().includes(fichaQ.toLowerCase()) || String(a.ein).includes(fichaQ))
+              : []
+            return (
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                <div style={S.card}>
+                  <div style={{...S.cardHeader,marginBottom:10}}>
+                    <span style={{fontSize:15}}>🔍</span>
+                    <span style={S.cardTitle}>Ficha de Persona</span>
+                  </div>
+                  <input
+                    value={fichaQ}
+                    onChange={e => { setFichaQ(e.target.value); setFichaEin(null) }}
+                    placeholder='Buscar por nombre o EIN…'
+                    style={{width:'100%',boxSizing:'border-box',padding:'9px 13px',borderRadius:8,border:'1.5px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:13,fontFamily:'inherit',outline:'none'}}
+                  />
+                  {resultados.length > 0 && !fichaEin && (
+                    <div style={{marginTop:6,border:'1px solid var(--win-border)',borderRadius:8,overflow:'hidden'}}>
+                      {resultados.slice(0,8).map((a,i) => (
+                        <div key={a.ein} onClick={() => setFichaEin(a.ein)} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',borderBottom:i<Math.min(7,resultados.length-1)?'1px solid var(--win-border)':'none',cursor:'pointer',background:'var(--win-surface2)'}}>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</div>
+                            <div style={{fontSize:11,color:'var(--win-muted)'}}>{getRango(a.rango).label} · EIN {a.ein}</div>
+                          </div>
+                          <span style={{fontSize:11,color:'var(--win-accent)'}}>Ver ficha →</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {fichaEin && (() => {
+                  const historial = ordenados.map(p => p.afiliados.find(a => a.ein===fichaEin)).filter(Boolean)
+                  const ultimo = historial[historial.length-1]
+                  if (!ultimo) return null
+                  const r = getRango(ultimo.rango)
+                  const maxPP = Math.max(1, ...historial.map(h => h.pp||0))
+                  return (
+                    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                      <div style={{...S.card,padding:'16px 18px',borderLeft:`4px solid ${r.color}`}}>
+                        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+                          <div style={{width:42,height:42,borderRadius:'50%',background:r.bg,display:'flex',alignItems:'center',justifyContent:'center',border:`2px solid ${r.color}`,fontSize:16,fontWeight:700,color:r.color,flexShrink:0}}>
+                            {getInitials(ultimo.nombre)}
+                          </div>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:16,fontWeight:800,color:'var(--win-title)'}}>{ultimo.nombre}</div>
+                            <div style={{fontSize:12,color:'var(--win-muted)'}}>EIN {ultimo.ein} · Gen. {ultimo.gen} · <span style={{color:r.color,fontWeight:600}}>{r.label}</span></div>
+                          </div>
+                          {ultimo.telefono && <a href={`https://wa.me/52${ultimo.telefono.toString().replace(/\D/g,'')}`} target='_blank' rel='noopener noreferrer' style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 13px',borderRadius:8,background:'#25D36620',color:'#128C7E',fontSize:12,fontWeight:700,textDecoration:'none',border:'1px solid #25D36640'}}>📲 WhatsApp</a>}
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+                          {[{l:'PP último mes',v:(ultimo.pp||0).toLocaleString()},{l:'PG último mes',v:(ultimo.pg||0).toLocaleString()},{l:'Periodos activo',v:historial.filter(h=>(h.pp||0)+(h.pg||0)>0).length}].map(k => (
+                            <div key={k.l} style={{textAlign:'center',background:'var(--win-surface2)',borderRadius:8,padding:'10px 6px'}}>
+                              <div style={{fontSize:16,fontWeight:800,color:'var(--win-accent)',fontVariantNumeric:'tabular-nums'}}>{k.v}</div>
+                              <div style={{fontSize:10,color:'var(--win-muted)',lineHeight:1.3}}>{k.l}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {historial.length >= 2 && (
+                        <div style={S.card}>
+                          <div style={{...S.cardHeader,marginBottom:12}}>
+                            <span style={{fontSize:14}}>📈</span>
+                            <span style={S.cardTitle}>Historial PP por periodo</span>
+                          </div>
+                          <div style={{display:'flex',alignItems:'flex-end',gap:4,height:80,paddingBottom:20,position:'relative'}}>
+                            {historial.map((h,idx) => {
+                              const pp = h.pp||0
+                              const ht = Math.round(pp/maxPP*70)
+                              return (
+                                <div key={idx} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                                  <div style={{fontSize:9,color:'var(--win-muted)',fontVariantNumeric:'tabular-nums'}}>{pp>0?pp.toLocaleString():''}</div>
+                                  <div style={{width:'100%',maxWidth:30,height:ht||3,background:pp>0?'var(--win-accent)':'var(--win-border)',borderRadius:'3px 3px 0 0',transition:'height .3s'}}/>
+                                  <div style={{fontSize:8,color:'var(--win-muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:36,transform:'rotate(-35deg)',transformOrigin:'top left',marginTop:4}}>{(ordenados.find(p=>p.afiliados.find(a=>a.ein===fichaEin&&a===h))||{label:''}).label?.slice(0,6)}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div style={{overflowX:'auto',marginTop:4}}>
+                            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                              <thead>
+                                <tr>{['Periodo','Rango','PP','PG'].map(h => <th key={h} style={{padding:'5px 10px',textAlign:h==='Periodo'||h==='Rango'?'left':'right',color:'var(--win-muted)',fontWeight:600,borderBottom:'1px solid var(--win-border)'}}>{h}</th>)}</tr>
+                              </thead>
+                              <tbody>
+                                {[...historial].reverse().map((h,i) => {
+                                  const per = ordenados.find(p => p.afiliados.find(a => a===h))
+                                  return (
+                                    <tr key={i} style={{borderBottom:i<historial.length-1?'1px solid var(--win-border)':'none'}}>
+                                      <td style={{padding:'6px 10px',fontWeight:600,color:'var(--win-text)'}}>{per?.label||'—'}</td>
+                                      <td style={{padding:'6px 10px',color:getRango(h.rango).color,fontWeight:600}}>{getRango(h.rango).label}</td>
+                                      <td style={{padding:'6px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{(h.pp||0).toLocaleString()}</td>
+                                      <td style={{padding:'6px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{(h.pg||0).toLocaleString()}</td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )
+          })()}
+          {/* ── Vista: Salud del Negocio ── */}
+          {vista==='salud' && periodoActual && (() => {
+            const stats = computePeriodStats(periodoActual.afiliados)
+            const prevStats = periodoAnterior ? computePeriodStats(periodoAnterior.afiliados) : null
+            const indicadores = [
+              {
+                id:'actividad', label:'Actividad del equipo', icon:'⚡',
+                valor: Math.round(stats.pctActividad),
+                unidad:'%',
+                desc: `${stats.activos} de ${stats.total} activos este periodo`,
+                verde: 70, amarillo: 40,
+              },
+              {
+                id:'liderazgo', label:'Liderazgo Oro+', icon:'🥇',
+                valor: Math.round(stats.orosPlus / Math.max(1, stats.total) * 100),
+                unidad:'%',
+                desc: `${stats.orosPlus} empresarios Oro o superior`,
+                verde: 15, amarillo: 7,
+              },
+              {
+                id:'frontales', label:'Frontales gen-1', icon:'🤝',
+                valor: stats.frontales1,
+                unidad:'',
+                desc: `${stats.frontales1} colaboradores directos activos`,
+                verde: 5, amarillo: 2,
+              },
+              {
+                id:'crecimiento', label:'Crecimiento vs anterior', icon:'📈',
+                valor: prevStats ? Math.round((stats.activos - prevStats.activos) / Math.max(1,prevStats.activos) * 100) : null,
+                unidad:'%',
+                desc: prevStats ? `${stats.activos} vs ${prevStats.activos} activos` : 'Sin periodo anterior',
+                verde: 5, amarillo: 0,
+              },
+              {
+                id:'volumen', label:'Volumen PP total', icon:'📦',
+                valor: stats.totalPP,
+                unidad:' PP',
+                desc: `${stats.totalPP.toLocaleString()} puntos personales del equipo`,
+                verde: 2000, amarillo: 1000,
+              },
+            ]
+            const scoreTotal = indicadores.reduce((s, ind) => {
+              if (ind.valor === null) return s
+              const pct = ind.unidad === '%' || ind.id==='actividad'||ind.id==='liderazgo'||ind.id==='crecimiento'
+                ? ind.valor
+                : Math.min(100, Math.round(ind.valor / ind.verde * 100))
+              return s + Math.min(100, Math.max(0, pct))
+            }, 0) / indicadores.filter(i => i.valor!==null).length
+            const saludColor = scoreTotal >= 70 ? 'var(--win-green)' : scoreTotal >= 40 ? '#F59E0B' : 'var(--win-red)'
+            const saludLabel = scoreTotal >= 70 ? 'Negocio saludable' : scoreTotal >= 40 ? 'Negocio en desarrollo' : 'Requiere atención'
+            return (
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                {/* Score central */}
+                <div style={{...S.card,padding:'20px',textAlign:'center'}}>
+                  <div style={{fontSize:11,fontWeight:600,letterSpacing:'.08em',color:'var(--win-muted)',marginBottom:8}}>SALUD DEL NEGOCIO — {periodoActual.label}</div>
+                  <div style={{fontSize:52,fontWeight:900,color:saludColor,lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{Math.round(scoreTotal)}</div>
+                  <div style={{fontSize:11,color:'var(--win-muted)',marginBottom:10}}>/100</div>
+                  <div style={{display:'inline-block',padding:'5px 18px',borderRadius:20,background:saludColor+'22',color:saludColor,fontWeight:700,fontSize:13}}>{saludLabel}</div>
+                </div>
+                {/* Indicadores */}
+                {indicadores.map(ind => {
+                  const v = ind.valor
+                  const pct = v === null ? null : Math.min(100, ind.unidad === ' PP'
+                    ? Math.round(v / ind.verde * 100)
+                    : Math.max(0, v >= ind.verde ? 100 : v >= ind.amarillo ? Math.round(50 + (v-ind.amarillo)/(ind.verde-ind.amarillo)*50) : Math.round(v/Math.max(1,ind.amarillo)*50))
+                  )
+                  const col = pct === null ? 'var(--win-muted)' : pct >= 66 ? 'var(--win-green)' : pct >= 33 ? '#F59E0B' : 'var(--win-red)'
+                  return (
+                    <div key={ind.id} style={{...S.card,padding:'14px 16px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                        <span style={{fontSize:18}}>{ind.icon}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:700,color:'var(--win-title)'}}>{ind.label}</div>
+                          <div style={{fontSize:11,color:'var(--win-muted)'}}>{ind.desc}</div>
+                        </div>
+                        <div style={{fontSize:18,fontWeight:800,color:col,fontVariantNumeric:'tabular-nums',flexShrink:0}}>
+                          {v === null ? '—' : `${v.toLocaleString()}${ind.unidad}`}
+                        </div>
+                      </div>
+                      {pct !== null && (
+                        <div style={{background:'var(--win-border)',borderRadius:5,height:7,overflow:'hidden'}}>
+                          <div style={{height:'100%',width:`${pct}%`,background:col,borderRadius:5,transition:'width .4s'}}/>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>
