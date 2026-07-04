@@ -1,16 +1,16 @@
-// ── Configura tus credenciales aquí ──
 export const CONFIG = {
-  usuario: 'abrilservin',           // Tu usuario del Backoffice NICE
-  password: 'TU_CONTRASEÑA_AQUI',  // Tu contraseña del Backoffice NICE
+  // Fallback: se usa solo si no hay credentials.json (modo manual)
+  usuario: '',
+  password: '',
 
-  // URL del Backoffice
-  urlLogin: 'https://backoffice.niceonline.com/abrilservin/Account/Login',
-  urlAfiliados: 'https://backoffice.niceonline.com/abrilservin/BackOffice/Affiliates',
+  // URL base del Backoffice — se reemplaza con el usuario real de credentials.json
+  urlLogin: 'https://backoffice.niceonline.com/__usuario__/Account/Login',
+  urlAfiliados: 'https://backoffice.niceonline.com/__usuario__/BackOffice/Affiliates',
 
-  // Ruta donde se guarda el Excel descargado
+  // Ruta de descargas (relativa al scraper/)
   carpetaDescargas: './downloads',
 
-  // Abrir el app automáticamente después de descargar
+  // Ruta del HTML — relativa al scraper/ (funciona en cualquier PC)
   abrirApp: true,
-  rutaApp: 'D:/APPS/red-nice-analizer/RedNICE.html',
+  rutaApp: '../RedNICE.html',
 }

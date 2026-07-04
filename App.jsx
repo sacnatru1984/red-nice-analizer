@@ -473,6 +473,14 @@ async function parseWorkbookFile(file) {
   return normalizeAfiliados(parseExcel(data))
 }
 
+async function parseWorkbookBuffer(buffer) {
+  const workbook = new window.ExcelJS.Workbook()
+  await workbook.xlsx.load(buffer)
+  const worksheet = workbook.worksheets[0]
+  const data = worksheet.getSheetValues().slice(1).map((row) => Array.isArray(row) ? row.slice(1) : [])
+  return normalizeAfiliados(parseExcel(data))
+}
+
 // Si el Excel no trae EIN ni "Número de presentador" (ej. exportes anonimizados),
 // reconstruimos la red por NOMBRE: EIN sintético, presentador por nombre, generación por BFS.
 function normalizeAfiliados(afs) {
@@ -4757,12 +4765,33 @@ function ModalBackoffice({ onClose, onSaved }) {
   const saved = useMemo(() => { try { return JSON.parse(localStorage.getItem('rednice-backoffice-creds') || 'null') } catch (e) { return null } }, [])
   const [email, setEmail] = useState(saved?.email || '')
   const [pass, setPass] = useState(saved?.password || '')
+  const [usuario, setUsuario] = useState(saved?.usuario || '')
+  const [serverUrl, setServerUrl] = useState(() => localStorage.getItem('rednice-server-url') || '')
   const [showPass, setShowPass] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [guardado, setGuardado] = useState(false)
+  const [guardando, setGuardando] = useState(false)
 
-  const guardar = () => {
-    if (!email.trim() || !pass) return
-    localStorage.setItem('rednice-backoffice-creds', JSON.stringify({ email: email.trim(), password: pass }))
+  const canSave = email.trim() && pass && usuario.trim()
+  const urlFinal = serverUrl.trim() || 'http://localhost:7432'
+  const esCloud = urlFinal !== 'http://localhost:7432'
+
+  const guardar = async () => {
+    if (!canSave) return
+    setGuardando(true)
+    const creds = { email: email.trim(), password: pass, usuario: usuario.trim().toLowerCase() }
+    localStorage.setItem('rednice-backoffice-creds', JSON.stringify(creds))
+    if (serverUrl.trim()) localStorage.setItem('rednice-server-url', serverUrl.trim())
+    else localStorage.removeItem('rednice-server-url')
+    // Notificar al servidor local si está corriendo
+    if (!esCloud) {
+      try {
+        await fetch('http://localhost:7432/credenciales', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(creds),
+        })
+      } catch (e) {}
+    }
+    setGuardando(false)
     setGuardado(true)
     onSaved()
   }
@@ -4771,20 +4800,23 @@ function ModalBackoffice({ onClose, onSaved }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.72)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={onClose}>
-      <div style={{background:'var(--win-surface)',borderRadius:16,padding:32,width:'100%',maxWidth:380,boxShadow:'0 20px 60px rgba(0,0,0,.5)'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:'var(--win-surface)',borderRadius:16,padding:32,width:'100%',maxWidth:420,boxShadow:'0 20px 60px rgba(0,0,0,.5)',maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
         <div style={{textAlign:'center',marginBottom:24}}>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'.15em',color:'var(--win-muted)',marginBottom:8}}>BACKOFFICE NICE</div>
-          <div style={{fontSize:22,fontWeight:700,color:'var(--win-title)',letterSpacing:'.04em'}}>INICIAR SESIÓN</div>
-          <div style={{fontSize:12,color:'var(--win-muted)',marginTop:4}}>abrilservin · niceonline.com</div>
+          <div style={{fontSize:22,fontWeight:700,color:'var(--win-title)'}}>Conectar cuenta</div>
+          <div style={{fontSize:12,color:'var(--win-muted)',marginTop:4}}>niceonline.com · Tu red personal</div>
         </div>
 
         {guardado ? (
           <div>
-            <div style={{background:'var(--win-green-l)',border:'1px solid var(--win-green)',borderRadius:10,padding:'14px 16px',marginBottom:16,textAlign:'center'}}>
-              <div style={{fontSize:16,marginBottom:4}}>✅</div>
-              <div style={{color:'var(--win-green)',fontSize:13,fontWeight:700,marginBottom:6}}>Credenciales guardadas</div>
-              <div style={{color:'var(--win-text)',fontSize:11,lineHeight:1.6}}>
-                Listo. Ahora haz doble clic en <strong>actualizar-datos.bat</strong> para sincronizar tu red automáticamente.
+            <div style={{background:'var(--win-green-l)',border:'1px solid var(--win-green)',borderRadius:10,padding:'16px',marginBottom:16,textAlign:'center'}}>
+              <div style={{fontSize:18,marginBottom:6}}>✅</div>
+              <div style={{color:'var(--win-green)',fontSize:13,fontWeight:700,marginBottom:6}}>Cuenta conectada</div>
+              <div style={{color:'var(--win-text)',fontSize:12,lineHeight:1.7}}>
+                {esCloud
+                  ? 'Haz clic en Sincronizar ahora. Los datos se descargarán automáticamente desde cualquier dispositivo.'
+                  : <>Cierra esta ventana y haz clic en <strong>Sincronizar ahora</strong>.<br/><span style={{opacity:.7}}>Asegúrate de tener <strong>iniciar-servidor.bat</strong> corriendo.<br/>(o configura un servidor cloud en Avanzado)</span></>
+                }
               </div>
             </div>
             <button onClick={onClose} style={{width:'100%',padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'white',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Listo</button>
@@ -4792,20 +4824,44 @@ function ModalBackoffice({ onClose, onSaved }) {
         ) : (
           <>
             <div style={{marginBottom:12}}>
-              <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:6}}>Email / EIN</label>
-              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@gmail.com o EIN" style={inp} autoFocus/>
+              <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:6}}>Email</label>
+              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@gmail.com" style={inp} autoFocus/>
             </div>
-            <div style={{marginBottom:24}}>
+            <div style={{marginBottom:12}}>
               <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:6}}>Contraseña</label>
               <div style={{position:'relative'}}>
-                <input type={showPass?'text':'password'} value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&guardar()} placeholder="••••••••" style={{...inp,paddingRight:44}}/>
+                <input type={showPass?'text':'password'} value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" style={{...inp,paddingRight:44}}/>
                 <button onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:15,padding:0,lineHeight:1}}>
                   {showPass ? '🙈' : '👁️'}
                 </button>
               </div>
             </div>
-            <button onClick={guardar} disabled={!email.trim()||!pass} style={{width:'100%',padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'white',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',letterSpacing:'.04em',opacity:(!email.trim()||!pass)?0.4:1}}>
-              GUARDAR Y DESCARGAR CONFIG
+            <div style={{marginBottom:20}}>
+              <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:4}}>Usuario del Backoffice</label>
+              <div style={{fontSize:10.5,color:'var(--win-muted)',marginBottom:7,lineHeight:1.5}}>
+                El nombre en tu URL: backoffice.niceonline.com/<strong style={{color:'var(--win-accent)'}}>tunombre</strong>/...
+              </div>
+              <input value={usuario} onChange={e=>setUsuario(e.target.value)} placeholder="ej: abrilservin" style={inp}/>
+            </div>
+
+            {/* Sección avanzada: URL del servidor */}
+            <button onClick={()=>setShowAdvanced(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',color:'var(--win-muted)',fontSize:11.5,cursor:'pointer',fontFamily:'inherit',padding:'0 0 12px',fontWeight:600}}>
+              <span style={{fontSize:9,transform:showAdvanced?'rotate(90deg)':'rotate(0)',transition:'.15s',display:'inline-block'}}>▶</span>
+              Configuración avanzada {esCloud&&'· ✅ Servidor cloud activo'}
+            </button>
+            {showAdvanced && (
+              <div style={{marginBottom:20,padding:'14px',borderRadius:10,background:'var(--win-surface2)',border:'1px solid var(--win-border)'}}>
+                <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:4}}>URL del servidor cloud</label>
+                <div style={{fontSize:10.5,color:'var(--win-muted)',marginBottom:8,lineHeight:1.55}}>
+                  Déjalo vacío para usar tu PC local (<code>localhost:7432</code>).<br/>
+                  Si tienes un servidor en Railway, pega la URL aquí para que funcione desde cualquier dispositivo.
+                </div>
+                <input value={serverUrl} onChange={e=>setServerUrl(e.target.value)} placeholder="https://rednice-server.up.railway.app" style={{...inp,fontSize:12}}/>
+              </div>
+            )}
+
+            <button onClick={guardar} disabled={!canSave||guardando} style={{width:'100%',padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'white',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',opacity:(!canSave||guardando)?0.4:1}}>
+              {guardando ? 'Guardando...' : 'Guardar y conectar'}
             </button>
           </>
         )}
@@ -4827,6 +4883,9 @@ function App() {
   const [backofficeConectado, setBackofficeConectado] = useState(() => {
     try { return !!localStorage.getItem('rednice-backoffice-creds') } catch (e) { return false }
   })
+  const [sincronizando, setSincronizando] = useState(false)
+  const [syncEstado, setSyncEstado] = useState(null)
+  const [syncMsg, setSyncMsg] = useState('')
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'light'
     return localStorage.getItem('rednice-theme') || 'light'
@@ -4890,6 +4949,84 @@ function App() {
       onCargar('Datos de ejemplo · red NICE.xlsx', data, detectarDuplicados(data))
     } catch (e) { console.error('No se pudo cargar el ejemplo', e) }
     setDemoLoading(false)
+  }, [onCargar])
+
+  const sincronizar = useCallback(async () => {
+    setSincronizando(true)
+    setSyncEstado(null)
+    setSyncMsg('Iniciando...')
+
+    const savedCreds = (() => { try { return JSON.parse(localStorage.getItem('rednice-backoffice-creds')||'null') } catch(e) { return null } })()
+    if (!savedCreds) { setShowBackoffice(true); setSincronizando(false); return }
+
+    const serverUrl = localStorage.getItem('rednice-server-url') || 'http://localhost:7432'
+    const esCloud = serverUrl !== 'http://localhost:7432'
+
+    const cargarExcel = async (url) => {
+      const xlsRes = await fetch(url)
+      if (!xlsRes.ok) throw new Error('No se pudo descargar el Excel')
+      const buf = await xlsRes.arrayBuffer()
+      const afiliados = await parseWorkbookBuffer(buf)
+      onCargar('Backoffice NICE · ' + new Date().toLocaleDateString('es-MX'), afiliados, detectarDuplicados(afiliados))
+    }
+
+    try {
+      let body, urlEstado, urlExcel
+
+      if (esCloud) {
+        // Modo cloud: credenciales van en el cuerpo, responde con jobId
+        body = JSON.stringify(savedCreds)
+        const r = await fetch(`${serverUrl}/sincronizar`, { method:'POST', headers:{'Content-Type':'application/json'}, body })
+        if (!r.ok) throw new Error(`Sin respuesta del servidor (${r.status})`)
+        const d = await r.json()
+        if (!d.ok) { setSyncEstado('error'); setSyncMsg(d.mensaje||'Error'); setSincronizando(false); return }
+        const jobId = d.jobId
+        urlEstado = `${serverUrl}/estado/${jobId}`
+        urlExcel = `${serverUrl}/datos/${jobId}/afiliados.xlsx`
+        setSyncMsg('Conectando con el backoffice...')
+      } else {
+        // Modo local: enviar creds al servidor, usar API global
+        try { await fetch(`${serverUrl}/credenciales`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(savedCreds) }) } catch(e) {}
+        const r = await fetch(`${serverUrl}/sincronizar`, { method:'POST' })
+        if (!r.ok) throw new Error('Sin respuesta del servidor local')
+        const d = await r.json()
+        if (!d.ok) { setSyncEstado('error'); setSyncMsg(d.mensaje||'Error'); setSincronizando(false); return }
+        urlEstado = `${serverUrl}/estado`
+        urlExcel = `${serverUrl}/datos/afiliados.xlsx`
+        setSyncMsg('Descargando datos del Backoffice NICE...')
+      }
+
+      // Polling hasta que termine (máx 10 min)
+      let intentos = 0
+      const poll = setInterval(async () => {
+        intentos++
+        if (intentos > 120) {
+          clearInterval(poll)
+          setSyncEstado('error'); setSyncMsg('Tiempo agotado. Verifica tus credenciales e intenta de nuevo.'); setSincronizando(false); return
+        }
+        try {
+          const est = await fetch(urlEstado)
+          const estData = await est.json()
+          if (estData.progreso) setSyncMsg(estData.progreso)
+          if (estData.error) { clearInterval(poll); setSyncEstado('error'); setSyncMsg(estData.error); setSincronizando(false); return }
+          // Local: terminó cuando sincronizando=false y ultimaSync != null
+          // Cloud: terminó cuando status === 'listo'
+          const termino = esCloud ? estData.status === 'listo' : (!estData.sincronizando && estData.ultimaSync)
+          if (termino) {
+            clearInterval(poll)
+            setSyncMsg('Cargando datos en la app...')
+            await cargarExcel(urlExcel)
+            setSyncEstado('ok'); setSyncMsg('Red actualizada correctamente'); setSincronizando(false)
+          }
+        } catch(e) {}
+      }, 5000)
+    } catch(e) {
+      setSyncEstado('error')
+      setSyncMsg(esCloud
+        ? `No se pudo conectar al servidor cloud. Verifica la URL en Configuración avanzada.`
+        : 'El servidor local no responde. Ejecuta iniciar-servidor.bat primero.')
+      setSincronizando(false)
+    }
   }, [onCargar])
 
   const handleFile = (e) => {
@@ -4974,23 +5111,25 @@ function App() {
               <div style={{fontSize:15,color:'rgba(220,235,250,.82)',marginBottom:30,maxWidth:440,marginLeft:'auto',marginRight:'auto',lineHeight:1.65}}>
                 Carga el Excel del portal NICE para ver tu árbol de afiliados, genealogía y planes de carrera personalizados — todo en segundos.
               </div>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
-                <button onClick={()=>fileRef.current.click()} className="rn-glass-btn">
-                  <div style={{width:18,height:18}}><Icons.Upload/></div>
-                  Seleccionar archivo Excel
-                </button>
-                <div style={{display:'flex',alignItems:'center',gap:10,width:'100%',maxWidth:320}}>
-                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
-                  <span style={{fontSize:11,color:'rgba(180,210,240,.45)',letterSpacing:'.08em'}}>o</span>
-                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
+              <div style={{display:'flex',gap:16,justifyContent:'center',flexWrap:'wrap',width:'100%',maxWidth:680,marginBottom:8}}>
+                {/* Tarjeta 1: Cargar Excel */}
+                <div style={{flex:'1 1 260px',maxWidth:310,background:'rgba(13,30,48,.6)',border:'1px solid rgba(120,200,255,.25)',backdropFilter:'blur(8px)',borderRadius:16,padding:24,display:'flex',flexDirection:'column',gap:12,cursor:'pointer'}} onClick={()=>fileRef.current.click()}>
+                  <div style={{fontSize:26,textAlign:'center'}}>📊</div>
+                  <div style={{color:'#fff',fontSize:16,fontWeight:700,textAlign:'center'}}>Cargar Excel</div>
+                  <div style={{color:'rgba(220,235,250,.72)',fontSize:12.5,lineHeight:1.65,textAlign:'center',flex:1}}>
+                    Descarga el Excel desde tu portal NICE y súbelo aquí. Funciona en PC y móvil.
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'10px 16px',borderRadius:10,background:'rgba(79,208,245,.12)',border:'1px solid rgba(79,208,245,.35)',color:'#BFE4FB',fontSize:13,fontWeight:600}}>
+                    <div style={{width:14,height:14}}><Icons.Upload/></div>
+                    Seleccionar archivo
+                  </div>
                 </div>
-                <button onClick={()=>setShowBackoffice(true)} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 22px',borderRadius:10,background:backofficeConectado?'rgba(22,163,74,.2)':'rgba(13,30,48,.55)',border:`1px solid ${backofficeConectado?'rgba(52,211,153,.5)':'rgba(120,200,255,.35)'}`,backdropFilter:'blur(6px)',color:backofficeConectado?'#4ade80':'#BFE4FB',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',letterSpacing:'.02em',transition:'.2s'}}>
-                  {backofficeConectado ? '✓ Backoffice conectado' : '🔑 Conectar Backoffice NICE'}
-                </button>
-                <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1,marginTop:2}}>
-                  {demoLoading ? 'Cargando ejemplo…' : 'o explora la app con datos de ejemplo'}
-                </button>
+
+                {/* Tarjeta 2: Backoffice NICE — oculta temporalmente */}
               </div>
+              <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1}}>
+                {demoLoading ? 'Cargando ejemplo…' : 'o explora con datos de ejemplo'}
+              </button>
               <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginTop:34}}>
                 {['Árbol de afiliados','Genealogía visual','Plan de carrera','Reportes para tu equipo'].map(f=>(
                   <div key={f} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 13px',borderRadius:20,background:'rgba(13,30,48,.4)',border:'1px solid rgba(120,200,255,.18)',backdropFilter:'blur(6px)',fontSize:12,fontWeight:500,color:'rgba(220,235,250,.9)'}}>
