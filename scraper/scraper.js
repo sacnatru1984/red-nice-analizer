@@ -6,91 +6,83 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const carpetaDescargas = path.resolve(__dirname, CONFIG.carpetaDescargas)
-
-// Leer credenciales guardadas desde la app (credentials.json tiene prioridad sobre config.js)
-let usuario = CONFIG.usuario
-let password = CONFIG.password
-const credsFile = path.resolve(__dirname, 'credentials.json')
-if (fs.existsSync(credsFile)) {
-  try {
-    const creds = JSON.parse(fs.readFileSync(credsFile, 'utf-8'))
-    if (creds.email) usuario = creds.email
-    if (creds.password) password = creds.password
-    console.log('✓ Credenciales cargadas desde credentials.json')
-  } catch (e) {
-    console.log('⚠️  Error leyendo credentials.json — usando config.js')
-  }
-} else {
-  console.log('ℹ️  Usando credenciales de config.js')
-}
+const browserDataDir = path.resolve(__dirname, 'browser-data')
+const urlApp = `file:///${CONFIG.rutaApp.replace(/\\/g, '/')}`
 
 async function main() {
   console.log('🚀 RedNICE Scraper — iniciando...')
-
-  // Asegura que la carpeta de descargas existe
   if (!fs.existsSync(carpetaDescargas)) fs.mkdirSync(carpetaDescargas, { recursive: true })
 
-  const browser = await chromium.launch({
-    headless: false,  // false = ves el navegador, útil para depurar
-    slowMo: 300,
-  })
-
-  const context = await browser.newContext({
-    acceptDownloads: true,
+  // Usar contexto persistente para recordar credenciales entre ejecuciones
+  const context = await chromium.launchPersistentContext(browserDataDir, {
+    headless: false,
+    slowMo: 200,
     locale: 'es-MX',
     timezoneId: 'America/Mexico_City',
+    acceptDownloads: true,
   })
 
   const page = await context.newPage()
 
-  // ── 1. Login ──
-  console.log('🔑 Iniciando sesión...')
-  await page.goto(CONFIG.urlLogin, { waitUntil: 'networkidle' })
-
-  // Llenar usuario y contraseña
-  // Si los selectores no funcionan, usa: await page.pause() para inspeccionarlos
-  await page.fill('input[name="UserName"], input[type="text"], #UserName', usuario)
-  await page.fill('input[name="Password"], input[type="password"], #Password', password)
-  await page.click('button[type="submit"], input[type="submit"], .btn-login, .btn-primary')
-
-  await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 })
-    .catch(() => console.log('  (navegación sin redirect, continuando...)'))
-
-  console.log('✅ Sesión iniciada')
-
-  // ── 2. Ir a la página de Afiliados ──
-  console.log('📋 Navegando a Afiliados...')
-  await page.goto(CONFIG.urlAfiliados, { waitUntil: 'networkidle', timeout: 20000 })
-
-  // Esperar a que cargue la tabla de afiliados
-  await page.waitForSelector('table, .affiliates, #affiliates-table, .datatable', {
-    timeout: 15000,
-  }).catch(() => console.log('  (tabla no encontrada por selector, continuando...)'))
-
+  // ── 1. Abrir RedNICE y obtener credenciales ──
+  console.log('🔍 Buscando credenciales guardadas...')
+  await page.goto(urlApp, { waitUntil: 'load', timeout: 15000 })
   await page.waitForTimeout(2000)
 
-  // ── 3. Descargar el Excel ──
-  console.log('📥 Descargando Excel...')
+  let creds = await leerCreds(page)
 
-  // Esperar el botón de exportar/descargar
-  // El backoffice puede tener: "Exportar", "Excel", "Descargar", "Export"
+  if (!creds) {
+    console.log('')
+    console.log('⚠️  No hay credenciales guardadas.')
+    console.log('   → En la ventana del navegador que se abrió:')
+    console.log('      Haz clic en "Conectar Backoffice NICE" e ingresa tu email y contraseña.')
+    console.log('   Esperando que guardes tus credenciales...')
+    console.log('')
+
+    // Esperar hasta 5 minutos a que el usuario guarde credenciales
+    const limite = Date.now() + 5 * 60 * 1000
+    while (!creds && Date.now() < limite) {
+      await page.waitForTimeout(2000)
+      creds = await leerCreds(page)
+    }
+  }
+
+  if (!creds) {
+    console.log('❌ No se guardaron credenciales. Cerrando.')
+    await context.close()
+    process.exit(1)
+  }
+
+  console.log(`✅ Credenciales encontradas: ${creds.email}`)
+
+  // ── 2. Login en Backoffice ──
+  console.log('🔑 Iniciando sesión en Backoffice...')
+  await page.goto(CONFIG.urlLogin, { waitUntil: 'networkidle' })
+  await page.fill('input[name="UserName"], input[type="text"], #UserName', creds.email)
+  await page.fill('input[name="Password"], input[type="password"], #Password', creds.password)
+  await page.click('button[type="submit"], input[type="submit"], .btn-login, .btn-primary')
+  await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 })
+    .catch(() => console.log('  (continuando...)'))
+  console.log('✅ Sesión iniciada')
+
+  // ── 3. Ir a Afiliados ──
+  console.log('📋 Navegando a Afiliados...')
+  await page.goto(CONFIG.urlAfiliados, { waitUntil: 'networkidle', timeout: 20000 })
+  await page.waitForSelector('table, .affiliates, #affiliates-table, .datatable', { timeout: 15000 })
+    .catch(() => console.log('  (tabla no encontrada por selector, continuando...)'))
+  await page.waitForTimeout(2000)
+
+  // ── 4. Descargar Excel ──
+  console.log('📥 Descargando Excel...')
   const botonesExportar = [
-    'text=Excel',
-    'text=Exportar',
-    'text=Export',
-    'text=Download',
-    'button:has-text("Excel")',
-    'a:has-text("Excel")',
-    '.export-excel',
-    '#btnExcel',
-    '#exportExcel',
-    '[href*="excel"]',
-    '[href*="Export"]',
+    'text=Excel', 'text=Exportar', 'text=Export', 'text=Download',
+    'button:has-text("Excel")', 'a:has-text("Excel")',
+    '.export-excel', '#btnExcel', '#exportExcel',
+    '[href*="excel"]', '[href*="Export"]',
   ]
 
   let downloadPromise = null
   let clickOk = false
-
   for (const selector of botonesExportar) {
     const btn = page.locator(selector).first()
     const visible = await btn.isVisible().catch(() => false)
@@ -104,57 +96,38 @@ async function main() {
   }
 
   if (!clickOk) {
-    console.log('⚠️  No encontré el botón de exportar automáticamente.')
-    console.log('   Abriendo navegador para que hagas clic manualmente...')
-    console.log('   Presiona Ctrl+C cuando hayas descargado el archivo.')
+    console.log('⚠️  No encontré el botón automáticamente — haz clic en Exportar manualmente.')
     downloadPromise = page.waitForEvent('download', { timeout: 120000 })
-    // El usuario descargará manualmente
   }
 
-  // Esperar la descarga
   const download = await downloadPromise
-  const nombreArchivo = download.suggestedFilename() || `afiliados-${fecha()}.xlsx`
   const rutaArchivo = path.join(carpetaDescargas, 'afiliados.xlsx')
-
   await download.saveAs(rutaArchivo)
   console.log(`✅ Excel guardado en: ${rutaArchivo}`)
 
-  // ── 4. Abrir RedNICE y cargar el archivo automáticamente ──
+  // ── 5. Cargar datos en RedNICE ──
   if (CONFIG.abrirApp) {
-    console.log('🖥️  Abriendo RedNICE...')
-    const urlApp = `file:///${CONFIG.rutaApp.replace(/\\/g, '/')}`
+    console.log('🖥️  Cargando datos en RedNICE...')
     await page.goto(urlApp, { waitUntil: 'load', timeout: 15000 })
     await page.waitForTimeout(3000)
-
-    // Buscar el input de archivo en la app y cargar el Excel
     const fileInput = page.locator('input[type="file"]').first()
     const inputVisible = await fileInput.isVisible().catch(() => false)
-
     if (inputVisible) {
       await fileInput.setInputFiles(rutaArchivo)
-      console.log('✅ Datos cargados en RedNICE automáticamente')
+      console.log('✅ Datos cargados automáticamente')
       await page.waitForTimeout(2000)
     } else {
-      // Intentar hacer clic en el botón de carga de la app
-      const btnCargar = page.locator('button:has-text("Cargar"), button:has-text("Subir"), button:has-text("archivo")').first()
-      const btnVisible = await btnCargar.isVisible().catch(() => false)
-      if (btnVisible) {
-        await btnCargar.click()
-        await page.waitForTimeout(500)
-        const input2 = page.locator('input[type="file"]').first()
-        await input2.setInputFiles(rutaArchivo)
-        console.log('✅ Datos cargados en RedNICE')
-      } else {
-        console.log('ℹ️  Abre RedNICE y carga manualmente:', rutaArchivo)
-      }
+      console.log('ℹ️  Carga el archivo manualmente:', rutaArchivo)
     }
   }
 
   console.log('\n🎉 ¡Listo! Los datos de tu red están actualizados.')
-  console.log('   Cierra este script cuando hayas terminado.')
+}
 
-  // Mantener el navegador abierto para que el usuario lo use
-  // await browser.close()
+async function leerCreds(page) {
+  return page.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('rednice-backoffice-creds') || 'null') } catch (e) { return null }
+  })
 }
 
 function fecha() {

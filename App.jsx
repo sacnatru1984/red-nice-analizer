@@ -4762,12 +4762,7 @@ function ModalBackoffice({ onClose, onSaved }) {
 
   const guardar = () => {
     if (!email.trim() || !pass) return
-    const creds = { email: email.trim(), password: pass }
-    localStorage.setItem('rednice-backoffice-creds', JSON.stringify(creds))
-    const blob = new Blob([JSON.stringify(creds, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'credentials.json'; a.click()
-    URL.revokeObjectURL(url)
+    localStorage.setItem('rednice-backoffice-creds', JSON.stringify({ email: email.trim(), password: pass }))
     setGuardado(true)
     onSaved()
   }
@@ -4789,8 +4784,7 @@ function ModalBackoffice({ onClose, onSaved }) {
               <div style={{fontSize:16,marginBottom:4}}>✅</div>
               <div style={{color:'var(--win-green)',fontSize:13,fontWeight:700,marginBottom:6}}>Credenciales guardadas</div>
               <div style={{color:'var(--win-text)',fontSize:11,lineHeight:1.6}}>
-                Se descargó <strong>credentials.json</strong>.<br/>
-                Muévelo a la carpeta <code style={{background:'var(--win-surface)',padding:'1px 5px',borderRadius:4,fontFamily:'monospace'}}>scraper/</code> y ejecuta <strong>actualizar-datos.bat</strong>.
+                Listo. Ahora haz doble clic en <strong>actualizar-datos.bat</strong> para sincronizar tu red automáticamente.
               </div>
             </div>
             <button onClick={onClose} style={{width:'100%',padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'white',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Listo</button>
