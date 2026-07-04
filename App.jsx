@@ -5111,25 +5111,23 @@ function App() {
               <div style={{fontSize:15,color:'rgba(220,235,250,.82)',marginBottom:30,maxWidth:440,marginLeft:'auto',marginRight:'auto',lineHeight:1.65}}>
                 Carga el Excel del portal NICE para ver tu árbol de afiliados, genealogía y planes de carrera personalizados — todo en segundos.
               </div>
-              <div style={{display:'flex',gap:16,justifyContent:'center',flexWrap:'wrap',width:'100%',maxWidth:680,marginBottom:8}}>
-                {/* Tarjeta 1: Cargar Excel */}
-                <div style={{flex:'1 1 260px',maxWidth:310,background:'rgba(13,30,48,.6)',border:'1px solid rgba(120,200,255,.25)',backdropFilter:'blur(8px)',borderRadius:16,padding:24,display:'flex',flexDirection:'column',gap:12,cursor:'pointer'}} onClick={()=>fileRef.current.click()}>
-                  <div style={{fontSize:26,textAlign:'center'}}>📊</div>
-                  <div style={{color:'#fff',fontSize:16,fontWeight:700,textAlign:'center'}}>Cargar Excel</div>
-                  <div style={{color:'rgba(220,235,250,.72)',fontSize:12.5,lineHeight:1.65,textAlign:'center',flex:1}}>
-                    Descarga el Excel desde tu portal NICE y súbelo aquí. Funciona en PC y móvil.
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'10px 16px',borderRadius:10,background:'rgba(79,208,245,.12)',border:'1px solid rgba(79,208,245,.35)',color:'#BFE4FB',fontSize:13,fontWeight:600}}>
-                    <div style={{width:14,height:14}}><Icons.Upload/></div>
-                    Seleccionar archivo
-                  </div>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
+                <button onClick={()=>fileRef.current.click()} className="rn-glass-btn">
+                  <div style={{width:18,height:18}}><Icons.Upload/></div>
+                  Seleccionar archivo Excel
+                </button>
+                <div style={{display:'flex',alignItems:'center',gap:10,width:'100%',maxWidth:320}}>
+                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
+                  <span style={{fontSize:11,color:'rgba(180,210,240,.45)',letterSpacing:'.08em'}}>o</span>
+                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
                 </div>
-
-                {/* Tarjeta 2: Backoffice NICE — oculta temporalmente */}
+                <button onClick={()=>setShowBackoffice(true)} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 22px',borderRadius:10,background:backofficeConectado?'rgba(22,163,74,.2)':'rgba(13,30,48,.55)',border:`1px solid ${backofficeConectado?'rgba(52,211,153,.5)':'rgba(120,200,255,.35)'}`,backdropFilter:'blur(6px)',color:backofficeConectado?'#4ade80':'#BFE4FB',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',letterSpacing:'.02em',transition:'.2s'}}>
+                  {backofficeConectado ? '✓ Backoffice conectado' : '🔑 Conectar Backoffice NICE'}
+                </button>
+                <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1,marginTop:2}}>
+                  {demoLoading ? 'Cargando ejemplo…' : 'o explora la app con datos de ejemplo'}
+                </button>
               </div>
-              <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1}}>
-                {demoLoading ? 'Cargando ejemplo…' : 'o explora con datos de ejemplo'}
-              </button>
               <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginTop:34}}>
                 {['Árbol de afiliados','Genealogía visual','Plan de carrera','Reportes para tu equipo'].map(f=>(
                   <div key={f} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 13px',borderRadius:20,background:'rgba(13,30,48,.4)',border:'1px solid rgba(120,200,255,.18)',backdropFilter:'blur(6px)',fontSize:12,fontWeight:500,color:'rgba(220,235,250,.9)'}}>
