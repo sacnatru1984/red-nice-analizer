@@ -7,6 +7,23 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const carpetaDescargas = path.resolve(__dirname, CONFIG.carpetaDescargas)
 
+// Leer credenciales guardadas desde la app (credentials.json tiene prioridad sobre config.js)
+let usuario = CONFIG.usuario
+let password = CONFIG.password
+const credsFile = path.resolve(__dirname, 'credentials.json')
+if (fs.existsSync(credsFile)) {
+  try {
+    const creds = JSON.parse(fs.readFileSync(credsFile, 'utf-8'))
+    if (creds.email) usuario = creds.email
+    if (creds.password) password = creds.password
+    console.log('✓ Credenciales cargadas desde credentials.json')
+  } catch (e) {
+    console.log('⚠️  Error leyendo credentials.json — usando config.js')
+  }
+} else {
+  console.log('ℹ️  Usando credenciales de config.js')
+}
+
 async function main() {
   console.log('🚀 RedNICE Scraper — iniciando...')
 
@@ -32,8 +49,8 @@ async function main() {
 
   // Llenar usuario y contraseña
   // Si los selectores no funcionan, usa: await page.pause() para inspeccionarlos
-  await page.fill('input[name="UserName"], input[type="text"], #UserName', CONFIG.usuario)
-  await page.fill('input[name="Password"], input[type="password"], #Password', CONFIG.password)
+  await page.fill('input[name="UserName"], input[type="text"], #UserName', usuario)
+  await page.fill('input[name="Password"], input[type="password"], #Password', password)
   await page.click('button[type="submit"], input[type="submit"], .btn-login, .btn-primary')
 
   await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 })

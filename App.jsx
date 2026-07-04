@@ -4753,6 +4753,74 @@ function PanelSemana() {
   )
 }
 
+function ModalBackoffice({ onClose, onSaved }) {
+  const saved = useMemo(() => { try { return JSON.parse(localStorage.getItem('rednice-backoffice-creds') || 'null') } catch (e) { return null } }, [])
+  const [email, setEmail] = useState(saved?.email || '')
+  const [pass, setPass] = useState(saved?.password || '')
+  const [showPass, setShowPass] = useState(false)
+  const [guardado, setGuardado] = useState(false)
+
+  const guardar = () => {
+    if (!email.trim() || !pass) return
+    const creds = { email: email.trim(), password: pass }
+    localStorage.setItem('rednice-backoffice-creds', JSON.stringify(creds))
+    const blob = new Blob([JSON.stringify(creds, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'credentials.json'; a.click()
+    URL.revokeObjectURL(url)
+    setGuardado(true)
+    onSaved()
+  }
+
+  const inp = { width:'100%', boxSizing:'border-box', padding:'10px 14px', borderRadius:10, border:'1px solid var(--win-border)', background:'var(--win-surface2)', color:'var(--win-text)', fontSize:13, fontFamily:'inherit', outline:'none' }
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.72)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={onClose}>
+      <div style={{background:'var(--win-surface)',borderRadius:16,padding:32,width:'100%',maxWidth:380,boxShadow:'0 20px 60px rgba(0,0,0,.5)'}} onClick={e=>e.stopPropagation()}>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'.15em',color:'var(--win-muted)',marginBottom:8}}>BACKOFFICE NICE</div>
+          <div style={{fontSize:22,fontWeight:700,color:'var(--win-title)',letterSpacing:'.04em'}}>INICIAR SESIÓN</div>
+          <div style={{fontSize:12,color:'var(--win-muted)',marginTop:4}}>abrilservin · niceonline.com</div>
+        </div>
+
+        {guardado ? (
+          <div>
+            <div style={{background:'var(--win-green-l)',border:'1px solid var(--win-green)',borderRadius:10,padding:'14px 16px',marginBottom:16,textAlign:'center'}}>
+              <div style={{fontSize:16,marginBottom:4}}>✅</div>
+              <div style={{color:'var(--win-green)',fontSize:13,fontWeight:700,marginBottom:6}}>Credenciales guardadas</div>
+              <div style={{color:'var(--win-text)',fontSize:11,lineHeight:1.6}}>
+                Se descargó <strong>credentials.json</strong>.<br/>
+                Muévelo a la carpeta <code style={{background:'var(--win-surface)',padding:'1px 5px',borderRadius:4,fontFamily:'monospace'}}>scraper/</code> y ejecuta <strong>actualizar-datos.bat</strong>.
+              </div>
+            </div>
+            <button onClick={onClose} style={{width:'100%',padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'white',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Listo</button>
+          </div>
+        ) : (
+          <>
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:6}}>Email / EIN</label>
+              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@gmail.com o EIN" style={inp} autoFocus/>
+            </div>
+            <div style={{marginBottom:24}}>
+              <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:6}}>Contraseña</label>
+              <div style={{position:'relative'}}>
+                <input type={showPass?'text':'password'} value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&guardar()} placeholder="••••••••" style={{...inp,paddingRight:44}}/>
+                <button onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:15,padding:0,lineHeight:1}}>
+                  {showPass ? '🙈' : '👁️'}
+                </button>
+              </div>
+            </div>
+            <button onClick={guardar} disabled={!email.trim()||!pass} style={{width:'100%',padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'white',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',letterSpacing:'.04em',opacity:(!email.trim()||!pass)?0.4:1}}>
+              GUARDAR Y DESCARGAR CONFIG
+            </button>
+          </>
+        )}
+        <button onClick={onClose} style={{width:'100%',padding:'8px',borderRadius:10,background:'none',color:'var(--win-muted)',border:'none',fontSize:12,cursor:'pointer',fontFamily:'inherit',marginTop:8}}>Cancelar</button>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [tab, setTab] = useState('red')
   const [afiliados, setAfiliados] = useState([])
@@ -4761,6 +4829,10 @@ function App() {
   const [periodos, setPeriodos] = useState([])
   const [cargado, setCargado] = useState(false)
   const [genealogiaEin, setGenealogiaEin] = useState(null)
+  const [showBackoffice, setShowBackoffice] = useState(false)
+  const [backofficeConectado, setBackofficeConectado] = useState(() => {
+    try { return !!localStorage.getItem('rednice-backoffice-creds') } catch (e) { return false }
+  })
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'light'
     return localStorage.getItem('rednice-theme') || 'light'
@@ -4838,6 +4910,7 @@ function App() {
 
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--win-bg)'}}>
+      {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:'0 16px',gap:12,flexShrink:0,zIndex:100}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -4907,12 +4980,20 @@ function App() {
               <div style={{fontSize:15,color:'rgba(220,235,250,.82)',marginBottom:30,maxWidth:440,marginLeft:'auto',marginRight:'auto',lineHeight:1.65}}>
                 Carga el Excel del portal NICE para ver tu árbol de afiliados, genealogía y planes de carrera personalizados — todo en segundos.
               </div>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
                 <button onClick={()=>fileRef.current.click()} className="rn-glass-btn">
                   <div style={{width:18,height:18}}><Icons.Upload/></div>
                   Seleccionar archivo Excel
                 </button>
-                <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,width:'100%',maxWidth:320}}>
+                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
+                  <span style={{fontSize:11,color:'rgba(180,210,240,.45)',letterSpacing:'.08em'}}>o</span>
+                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
+                </div>
+                <button onClick={()=>setShowBackoffice(true)} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 22px',borderRadius:10,background:backofficeConectado?'rgba(22,163,74,.2)':'rgba(13,30,48,.55)',border:`1px solid ${backofficeConectado?'rgba(52,211,153,.5)':'rgba(120,200,255,.35)'}`,backdropFilter:'blur(6px)',color:backofficeConectado?'#4ade80':'#BFE4FB',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',letterSpacing:'.02em',transition:'.2s'}}>
+                  {backofficeConectado ? '✓ Backoffice conectado' : '🔑 Conectar Backoffice NICE'}
+                </button>
+                <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1,marginTop:2}}>
                   {demoLoading ? 'Cargando ejemplo…' : 'o explora la app con datos de ejemplo'}
                 </button>
               </div>
