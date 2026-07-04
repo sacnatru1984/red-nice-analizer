@@ -2708,7 +2708,7 @@ function FactoresInversion() {
         setTc(data.rates.MXN)
         setFecha(data.time_last_update_utc || new Date().toUTCString())
       } else { setError(true) }
-    } catch { setError(true) }
+    } catch (e) { setError(true) }
     setLoading(false)
   }, [])
 
