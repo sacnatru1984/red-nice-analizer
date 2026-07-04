@@ -75,8 +75,12 @@ async function main() {
   // ── 4. Descargar Excel ──
   console.log('📥 Descargando Excel...')
   const botonesExportar = [
-    'text=Excel', 'text=Exportar', 'text=Export', 'text=Download',
-    'button:has-text("Excel")', 'a:has-text("Excel")',
+    'text=EXCEL',
+    'text=Excel',
+    'button:has-text("EXCEL")',
+    'button:has-text("Excel")',
+    'a:has-text("EXCEL")',
+    'a:has-text("Excel")',
     '.export-excel', '#btnExcel', '#exportExcel',
     '[href*="excel"]', '[href*="Export"]',
   ]
