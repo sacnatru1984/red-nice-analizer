@@ -4548,7 +4548,7 @@ function PanelSemana() {
     { id:'venta',       label:'Venta realizada',      emoji:'💰', color:'#D97706' },
   ]
   const [data, setData] = useState(() => {
-    try { const s = localStorage.getItem(SK); if (s) return JSON.parse(s) } catch {}
+    try { const s = localStorage.getItem(SK); if (s) return JSON.parse(s) } catch (e) {}
     return { metas:{ prospectos:10, afiliaciones:2, publicaciones:3, ventas:1500 }, acciones:[] }
   })
   const [editando, setEditando] = useState(false)
@@ -4556,7 +4556,7 @@ function PanelSemana() {
   const [form, setForm] = useState({ tipo:'prospecto', nota:'', monto:'' })
   const [mostrarLog, setMostrarLog] = useState(true)
 
-  const save = (d) => { setData(d); try { localStorage.setItem(SK, JSON.stringify(d)) } catch {} }
+  const save = (d) => { setData(d); try { localStorage.setItem(SK, JSON.stringify(d)) } catch (e) {} }
 
   const progreso = useMemo(() => {
     const acc = data.acciones || []
