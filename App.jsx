@@ -4057,16 +4057,19 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                     <span style={S.cardTitle}>Filtrar por Rango</span>
                     {rangoFiltros && <button onClick={()=>setRangoFiltros(null)} style={{marginLeft:'auto',fontSize:11,color:'var(--win-accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Ver todos</button>}
                   </div>
-                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:12,marginBottom:10,paddingBottom:4}}>
                     {todosRangosArr.map(r => {
                       const sel = selSet.has(r.id)
                       const cnt = periodoActual.afiliados.filter(a => getRango(a.rango).id === r.id).length
                       return (
-                        <button key={r.id} onClick={()=>toggleRF(r.id)} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'5px 12px',borderRadius:20,border:`1.5px solid ${sel?r.color:'var(--win-border)'}`,background:sel?r.bg:'transparent',color:sel?r.color:'var(--win-muted)',fontSize:11,fontWeight:700,cursor:'pointer',transition:'.15s',fontFamily:'inherit',opacity:sel?1:0.55}}>
-                          <div style={{width:7,height:7,borderRadius:'50%',background:sel?r.color:'var(--win-border)',flexShrink:0}}/>
-                          {r.label}
-                          <span style={{fontWeight:400,opacity:0.75}}>({cnt})</span>
-                        </button>
+                        <label key={r.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,cursor:'pointer',userSelect:'none',opacity:sel?1:0.45,transition:'.15s'}}>
+                          {RANGO_IMG[r.id]
+                            ? <img src={RANGO_IMG[r.id]} alt={r.label} style={{width:38,height:38,objectFit:'contain'}}/>
+                            : <div style={{width:38,height:38,borderRadius:'50%',background:r.bg,border:`2px solid ${r.color}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:r.color}}>{r.label[0]}</div>}
+                          <span style={{background:r.bg,color:r.color,padding:'2px 7px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{r.label}</span>
+                          <span style={{fontSize:9,color:'var(--win-muted)'}}>{cnt} personas</span>
+                          <input type="checkbox" checked={sel} onChange={()=>toggleRF(r.id)} style={{cursor:'pointer',accentColor:r.color}}/>
+                        </label>
                       )
                     })}
                   </div>
@@ -4078,58 +4081,32 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                   </div>
                 </div>
 
-                {/* 2 — Arbol de Red: mapa de niveles */}
-                <div style={S.card}>
-                  <div style={{...S.cardHeader,marginBottom:12}}>
-                    <span style={{fontSize:15}}>🌐</span>
-                    <span style={S.cardTitle}>Árbol de Red — Mapa por Nivel de Profundidad</span>
-                  </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',borderRadius:8,background:'var(--win-accent-l)',border:'1px solid var(--win-accent)30'}}>
-                      <div style={{width:22,height:22,borderRadius:'50%',background:'var(--win-accent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#fff',flexShrink:0}}>0</div>
-                      <span style={{fontSize:12,fontWeight:700,color:'var(--win-accent)'}}>Isaac Nava — tú (Gen 0)</span>
-                    </div>
-                    {genNiveles.filter(g=>g>0).map(g => {
-                      const afs = byGen[g]||[]
-                      const rangoGrupos = {}
-                      afs.forEach(a => {
-                        const r = getRango(a.rango)
-                        if(!rangoGrupos[r.id]) rangoGrupos[r.id]={r,count:0,nombres:[]}
-                        rangoGrupos[r.id].count++
-                        rangoGrupos[r.id].nombres.push(a.nombre)
-                      })
-                      const rgl = Object.values(rangoGrupos).sort((a,b)=>rangoOrden(b.r.id)-rangoOrden(a.r.id))
-                      const ppGen = afs.reduce((s,a)=>s+(a.pp||0),0)
-                      const actGen = afs.filter(a=>(a.pp||0)+(a.pg||0)>0).length
-                      const mxnGen = afs.reduce((s,a)=>s+(a.pp||0)*valorPuntoDe(getRango(a.rango).id),0)
-                      return (
-                        <div key={g} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'8px 12px',borderRadius:8,background:'var(--win-surface2)',border:'1px solid var(--win-border)'}}>
-                          <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:22,height:22,borderRadius:'50%',background:'var(--win-surface)',border:'1px solid var(--win-border)',fontSize:10,fontWeight:700,color:'var(--win-muted)',flexShrink:0,marginTop:2}}>{g}</div>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:4}}>
-                              {rgl.map(({r,count,nombres}) => (
-                                <span key={r.id} title={nombres.join(' · ')} style={{display:'inline-flex',alignItems:'center',gap:3,padding:'2px 8px',borderRadius:12,background:r.bg,color:r.color,fontSize:10,fontWeight:700,cursor:'help',border:`1px solid ${r.color}30`}}>
-                                  <div style={{width:5,height:5,borderRadius:'50%',background:r.color}}/>
-                                  {r.label} ×{count}
-                                </span>
-                              ))}
-                            </div>
-                            <div style={{display:'flex',flexWrap:'wrap',gap:8,fontSize:9,color:'var(--win-muted)'}}>
-                              <span>{afs.length} personas</span>
-                              <span>·</span>
-                              <span style={{color:actGen>0?'var(--win-green)':'var(--win-muted)'}}>{actGen} activos ({Math.round(actGen/Math.max(afs.length,1)*100)}%)</span>
-                              {ppGen>0 && <><span>·</span><span style={{color:'#3A8FF2'}}>{ppGen.toLocaleString()} PP</span></>}
-                            </div>
-                          </div>
-                          <div style={{textAlign:'right',flexShrink:0}}>
-                            <div style={{fontSize:12,fontWeight:700,color:'var(--win-green)',fontVariantNumeric:'tabular-nums'}}>${Math.round(mxnGen).toLocaleString('es-MX')}</div>
-                            <div style={{fontSize:9,color:'var(--win-muted)'}}>USD ${Math.round(mxnGen/tcVal).toLocaleString('en-US')}</div>
-                          </div>
+                {/* 2 — Árbol visual por rango (reusa GenealogiaNodo) */}
+                {(() => {
+                  const treeRango = buildTree(periodoActual.afiliados)
+                  const pasaFiltroRango = (n) => selSet.has(getRango(n.rango).id)
+                  const raicesVisibles = treeRango.filter(pasaFiltroRango)
+                  return (
+                    <div style={S.card}>
+                      <div style={{...S.cardHeader,marginBottom:8}}>
+                        <span style={{fontSize:15}}>🌐</span>
+                        <span style={S.cardTitle}>Árbol de Red — Vista Visual</span>
+                        <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>{filtrados.length} afiliados · scroll horizontal</span>
+                      </div>
+                      <div style={{overflowX:'auto',overflowY:'auto',maxHeight:520,padding:'16px 20px'}}>
+                        <div style={{display:'flex',gap:8,minWidth:'max-content',alignItems:'flex-start',justifyContent:'center'}}>
+                          {raicesVisibles.length > 0
+                            ? raicesVisibles.map(n => (
+                                <GenealogiaNodo key={n.ein} nodo={n} depth={0}
+                                  pasaFiltro={pasaFiltroRango}
+                                  onHover={null} onLeave={null} onSelect={null} selectedEin={null}/>
+                              ))
+                            : <div style={{color:'var(--win-muted)',fontSize:13,padding:24}}>Sin afiliados con los rangos seleccionados.</div>}
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* 3 — Radiografía: evolución PP por rango seleccionado */}
                 {ordenados.length >= 2 && rangoFilas.length > 0 && (
