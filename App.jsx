@@ -3250,20 +3250,40 @@ function computeComparativo(anterior, actual) {
 
 function EvolucionBars({ datos }) {
   if (!datos || datos.length === 0) return null
-  const maxV = Math.max(...datos.map(d => d.pp+d.pg), 1)
-  const H = 120, padBot = 24, barH = H - 10 - padBot
-  const n = datos.length, slotW = 100/n, bw = Math.max(3, slotW*0.38)
+  const W = 500, H = 130, padL = 44, padB = 24, padT = 10, padR = 12
+  const gW = W - padL - padR, gH = H - padT - padB
+  const maxV = Math.max(...datos.map(d => Math.max(d.pp, d.pg)), 1)
+  const ticks = [0, 0.25, 0.5, 0.75, 1]
+  const xOf = i => datos.length <= 1 ? padL + gW/2 : padL + (i / (datos.length-1)) * gW
+  const yOf = v => padT + gH - (v / maxV) * gH
+  const mkPath = key => datos.map((d,i) => `${i===0?'M':'L'}${xOf(i).toFixed(1)},${yOf(d[key]).toFixed(1)}`).join(' ')
+  const mkArea = key => {
+    const p = mkPath(key)
+    return `${p} L${xOf(datos.length-1).toFixed(1)},${(padT+gH).toFixed(1)} L${xOf(0).toFixed(1)},${(padT+gH).toFixed(1)} Z`
+  }
   return (
-    <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" style={{width:'100%',height:H*1.8+'px'}}>
-      {datos.map((d,i) => {
-        const cx = i*slotW + slotW/2
-        const ppH = Math.max(0,(d.pp/maxV)*barH), pgH = Math.max(0,(d.pg/maxV)*barH)
-        const yBot = H-padBot
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'160px',overflow:'visible',display:'block'}}>
+      {ticks.map((t,i) => {
+        const v = Math.round(maxV * t)
+        const y = yOf(v)
         return (
           <g key={i}>
-            <rect x={cx-bw/2} y={yBot-ppH} width={bw} height={Math.max(1,ppH)} rx={1.5} fill="#3A8FF2"/>
-            <rect x={cx-bw/2} y={yBot-ppH-pgH} width={bw} height={Math.max(1,pgH)} rx={1.5} fill="#A78BFA"/>
-            <text x={cx} y={H-4} textAnchor="middle" fontSize="5" fill="var(--win-muted)">{d.label}</text>
+            <line x1={padL} x2={W-padR} y1={y} y2={y} stroke='var(--win-border)' strokeWidth={i===0?1:0.5} strokeDasharray={i===0?'none':'3,3'}/>
+            <text x={padL-5} y={y+3} textAnchor='end' fontSize='7.5' fill='var(--win-muted)'>{v>=1000?`${(v/1000).toFixed(v%1000===0?0:1)}k`:v}</text>
+          </g>
+        )
+      })}
+      <path d={mkArea('pg')} fill='#7C3AED' fillOpacity={0.07}/>
+      <path d={mkArea('pp')} fill='#3A8FF2' fillOpacity={0.10}/>
+      <path d={mkPath('pg')} fill='none' stroke='#7C3AED' strokeWidth={1.5} strokeLinejoin='round' strokeLinecap='round'/>
+      <path d={mkPath('pp')} fill='none' stroke='#3A8FF2' strokeWidth={2} strokeLinejoin='round' strokeLinecap='round'/>
+      {datos.map((d,i) => {
+        const x = xOf(i), ypp = yOf(d.pp), ypg = yOf(d.pg)
+        return (
+          <g key={i}>
+            <circle cx={x} cy={ypg} r={2.5} fill='#7C3AED'/>
+            <circle cx={x} cy={ypp} r={3} fill='#3A8FF2'/>
+            <text x={x} y={H-4} textAnchor='middle' fontSize='7.5' fill='var(--win-muted)'>{d.label}</text>
           </g>
         )
       })}
@@ -3279,6 +3299,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
   const [vista, setVista] = useState('resumen')
   const [fichaQ, setFichaQ] = useState('')
   const [fichaEin, setFichaEin] = useState(null)
+  const [resumeQ, setResumeQ] = useState('')
 
   const ordenados = [...periodos].sort((a,b) => a.año*12+a.mes - (b.año*12+b.mes))
   const periodoActual = ordenados[ordenados.length-1]
@@ -3300,6 +3321,23 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
     if (!pendiente) return
     onAgregarPeriodo({ id:`${pAnio}-${String(pMes).padStart(2,'0')}-${Date.now()}`, nombre:pendiente.nombre, afiliados:pendiente.afiliados, mes:pMes, año:pAnio, label:`${MESES_CORTO[pMes-1]} ${pAnio}`, labelLargo:`${MESES_ES[pMes-1]} ${pAnio}`, fecha:new Date().toLocaleDateString('es-MX') })
     setPendiente(null)
+  }
+
+  const mkSparkline = (data, color, w=80, h=26) => {
+    if (!data || data.length < 2) return <div style={{width:w,height:h,background:'var(--win-border)',borderRadius:3,opacity:0.2,flexShrink:0}}/>
+    const max = Math.max(...data, 1), min = Math.min(...data)
+    const range = Math.max(max - min, 1)
+    const pts = data.map((v,i) => [Math.round(i/(data.length-1)*(w-4))+2, Math.round((h-8)-(v-min)/range*(h-8))+2])
+    const poly = pts.map(([x,y]) => `${x},${y}`).join(' ')
+    const area = `M${pts[0][0]},${h} ` + pts.map(([x,y]) => `L${x},${y}`).join(' ') + ` L${pts[pts.length-1][0]},${h} Z`
+    const [lx,ly] = pts[pts.length-1]
+    return (
+      <svg width={w} height={h} style={{overflow:'visible',flexShrink:0,display:'block'}}>
+        <path d={area} fill={color} fillOpacity={0.12}/>
+        <polyline points={poly} fill='none' stroke={color} strokeWidth={1.5} strokeLinejoin='round' strokeLinecap='round'/>
+        <circle cx={lx} cy={ly} r={2.5} fill={color}/>
+      </svg>
+    )
   }
 
   const VISTAS = [
@@ -3455,6 +3493,92 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
               </div>
             )
           })()}
+          {/* Buscador rápido por afiliado */}
+          <div style={{...S.card, marginBottom:14}}>
+            <div style={{...S.cardHeader, marginBottom:10}}>
+              <span style={{fontSize:14}}>🔍</span>
+              <span style={S.cardTitle}>Buscar afiliado — tendencia personal</span>
+            </div>
+            <input
+              value={resumeQ}
+              onChange={e => setResumeQ(e.target.value)}
+              placeholder='Nombre o EIN...'
+              style={{width:'100%',boxSizing:'border-box',padding:'9px 13px',borderRadius:8,border:'1.5px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:13,fontFamily:'inherit',outline:'none'}}
+            />
+            {resumeQ.trim().length >= 2 && periodoActual && (() => {
+              const todos = periodoActual.afiliados
+              const encontrados = todos.filter(a =>
+                a.nombre?.toLowerCase().includes(resumeQ.toLowerCase()) ||
+                String(a.ein).includes(resumeQ.trim())
+              ).slice(0, 4)
+              if (encontrados.length === 0) return <div style={{padding:'10px 2px',fontSize:12,color:'var(--win-muted)',marginTop:6}}>Sin resultados para "{resumeQ}".</div>
+              return (
+                <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
+                  {encontrados.map(a => {
+                    const r = getRango(a.rango)
+                    const histPP = ordenados.map(p => (p.afiliados.find(x=>x.ein===a.ein)?.pp)||0)
+                    const histPG = ordenados.map(p => (p.afiliados.find(x=>x.ein===a.ein)?.pg)||0)
+                    const maxAll = Math.max(...histPP, ...histPG, 1)
+                    const W=320, H=64, padB=18
+                    const gH = H - padB - 4
+                    const xOf = i => ordenados.length <= 1 ? W/2 : (i / (ordenados.length-1)) * W
+                    const yOf = v => 4 + gH - (v/maxAll)*gH
+                    const mkL = arr => arr.map((v,i) => `${i===0?'M':'L'}${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ')
+                    const linePP = mkL(histPP), linePG = mkL(histPG)
+                    const areaPP = `${linePP} L${xOf(ordenados.length-1).toFixed(1)},${(4+gH).toFixed(1)} L0,${(4+gH).toFixed(1)} Z`
+                    return (
+                      <div key={a.ein} style={{borderRadius:10,border:`1.5px solid ${r.color}50`,padding:'12px 14px',background:'var(--win-surface2)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+                          <span style={{fontWeight:700,color:r.color,fontSize:11,padding:'2px 7px',borderRadius:20,background:r.bg}}>{r.label}</span>
+                          <span style={{fontWeight:700,fontSize:13,color:'var(--win-title)'}}>{a.nombre}</span>
+                          <span style={{fontSize:11,color:'var(--win-muted)'}}>EIN {a.ein} · Gen. {a.gen}</span>
+                          {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g,'')}`} target='_blank' rel='noopener noreferrer' style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:4,padding:'4px 9px',borderRadius:7,background:'#25D36620',color:'#128C7E',fontSize:10,fontWeight:700,textDecoration:'none',border:'1px solid #25D36640'}}>📲 WA</a>}
+                        </div>
+                        {ordenados.length >= 2 ? (
+                          <>
+                            <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'72px',overflow:'visible',display:'block',marginBottom:4}}>
+                              {[0,0.5,1].map((t,gi) => <line key={gi} x1={0} x2={W} y1={yOf(maxAll*t)} y2={yOf(maxAll*t)} stroke='var(--win-border)' strokeWidth={0.6} strokeDasharray={gi===0?'none':'3,3'}/>)}
+                              <path d={areaPP} fill={r.color} fillOpacity={0.09}/>
+                              <path d={linePP} fill='none' stroke={r.color} strokeWidth={2} strokeLinejoin='round'/>
+                              <path d={linePG} fill='none' stroke='#7C3AED' strokeWidth={1.3} strokeLinejoin='round' strokeDasharray='4,2'/>
+                              {ordenados.map((p,i) => {
+                                const af = p.afiliados.find(x=>x.ein===a.ein)
+                                const x = parseFloat(xOf(i).toFixed(1))
+                                return (
+                                  <g key={i}>
+                                    <circle cx={x} cy={yOf(af?.pp||0)} r={2.8} fill={r.color}/>
+                                    <circle cx={x} cy={yOf(af?.pg||0)} r={2} fill='#7C3AED'/>
+                                    <text x={x} y={H-2} textAnchor='middle' fontSize='7' fill='var(--win-muted)'>{p.label.slice(0,6)}</text>
+                                  </g>
+                                )
+                              })}
+                            </svg>
+                            <div style={{display:'flex',gap:14,fontSize:10,color:'var(--win-muted)',marginBottom:8}}>
+                              <span style={{display:'inline-flex',alignItems:'center',gap:4}}><svg width={16} height={4} style={{display:'block'}}><line x1={0} y1={2} x2={16} y2={2} stroke={r.color} strokeWidth={2}/></svg>PP</span>
+                              <span style={{display:'inline-flex',alignItems:'center',gap:4}}><svg width={16} height={4} style={{display:'block'}}><line x1={0} y1={2} x2={16} y2={2} stroke='#7C3AED' strokeWidth={1.5} strokeDasharray='4,2'/></svg>PG</span>
+                            </div>
+                          </>
+                        ) : <div style={{fontSize:11,color:'var(--win-muted)',marginBottom:8}}>Carga más periodos para ver tendencia.</div>}
+                        <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(ordenados.length,6)},1fr)`,gap:5}}>
+                          {ordenados.slice(-6).map(p => {
+                            const af = p.afiliados.find(x=>x.ein===a.ein)
+                            const pp = af?.pp||0, pg = af?.pg||0
+                            const activo = pp+pg > 0
+                            return (
+                              <div key={p.label} style={{textAlign:'center',padding:'5px 3px',borderRadius:6,background:activo?'var(--win-accent-l)':'var(--win-surface)',border:`1px solid ${activo?'var(--win-accent)40':'var(--win-border)'}`}}>
+                                <div style={{fontSize:12,fontWeight:700,color:activo?'var(--win-accent)':'var(--win-muted)',fontVariantNumeric:'tabular-nums'}}>{pp.toLocaleString()}</div>
+                                <div style={{fontSize:8,color:'var(--win-muted)',lineHeight:1.2}}>{p.label.slice(0,6)}<br/>PP</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
           {comp && (
             <div style={{...S.card, marginBottom:14}}>
               <div style={S.cardHeader}><span style={S.cardTitle}>Comparativo: {periodoAnterior.label} → {periodoActual.label}</span></div>
@@ -3641,7 +3765,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
         <div>
           {[{campo:'pg',label:'PG',color:'#7C3AED',titulo:'Puntos de Grupo'},{campo:'pp',label:'PP',color:'var(--win-accent)',titulo:'Puntos Personales'}].map(({campo,label,color,titulo}) => (
             <div key={campo} style={{...S.card, marginBottom:14}}>
-              <div style={S.cardHeader}><span style={S.cardTitle}>Top 10 por {titulo} · {periodoActual.label}</span></div>
+              <div style={S.cardHeader}><span style={S.cardTitle}>Top 20 — {titulo} · tendencia · {periodoActual.label}</span></div>
               {[...periodoActual.afiliados]
                 .filter(a => (a[campo]||0) > 0)
                 .sort((a,b) => (b[campo]||0)-(a[campo]||0))
@@ -3655,11 +3779,15 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                       <div style={{width:30,height:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden',border:`1.5px solid ${getRango(a.rango).color}`}}>
                         {RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:24,height:24,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}
                       </div>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.nombre}</div>
                         <div style={{fontSize:11,color:'var(--win-muted)'}}>{getRango(a.rango).label} · EIN {a.ein}</div>
                       </div>
-                      <div style={{textAlign:'right'}}>
+                      {(() => {
+                        const hist = ordenados.map(p => (p.afiliados.find(x=>x.ein===a.ein)?.[campo]||0))
+                        return mkSparkline(hist, color, 72, 26)
+                      })()}
+                      <div style={{textAlign:'right',flexShrink:0}}>
                         <div style={{fontSize:14,fontWeight:800,color,fontVariantNumeric:'tabular-nums'}}>{(a[campo]||0).toLocaleString()} {label}</div>
                         {diff!==null && <div style={{fontSize:10,color:diff>0?'var(--win-green)':diff<0?'var(--win-red)':'var(--win-muted)'}}>{diff>0?'▲+':'▼'}{Math.abs(diff).toLocaleString()}</div>}
                       </div>
@@ -3974,19 +4102,38 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                             <span style={{fontSize:14}}>📈</span>
                             <span style={S.cardTitle}>Historial PP por periodo</span>
                           </div>
-                          <div style={{display:'flex',alignItems:'flex-end',gap:4,height:80,paddingBottom:20,position:'relative'}}>
-                            {historial.map((h,idx) => {
-                              const pp = h.pp||0
-                              const ht = Math.round(pp/maxPP*70)
-                              return (
-                                <div key={idx} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                                  <div style={{fontSize:9,color:'var(--win-muted)',fontVariantNumeric:'tabular-nums'}}>{pp>0?pp.toLocaleString():''}</div>
-                                  <div style={{width:'100%',maxWidth:30,height:ht||3,background:pp>0?'var(--win-accent)':'var(--win-border)',borderRadius:'3px 3px 0 0',transition:'height .3s'}}/>
-                                  <div style={{fontSize:8,color:'var(--win-muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:36,transform:'rotate(-35deg)',transformOrigin:'top left',marginTop:4}}>{(ordenados.find(p=>p.afiliados.find(a=>a.ein===fichaEin&&a===h))||{label:''}).label?.slice(0,6)}</div>
-                                </div>
-                              )
-                            })}
-                          </div>
+                          {(() => {
+                            const histPP = historial.map(h => h.pp||0)
+                            const histPG = historial.map(h => h.pg||0)
+                            const labels = historial.map(h => (ordenados.find(p=>p.afiliados.find(a=>a===h))||{}).label||'')
+                            const maxAll = Math.max(...histPP, ...histPG, 1)
+                            const W=400, H=80, padB=20, padT=8
+                            const gH = H-padB-padT
+                            const xOf = i => historial.length<=1?W/2:(i/(historial.length-1))*W
+                            const yOf = v => padT+gH-(v/maxAll)*gH
+                            const mkL = arr => arr.map((v,i)=>`${i===0?'M':'L'}${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ')
+                            const linePP = mkL(histPP), linePG = mkL(histPG)
+                            const areaPP = `${linePP} L${xOf(histPP.length-1).toFixed(1)},${(padT+gH).toFixed(1)} L0,${(padT+gH).toFixed(1)} Z`
+                            return (
+                              <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'100px',overflow:'visible',display:'block',marginBottom:8}}>
+                                {[0,0.5,1].map((t,i) => <line key={i} x1={0} x2={W} y1={yOf(maxAll*t)} y2={yOf(maxAll*t)} stroke='var(--win-border)' strokeWidth={0.6} strokeDasharray={i===0?'none':'3,3'}/>)}
+                                <path d={areaPP} fill={r.color} fillOpacity={0.09}/>
+                                <path d={linePP} fill='none' stroke={r.color} strokeWidth={2} strokeLinejoin='round'/>
+                                <path d={linePG} fill='none' stroke='#7C3AED' strokeWidth={1.3} strokeLinejoin='round' strokeDasharray='4,2'/>
+                                {historial.map((_,i) => {
+                                  const x=xOf(i), pp=histPP[i], pg=histPG[i]
+                                  return (
+                                    <g key={i}>
+                                      <circle cx={x} cy={yOf(pp)} r={3} fill={r.color}/>
+                                      <circle cx={x} cy={yOf(pg)} r={2} fill='#7C3AED'/>
+                                      <text x={x} y={H-2} textAnchor='middle' fontSize='7' fill='var(--win-muted)'>{labels[i].slice(0,6)}</text>
+                                      {pp>0 && <text x={x} y={yOf(pp)-5} textAnchor='middle' fontSize='6.5' fill={r.color} fontWeight='700'>{pp.toLocaleString()}</text>}
+                                    </g>
+                                  )
+                                })}
+                              </svg>
+                            )
+                          })()}
                           <div style={{overflowX:'auto',marginTop:4}}>
                             <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
                               <thead>
