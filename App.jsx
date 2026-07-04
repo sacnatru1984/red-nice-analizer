@@ -532,6 +532,8 @@ const Icons = {
   GitBranch: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>,
   Home: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
   TrendUp: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+  Calendar: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  Target: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
 }
 
 const s = (styles) => styles
@@ -4521,6 +4523,236 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
   )
 }
 
+function PanelSemana() {
+  const getWeekKey = () => {
+    const d = new Date()
+    const jan1 = new Date(d.getFullYear(), 0, 1)
+    const weekNum = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7)
+    return `${d.getFullYear()}-W${String(weekNum).padStart(2,'0')}`
+  }
+  const getWeekRange = () => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = day === 0 ? -6 : 1 - day
+    const mon = new Date(d); mon.setDate(d.getDate() + diff)
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+    return { mon, sun }
+  }
+  const fmtDate = (d) => d.toLocaleDateString('es-MX', { day:'numeric', month:'long' })
+  const weekKey = getWeekKey()
+  const SK = `rednice-semana-${weekKey}`
+  const TIPOS = [
+    { id:'prospecto',   label:'Prospecto contactado', emoji:'👤', color:'var(--win-accent)' },
+    { id:'afiliacion',  label:'Afiliación cerrada',   emoji:'🤝', color:'var(--win-green)' },
+    { id:'publicacion', label:'Publicación en redes', emoji:'📱', color:'var(--win-purple)' },
+    { id:'venta',       label:'Venta realizada',      emoji:'💰', color:'#D97706' },
+  ]
+  const [data, setData] = useState(() => {
+    try { const s = localStorage.getItem(SK); if (s) return JSON.parse(s) } catch {}
+    return { metas:{ prospectos:10, afiliaciones:2, publicaciones:3, ventas:1500 }, acciones:[] }
+  })
+  const [editando, setEditando] = useState(false)
+  const [metasTemp, setMetasTemp] = useState(data.metas)
+  const [form, setForm] = useState({ tipo:'prospecto', nota:'', monto:'' })
+  const [mostrarLog, setMostrarLog] = useState(true)
+
+  const save = (d) => { setData(d); try { localStorage.setItem(SK, JSON.stringify(d)) } catch {} }
+
+  const progreso = useMemo(() => {
+    const acc = data.acciones || []
+    return {
+      prospectos:   acc.filter(a => a.tipo==='prospecto').length,
+      afiliaciones: acc.filter(a => a.tipo==='afiliacion').length,
+      publicaciones:acc.filter(a => a.tipo==='publicacion').length,
+      ventas:       acc.filter(a => a.tipo==='venta').reduce((s,a) => s+(parseFloat(a.monto)||0), 0),
+    }
+  }, [data.acciones])
+
+  const pct = (v, t) => Math.min(100, t > 0 ? Math.round(v / t * 100) : 0)
+  const overallPct = Math.round(
+    (pct(progreso.prospectos, data.metas.prospectos) +
+     pct(progreso.afiliaciones, data.metas.afiliaciones) +
+     pct(progreso.publicaciones, data.metas.publicaciones) +
+     pct(progreso.ventas, data.metas.ventas)) / 4
+  )
+
+  const agregarAccion = () => {
+    if (form.tipo === 'venta' && !form.monto) return
+    if (form.tipo !== 'venta' && !form.nota.trim()) return
+    const nueva = { id:Date.now(), ts:new Date().toISOString(), tipo:form.tipo, nota:form.nota.trim(), monto:form.tipo==='venta'?(parseFloat(form.monto)||0):undefined }
+    save({ ...data, acciones:[nueva,...(data.acciones||[])] })
+    setForm(f => ({ ...f, nota:'', monto:'' }))
+  }
+  const eliminarAccion = (id) => save({ ...data, acciones:(data.acciones||[]).filter(a=>a.id!==id) })
+  const guardarMetas = () => { save({ ...data, metas:metasTemp }); setEditando(false) }
+  const resetSemana = () => {
+    if (!window.confirm('¿Resetear el progreso de esta semana? Las metas se conservan.')) return
+    save({ ...data, acciones:[] })
+  }
+
+  const { mon, sun } = getWeekRange()
+  const hoy = new Date().toISOString().split('T')[0]
+  const MAXWELL_TIPS = [
+    'Ley del Proceso: el liderazgo crece día a día, no de un día para otro. Cada llamada que haces hoy construye tu red de mañana.',
+    'Ley del Magnetismo: eres el tipo de líder que atraes. Actúa hoy como el empresario que quieres duplicar en tu red.',
+    'Ley de la Conexión: toca el corazón antes de pedir una mano. Antes de invitar, conecta genuinamente con la persona.',
+    'Ley del Gran Impulso: celebra cada victoria pequeña. Un prospecto contactado hoy genera el impulso del mes.',
+    'Ley de las Prioridades: actividad no es realización. Enfócate en las acciones que realmente mueven tu red hacia el Oro.',
+    'Ley de la Reproducción: solo un líder puede levantar a otro líder. Forma activamente a las personas de tu equipo.',
+    'Ley del Crecimiento Explosivo: dirigir seguidores suma, dirigir líderes multiplica.',
+  ]
+  const tip = MAXWELL_TIPS[new Date().getDay() % MAXWELL_TIPS.length]
+
+  const MET_CONFIG = [
+    { key:'prospectos',   label:'Prospectos contactados', emoji:'👤', color:'var(--win-accent)',  val:progreso.prospectos,   meta:data.metas.prospectos,   tipo:'prospecto' },
+    { key:'afiliaciones', label:'Afiliaciones cerradas',  emoji:'🤝', color:'var(--win-green)',   val:progreso.afiliaciones, meta:data.metas.afiliaciones, tipo:'afiliacion' },
+    { key:'publicaciones',label:'Publicaciones en redes', emoji:'📱', color:'var(--win-purple)',  val:progreso.publicaciones,meta:data.metas.publicaciones,tipo:'publicacion' },
+    { key:'ventas',       label:'Ventas acumuladas (MXN)',emoji:'💰', color:'#D97706',            val:progreso.ventas,       meta:data.metas.ventas,       tipo:'venta' },
+  ]
+
+  return (
+    <div style={{padding:'20px 20px 48px',maxWidth:820,margin:'0 auto'}}>
+      {/* Header */}
+      <div style={{...S.card,marginBottom:16,padding:'18px 22px',background:'linear-gradient(135deg,var(--win-accent) 0%,#7C3AED 100%)',border:'none'}}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',color:'rgba(255,255,255,.72)',marginBottom:4}}>PLANEACIÓN SEMANAL</div>
+            <div style={{fontSize:19,fontWeight:700,color:'#fff',lineHeight:1.2}}>{fmtDate(mon)} — {fmtDate(sun)}</div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,.65)',marginTop:3}}>{weekKey} · se reinicia automáticamente cada semana</div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:40,fontWeight:800,color:'#fff',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{overallPct}<span style={{fontSize:20}}>%</span></div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>completado</div>
+          </div>
+        </div>
+        <div style={{marginTop:14,background:'rgba(255,255,255,.25)',borderRadius:6,height:6}}>
+          <div style={{width:`${overallPct}%`,height:'100%',background:'#fff',borderRadius:6,transition:'width .6s ease'}}/>
+        </div>
+      </div>
+
+      {/* Frase Maxwell */}
+      <div style={{...S.card,marginBottom:16,padding:'11px 15px',borderLeft:'3px solid var(--win-accent)'}}>
+        <div style={{fontSize:9,fontWeight:800,letterSpacing:'.1em',color:'var(--win-accent)',marginBottom:3}}>JOHN C. MAXWELL · LAS 21 LEYES</div>
+        <div style={{fontSize:12,color:'var(--win-text)',lineHeight:1.65,fontStyle:'italic'}}>{tip}</div>
+      </div>
+
+      {/* Tarjetas de metas */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12,marginBottom:16}}>
+        {MET_CONFIG.map(m => {
+          const p = pct(m.val, m.meta)
+          const done = p >= 100
+          return (
+            <div key={m.key} style={{...S.card,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',inset:0,background:m.color,opacity:.04,pointerEvents:'none'}}/>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                <span style={{fontSize:22}}>{m.emoji}</span>
+                {done && <span style={{fontSize:9,fontWeight:700,color:'#166534',background:'#DCFCE7',padding:'2px 7px',borderRadius:20}}>✓ Meta lograda</span>}
+              </div>
+              <div style={{fontSize:11,color:'var(--win-muted)',marginBottom:4,lineHeight:1.3}}>{m.label}</div>
+              <div style={{fontSize:26,fontWeight:800,color:m.color,fontVariantNumeric:'tabular-nums',lineHeight:1,marginBottom:6}}>
+                {m.key==='ventas' ? `$${m.val.toLocaleString('es-MX')}` : m.val}
+                <span style={{fontSize:11,fontWeight:400,color:'var(--win-muted)',marginLeft:5}}>/ {m.key==='ventas'?`$${m.meta.toLocaleString('es-MX')}`:m.meta}</span>
+              </div>
+              <div style={{background:'var(--win-border)',borderRadius:4,height:5,marginBottom:6}}>
+                <div style={{width:`${p}%`,height:'100%',background:done?'var(--win-green)':m.color,borderRadius:4,transition:'width .4s ease'}}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:10,color:'var(--win-muted)'}}>{p}%</span>
+                <button onClick={()=>setForm(f=>({...f,tipo:m.tipo}))} style={{fontSize:10,padding:'3px 9px',borderRadius:6,background:m.color+'18',color:m.color,border:`1px solid ${m.color}40`,cursor:'pointer',fontWeight:700,fontFamily:'inherit'}}>+ Registrar</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Formulario rápido */}
+      <div style={{...S.card,marginBottom:16,padding:'14px 16px'}}>
+        <div style={{fontSize:12,fontWeight:700,color:'var(--win-title)',marginBottom:10,display:'flex',alignItems:'center',gap:6}}>
+          <span style={{fontSize:15}}>⚡</span> Registrar acción
+        </div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+          {TIPOS.map(t => (
+            <button key={t.id} onClick={()=>setForm(f=>({...f,tipo:t.id}))} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:`1.5px solid ${form.tipo===t.id?t.color:'var(--win-border)'}`,background:form.tipo===t.id?t.color+'18':'none',color:form.tipo===t.id?t.color:'var(--win-muted)',transition:'.12s'}}>
+              {t.emoji} {t.label.split(' ')[0]}
+            </button>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <input value={form.nota} onChange={e=>setForm(f=>({...f,nota:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&agregarAccion()} placeholder={form.tipo==='venta'?'¿Qué vendiste? (nombre o descripción)':'¿Con quién? / ¿Qué lograste?'} style={{flex:1,minWidth:160,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
+          {form.tipo==='venta'&&<input type="number" value={form.monto} onChange={e=>setForm(f=>({...f,monto:e.target.value}))} placeholder="Monto MXN" style={{width:115,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>}
+          <button onClick={agregarAccion} style={{padding:'8px 20px',borderRadius:8,background:'var(--win-accent)',color:'white',border:'none',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Registrar</button>
+        </div>
+      </div>
+
+      {/* Log de acciones */}
+      <div style={S.card}>
+        <div style={{...S.cardHeader,cursor:'pointer'}} onClick={()=>setMostrarLog(v=>!v)}>
+          <span style={{fontSize:15}}>📋</span>
+          <span style={S.cardTitle}>Acciones de la semana</span>
+          <span style={{marginLeft:6,fontSize:11,background:'var(--win-accent)',color:'white',padding:'1px 7px',borderRadius:20,fontWeight:700}}>{(data.acciones||[]).length}</span>
+          <span style={{marginLeft:'auto',color:'var(--win-muted)',fontSize:12}}>{mostrarLog?'▲':'▼'}</span>
+        </div>
+        {mostrarLog&&(
+          <div>
+            {(data.acciones||[]).length===0
+              ? <div style={{padding:'28px 16px',textAlign:'center',color:'var(--win-muted)',fontSize:12}}>Sin acciones registradas — cada llamada cuenta. Regístrala aquí.</div>
+              : (data.acciones||[]).map((a,i)=>{
+                  const t = TIPOS.find(x=>x.id===a.tipo)||TIPOS[0]
+                  const esHoy = a.ts?.startsWith(hoy)
+                  return (
+                    <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderTop:i===0?'none':'1px solid var(--win-border)',background:esHoy?'var(--win-accent-l)':'transparent'}}>
+                      <span style={{fontSize:18,flexShrink:0}}>{t.emoji}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                          <span style={{fontSize:11,fontWeight:700,color:t.color}}>{t.label}</span>
+                          {a.monto!=null&&<span style={{fontSize:11,fontWeight:700,color:'#D97706'}}>${parseFloat(a.monto).toLocaleString('es-MX')} MXN</span>}
+                          {esHoy&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:20,background:'var(--win-accent)',color:'white',fontWeight:700}}>HOY</span>}
+                        </div>
+                        {a.nota&&<div style={{fontSize:11,color:'var(--win-text)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.nota}</div>}
+                        <div style={{fontSize:9,color:'var(--win-muted)',marginTop:2}}>{new Date(a.ts).toLocaleString('es-MX',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+                      </div>
+                      <button onClick={()=>eliminarAccion(a.id)} title="Eliminar" style={{padding:'3px 7px',borderRadius:5,border:'1px solid var(--win-border)',background:'none',color:'var(--win-muted)',fontSize:10,cursor:'pointer',flexShrink:0}}>✕</button>
+                    </div>
+                  )
+                })
+            }
+          </div>
+        )}
+      </div>
+
+      {/* Acciones footer */}
+      <div style={{display:'flex',gap:8,marginTop:12,justifyContent:'flex-end',flexWrap:'wrap'}}>
+        <button onClick={()=>{setMetasTemp({...data.metas});setEditando(true)}} style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface)',color:'var(--win-text)',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>✏️ Editar metas</button>
+        <button onClick={resetSemana} style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface)',color:'var(--win-red)',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Resetear progreso</button>
+      </div>
+
+      {/* Modal editar metas */}
+      {editando&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.55)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={()=>setEditando(false)}>
+          <div style={{...S.card,width:'100%',maxWidth:370,padding:24}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:15,fontWeight:700,color:'var(--win-title)',marginBottom:16}}>Metas de la semana</div>
+            {[
+              {key:'prospectos',   label:'Prospectos a contactar', emoji:'👤'},
+              {key:'afiliaciones', label:'Afiliaciones a cerrar',   emoji:'🤝'},
+              {key:'publicaciones',label:'Publicaciones en redes',  emoji:'📱'},
+              {key:'ventas',       label:'Ventas objetivo (MXN)',   emoji:'💰'},
+            ].map(f=>(
+              <div key={f.key} style={{marginBottom:12}}>
+                <label style={{fontSize:11,fontWeight:600,color:'var(--win-muted)',display:'block',marginBottom:4}}>{f.emoji} {f.label}</label>
+                <input type="number" value={metasTemp[f.key]} onChange={e=>setMetasTemp(m=>({...m,[f.key]:parseFloat(e.target.value)||0}))} style={{width:'100%',boxSizing:'border-box',padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:13,fontFamily:'inherit',outline:'none'}}/>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:8,marginTop:8}}>
+              <button onClick={()=>setEditando(false)} style={{flex:1,padding:'9px',borderRadius:8,border:'1px solid var(--win-border)',background:'none',color:'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Cancelar</button>
+              <button onClick={guardarMetas} style={{flex:1,padding:'9px',borderRadius:8,border:'none',background:'var(--win-accent)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [tab, setTab] = useState('red')
   const [afiliados, setAfiliados] = useState([])
@@ -4601,7 +4833,7 @@ function App() {
     })
   }
 
-  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'arbol',l:'Árbol',I:Icons.Tree},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
+  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'arbol',l:'Árbol',I:Icons.Tree},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'semana',l:'Mi Semana',I:Icons.Calendar},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
   const self = afiliadosCalc[0]
 
   return (
@@ -4652,12 +4884,14 @@ function App() {
           {tab==='anuncios'&&'Generador de anuncios con IA · vende más joyería NICE'}
           {tab==='archivos'&&`${archivos.length} archivo${archivos.length!==1?'s':''} cargado${archivos.length!==1?'s':''}`}
           {tab==='reportes'&&`Análisis comparativo multi-período · ${periodos.length} período${periodos.length!==1?'s':''} cargado${periodos.length!==1?'s':''}`}
+          {tab==='semana'&&'Metas y planeación semanal · progreso guardado automáticamente'}
         </div>
       </div>
 
       {/* Body */}
       <div className="rn-body" style={{flex:1,overflowY:'auto',background:'var(--win-bg)'}}>
         {tab==='reportes'&&<PanelReportes periodos={periodos} onAgregarPeriodo={onAgregarPeriodo} onEliminarPeriodo={onEliminarPeriodo} tc={tc}/>}
+        {tab==='semana'&&<PanelSemana/>}
         {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&(
           <div className="rn-welcome">
             <div className="rn-welcome__bg"/>
