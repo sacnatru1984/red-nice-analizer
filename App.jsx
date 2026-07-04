@@ -3320,6 +3320,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
   const [fichaEin, setFichaEin] = useState(null)
   const [resumeQ, setResumeQ] = useState('')
   const [resumeEin, setResumeEin] = useState(null)
+  const [resumeTipIdx, setResumeTipIdx] = useState(null)
   const [rangoFiltros, setRangoFiltros] = useState(null)
 
   const ordenados = [...periodos].sort((a,b) => a.año*12+a.mes - (b.año*12+b.mes))
@@ -3577,29 +3578,62 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                     const linePP = mkL(histPP), linePG = mkL(histPG)
                     const areaPP = `${linePP} L${xOf(ordenados.length-1).toFixed(1)},${(4+gH).toFixed(1)} L0,${(4+gH).toFixed(1)} Z`
                     return (
-                      <div key={a.ein} style={{borderRadius:10,border:`1.5px solid ${r.color}50`,padding:'12px 14px',background:'var(--win-surface2)'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
-                          <span style={{fontWeight:700,color:r.color,fontSize:11,padding:'2px 7px',borderRadius:20,background:r.bg}}>{r.label}</span>
-                          <span style={{fontWeight:700,fontSize:13,color:'var(--win-title)'}}>{a.nombre}</span>
-                          <span style={{fontSize:11,color:'var(--win-muted)'}}>EIN {a.ein} · Gen. {a.gen}</span>
-                          {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g,'')}`} target='_blank' rel='noopener noreferrer' style={{display:'inline-flex',alignItems:'center',gap:4,padding:'4px 9px',borderRadius:7,background:'#25D36620',color:'#128C7E',fontSize:10,fontWeight:700,textDecoration:'none',border:'1px solid #25D36640'}}>📲 WA</a>}
-                          <button onClick={() => { setResumeEin(null); setResumeQ('') }} style={{marginLeft:'auto',background:'none',border:'1px solid var(--win-border)',borderRadius:6,padding:'3px 8px',fontSize:10,color:'var(--win-muted)',cursor:'pointer',fontFamily:'inherit'}}>✕ cerrar</button>
+                      <div key={a.ein} style={{borderRadius:10,border:`1.5px solid ${r.color}50`,padding:'14px 16px',background:'var(--win-surface2)'}}>
+                        {/* Header con imagen de rango */}
+                        <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:4,flexWrap:'wrap'}}>
+                              <span style={{fontWeight:700,color:r.color,fontSize:11,padding:'2px 8px',borderRadius:20,background:r.bg,border:`1px solid ${r.color}30`}}>{r.label}</span>
+                              <span style={{fontWeight:700,fontSize:14,color:'var(--win-title)'}}>{a.nombre}</span>
+                            </div>
+                            <div style={{fontSize:11,color:'var(--win-muted)',marginBottom:8}}>EIN {a.ein} · Gen. {a.gen}{a.telefono?` · ${a.telefono}`:''}</div>
+                            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                              {a.telefono && <a href={`https://wa.me/52${a.telefono.toString().replace(/\D/g,'')}`} target='_blank' rel='noopener noreferrer' style={{display:'inline-flex',alignItems:'center',gap:4,padding:'5px 11px',borderRadius:7,background:'#25D36620',color:'#128C7E',fontSize:11,fontWeight:700,textDecoration:'none',border:'1px solid #25D36640'}}>📲 WhatsApp</a>}
+                              <button onClick={() => { setResumeEin(null); setResumeQ(''); setResumeTipIdx(null) }} style={{background:'none',border:'1px solid var(--win-border)',borderRadius:7,padding:'5px 11px',fontSize:11,color:'var(--win-muted)',cursor:'pointer',fontFamily:'inherit'}}>✕ Cerrar</button>
+                            </div>
+                          </div>
+                          <div style={{flexShrink:0,textAlign:'center'}}>
+                            {RANGO_IMG[r.id]
+                              ? <img src={RANGO_IMG[r.id]} alt={r.label} style={{width:72,height:72,objectFit:'contain',display:'block'}}/>
+                              : <div style={{width:72,height:72,borderRadius:'50%',background:r.bg,display:'flex',alignItems:'center',justifyContent:'center',border:`2px solid ${r.color}`,fontSize:20,fontWeight:800,color:r.color}}>{getInitials(a.nombre)}</div>
+                            }
+                            <div style={{fontSize:9,color:r.color,fontWeight:700,marginTop:3}}>{r.label}</div>
+                          </div>
                         </div>
                         {ordenados.length >= 2 ? (
                           <>
-                            <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'72px',overflow:'visible',display:'block',marginBottom:4}}>
+                            <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'80px',overflow:'visible',display:'block',marginBottom:4}} onMouseLeave={() => setResumeTipIdx(null)}>
                               {[0,0.5,1].map((t,gi) => <line key={gi} x1={0} x2={W} y1={yOf(maxAll*t)} y2={yOf(maxAll*t)} stroke='var(--win-border)' strokeWidth={0.6} strokeDasharray={gi===0?'none':'3,3'}/>)}
                               <path d={areaPP} fill={r.color} fillOpacity={0.09}/>
                               <path d={linePP} fill='none' stroke={r.color} strokeWidth={2} strokeLinejoin='round'/>
                               <path d={linePG} fill='none' stroke='#7C3AED' strokeWidth={1.3} strokeLinejoin='round' strokeDasharray='4,2'/>
                               {ordenados.map((p,i) => {
                                 const af = p.afiliados.find(x=>x.ein===a.ein)
+                                const pp = af?.pp||0, pg = af?.pg||0
                                 const x = parseFloat(xOf(i).toFixed(1))
+                                const isTip = resumeTipIdx === i
+                                const tipX = Math.min(Math.max(x, 44), W-44)
                                 return (
-                                  <g key={i}>
-                                    <circle cx={x} cy={yOf(af?.pp||0)} r={2.8} fill={r.color}/>
-                                    <circle cx={x} cy={yOf(af?.pg||0)} r={2} fill='#7C3AED'/>
-                                    <text x={x} y={H-2} textAnchor='middle' fontSize='7' fill='var(--win-muted)'>{p.label.slice(0,6)}</text>
+                                  <g key={i} onMouseEnter={() => setResumeTipIdx(i)} style={{cursor:'default'}}>
+                                    <rect x={i===0?0:xOf(i-1)+(x-xOf(i-1))/2} y={0} width={i===ordenados.length-1?W-x:x+( i<ordenados.length-1?(xOf(i+1)-x)/2:0)} height={H} fill='transparent'/>
+                                    <circle cx={x} cy={yOf(pp)} r={isTip?4.5:3} fill={r.color} style={{transition:'r .1s'}}/>
+                                    <circle cx={x} cy={yOf(pg)} r={isTip?3.5:2} fill='#7C3AED' style={{transition:'r .1s'}}/>
+                                    <text x={x} y={H-2} textAnchor='middle' fontSize='7' fill={isTip?'var(--win-text)':'var(--win-muted)'} fontWeight={isTip?'700':'400'}>{p.label.slice(0,6)}</text>
+                                    {isTip && (
+                                      <g transform={`translate(${tipX},${4})`}>
+                                        <rect x={-44} y={-2} width={88} height={54} rx={6} fill='var(--win-surface)' stroke={r.color} strokeWidth={0.8} strokeOpacity={0.5}/>
+                                        <text x={0} y={11} textAnchor='middle' fontSize={8.5} fontWeight='700' fill='var(--win-text)'>{p.label}</text>
+                                        <line x1={-38} x2={38} y1={15} y2={15} stroke='var(--win-border)' strokeWidth={0.6}/>
+                                        <circle cx={-30} cy={24} r={3} fill={r.color}/>
+                                        <text x={-24} y={28} fontSize={8} fill='var(--win-text)'>PP</text>
+                                        <text x={36} y={28} textAnchor='end' fontSize={8} fontWeight='700' fill={r.color}>{pp.toLocaleString()}</text>
+                                        <circle cx={-30} cy={36} r={3} fill='#7C3AED'/>
+                                        <text x={-24} y={40} fontSize={8} fill='var(--win-text)'>PG</text>
+                                        <text x={36} y={40} textAnchor='end' fontSize={8} fontWeight='700' fill='#7C3AED'>{pg.toLocaleString()}</text>
+                                        <line x1={-38} x2={38} y1={44} y2={44} stroke='var(--win-border)' strokeWidth={0.5}/>
+                                        <text x={36} y={51} textAnchor='end' fontSize={7.5} fill='var(--win-muted)'>Total {(pp+pg).toLocaleString()}</text>
+                                      </g>
+                                    )}
                                   </g>
                                 )
                               })}
@@ -3957,8 +3991,10 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
               })()}
             </>
           )}
-          {/* ── Vista: Por Rango ── */}
-          {vista==='porRango' && periodoActual && (() => {
+        </div>
+      )}
+      {/* ── Vista: Por Rango ── */}
+      {vista==='porRango' && periodoActual && (() => {
             const tcVal = tc || TC_FALLBACK
             // Rangos presentes en el periodo actual
             const todosRangosArr = [...new Set(periodoActual.afiliados.map(a => getRango(a.rango).id))]
@@ -4453,9 +4489,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                 })}
               </div>
             )
-          })()}
-        </div>
-      )}
+      })()}
     </div>
   )
 }
