@@ -3339,6 +3339,25 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
     } catch(e) { console.error('Error al cargar período:', e) }
   }
 
+  const procesarMultipleFiles = async (files) => {
+    for (const file of files) {
+      try {
+        const afs = await parseWorkbookFile(file)
+        const mes = detectarMesDeNombre(file.name)
+        const año = detectarAnioDeNombre(file.name)
+        onAgregarPeriodo({
+          id: `${año}-${String(mes).padStart(2,'0')}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+          nombre: file.name,
+          afiliados: computeFrontalesOro(afs),
+          mes, año,
+          label: `${MESES_CORTO[mes-1]} ${año}`,
+          labelLargo: `${MESES_ES[mes-1]} ${año}`,
+          fecha: new Date().toLocaleDateString('es-MX')
+        })
+      } catch(e) { console.error('Error al cargar período:', file.name, e) }
+    }
+  }
+
   const confirmar = () => {
     if (!pendiente) return
     onAgregarPeriodo({ id:`${pAnio}-${String(pMes).padStart(2,'0')}-${Date.now()}`, nombre:pendiente.nombre, afiliados:pendiente.afiliados, mes:pMes, año:pAnio, label:`${MESES_CORTO[pMes-1]} ${pAnio}`, labelLargo:`${MESES_ES[pMes-1]} ${pAnio}`, fecha:new Date().toLocaleDateString('es-MX') })
@@ -3394,7 +3413,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
           <div style={{fontSize:14,fontWeight:700,color:'var(--win-title)',marginBottom:4}}>Subir primer período (mes)</div>
           <div style={{fontSize:12,color:'var(--win-muted)'}}>Arrastra o haz clic · formato .xlsx del portal NICE</div>
         </div>
-        <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f)procesarFile(f)}}/>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls" multiple style={{display:'none'}} onChange={e=>{const fs=Array.from(e.target.files||[]);if(fs.length===0)return;fs.length===1?procesarFile(fs[0]):(procesarMultipleFiles(fs),e.target.value='')}}/>
       </div>
       <div style={{...S.card, padding:'16px 20px'}}>
         <div style={{fontSize:13,fontWeight:700,color:'var(--win-title)',marginBottom:10}}>Qué incluye cada reporte</div>
@@ -3458,7 +3477,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
           <button onClick={()=>fileRef.current.click()} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 11px',borderRadius:20,border:'1px dashed var(--win-border2)',background:'none',color:'var(--win-accent)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
             <div style={{width:12,height:12}}><Icons.Upload/></div>+ Agregar mes
           </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f){procesarFile(f);e.target.value=''}}}/>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" multiple style={{display:'none'}} onChange={e=>{const fs=Array.from(e.target.files||[]);if(fs.length===0)return;fs.length===1?procesarFile(fs[0]):(procesarMultipleFiles(fs),e.target.value='')}}/>
           {periodoActual && <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>{periodoActual.labelLargo||periodoActual.label} · {statsActual?.total} afiliados</span>}
         </div>
       </div>
@@ -3511,6 +3530,37 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                   <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:5}}>VALOR DEL EQUIPO EN USD</div>
                   <div style={{fontSize:22,fontWeight:800,color:'var(--win-accent)',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>USD ${Math.round(totalUSD).toLocaleString('en-US')}</div>
                   <div style={{fontSize:11,color:'var(--win-muted)',marginTop:5}}>TC: ${tcVal.toFixed(2)} MXN/USD</div>
+                </div>
+              </div>
+            )
+          })()}
+          {/* Sumatorias acumuladas multi-periodo */}
+          {ordenados.length >= 2 && (() => {
+            const tcVal = tc || TC_FALLBACK
+            const acumPP = ordenados.reduce((s,p) => s + computePeriodStats(p.afiliados).totalPP, 0)
+            const acumPG = ordenados.reduce((s,p) => s + computePeriodStats(p.afiliados).totalPG, 0)
+            const acumMXN = ordenados.reduce((s,p) => s + p.afiliados.reduce((ss,a) => ss + (a.pp||0)*valorPuntoDe(getRango(a.rango).id), 0), 0)
+            const promPP = Math.round(acumPP / ordenados.length)
+            const promPG = Math.round(acumPG / ordenados.length)
+            return (
+              <div style={{...S.card, padding:'14px 16px', marginBottom:14, background:'linear-gradient(135deg,var(--win-surface) 60%,var(--win-surface2))'}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:'.07em',color:'var(--win-muted)',marginBottom:10}}>
+                  ACUMULADO — {ordenados.length} PERIODOS &nbsp;·&nbsp; {ordenados[0].label} → {periodoActual.label}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:12}}>
+                  {[
+                    {l:'PP acumulado', v:acumPP.toLocaleString(), c:'#3A8FF2'},
+                    {l:'PG acumulado', v:acumPG.toLocaleString(), c:'#7C3AED'},
+                    {l:'MXN generado', v:`$${Math.round(acumMXN).toLocaleString('es-MX')}`, c:'var(--win-green)'},
+                    {l:'PP prom./mes', v:promPP.toLocaleString(), c:'var(--win-accent)'},
+                    {l:'PG prom./mes', v:promPG.toLocaleString(), c:'var(--win-purple)'},
+                    {l:'USD generado', v:`$${Math.round(acumMXN/tcVal).toLocaleString('en-US')}`, c:'var(--win-cyan)'},
+                  ].map(k => (
+                    <div key={k.l}>
+                      <div style={{fontSize:10,color:'var(--win-muted)',marginBottom:3,lineHeight:1.3}}>{k.l}</div>
+                      <div style={{fontSize:17,fontWeight:800,color:k.c,fontVariantNumeric:'tabular-nums',lineHeight:1}}>{k.v}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
