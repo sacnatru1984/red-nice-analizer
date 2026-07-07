@@ -4531,6 +4531,47 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
   )
 }
 
+// ── Helpers de "Mi Semana": racha de constancia y calendario del mes,
+// construidos a partir de las acciones "hechas" guardadas por semana. ──
+const dateKey = (d) => { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}` }
+
+function getHistorialOtrasSemanas(excludeKey) {
+  const acciones = []
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k || !k.startsWith('rednice-semana-') || k === excludeKey) continue
+      try {
+        const d = JSON.parse(localStorage.getItem(k))
+        ;(d.acciones || []).forEach(a => { if (a.hecha !== false) acciones.push(a) })
+      } catch (e) {}
+    }
+  } catch (e) {}
+  return acciones
+}
+
+function calcRacha(diasConActividad) {
+  let cursor = new Date()
+  let key = dateKey(cursor)
+  // si hoy aún no tiene actividad, no rompe la racha de inmediato — cuenta desde ayer
+  if (!diasConActividad.has(key)) { cursor.setDate(cursor.getDate() - 1); key = dateKey(cursor) }
+  let racha = 0
+  while (diasConActividad.has(key)) { racha++; cursor.setDate(cursor.getDate() - 1); key = dateKey(cursor) }
+  return racha
+}
+
+function getDiasDelMes() {
+  const hoy = new Date()
+  const anio = hoy.getFullYear(), mes = hoy.getMonth()
+  const primerDia = new Date(anio, mes, 1)
+  const ultimoDia = new Date(anio, mes + 1, 0)
+  const dias = []
+  const offset = (primerDia.getDay() + 6) % 7 // Lunes=0 ... Domingo=6
+  for (let i = 0; i < offset; i++) dias.push(null)
+  for (let d = 1; d <= ultimoDia.getDate(); d++) dias.push(new Date(anio, mes, d))
+  return dias
+}
+
 function PanelSemana() {
   const getWeekKey = () => {
     const d = new Date()
@@ -4562,12 +4603,14 @@ function PanelSemana() {
   const [editando, setEditando] = useState(false)
   const [metasTemp, setMetasTemp] = useState(data.metas)
   const [form, setForm] = useState({ tipo:'prospecto', nota:'', monto:'' })
+  const [formHoy, setFormHoy] = useState({ tipo:'prospecto', nota:'', monto:'' })
   const [mostrarLog, setMostrarLog] = useState(true)
 
   const save = (d) => { setData(d); try { localStorage.setItem(SK, JSON.stringify(d)) } catch (e) {} }
 
+  // Solo lo ya "hecho" cuenta para metas y progreso — lo planeado en "Hoy" todavía no.
   const progreso = useMemo(() => {
-    const acc = data.acciones || []
+    const acc = (data.acciones || []).filter(a => a.hecha !== false)
     return {
       prospectos:   acc.filter(a => a.tipo==='prospecto').length,
       afiliaciones: acc.filter(a => a.tipo==='afiliacion').length,
@@ -4575,6 +4618,31 @@ function PanelSemana() {
       ventas:       acc.filter(a => a.tipo==='venta').reduce((s,a) => s+(parseFloat(a.monto)||0), 0),
     }
   }, [data.acciones])
+
+  // Racha y calendario — combinan la semana actual con el historial de otras semanas guardadas.
+  const historial = useMemo(() => {
+    const actuales = (data.acciones || []).filter(a => a.hecha !== false)
+    return [...actuales, ...getHistorialOtrasSemanas(SK)]
+  }, [data.acciones, SK])
+  const diasConActividad = useMemo(() => new Set(historial.map(a => dateKey(a.tsHecha || a.ts))), [historial])
+  const racha = useMemo(() => calcRacha(diasConActividad), [diasConActividad])
+  const diasDelMes = useMemo(() => getDiasDelMes(), [])
+  const pendientesHoy = (data.acciones || []).filter(a => a.hecha === false)
+  const logCompletado = (data.acciones || []).filter(a => a.hecha !== false)
+
+  const agregarHoy = () => {
+    if (formHoy.tipo === 'venta' && !formHoy.monto) return
+    if (formHoy.tipo !== 'venta' && !formHoy.nota.trim()) return
+    const nueva = { id:Date.now(), ts:new Date().toISOString(), tipo:formHoy.tipo, nota:formHoy.nota.trim(), monto:formHoy.tipo==='venta'?(parseFloat(formHoy.monto)||0):undefined, hecha:false }
+    save({ ...data, acciones:[nueva, ...(data.acciones||[])] })
+    setFormHoy(f => ({ ...f, nota:'', monto:'' }))
+  }
+  const toggleHecha = (id) => {
+    save({ ...data, acciones: (data.acciones||[]).map(a => {
+      if (a.id !== id) return a
+      return a.hecha === false ? { ...a, hecha:true, tsHecha:new Date().toISOString() } : { ...a, hecha:false }
+    })})
+  }
 
   const pct = (v, t) => Math.min(100, t > 0 ? Math.round(v / t * 100) : 0)
   const overallPct = Math.round(
@@ -4638,10 +4706,79 @@ function PanelSemana() {
         </div>
       </div>
 
+      {/* Racha + Calendario del mes */}
+      <div style={{...S.card,marginBottom:16,padding:'16px 18px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:26}}>🔥</span>
+            <div>
+              <div style={{fontSize:20,fontWeight:800,color:'var(--win-title)',lineHeight:1}}>{racha} día{racha!==1?'s':''}</div>
+              <div style={{fontSize:11,color:'var(--win-muted)'}}>{racha>0?'de constancia seguidos':'Registra algo hoy para empezar tu racha'}</div>
+            </div>
+          </div>
+          <div style={{fontSize:12,fontWeight:700,color:'var(--win-title)',textTransform:'capitalize'}}>{new Date().toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:5}}>
+          {['L','M','M','J','V','S','D'].map((d,i)=>(<div key={i} style={{textAlign:'center',fontSize:10,fontWeight:700,color:'var(--win-muted)'}}>{d}</div>))}
+          {diasDelMes.map((d,i) => {
+            if (!d) return <div key={i}/>
+            const k = dateKey(d)
+            const activo = diasConActividad.has(k)
+            const esHoyCell = k === dateKey(new Date())
+            const futuro = d > new Date()
+            return (
+              <div key={i} title={d.toLocaleDateString('es-MX',{day:'numeric',month:'long'})} style={{
+                aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',
+                borderRadius:7,fontSize:11,fontWeight:esHoyCell?800:600,
+                background: activo ? 'var(--win-green)' : 'var(--win-surface2)',
+                color: activo ? '#fff' : 'var(--win-text)',
+                border: esHoyCell ? '2px solid var(--win-accent)' : '1px solid transparent',
+                opacity: futuro && !activo ? .45 : 1,
+              }}>{d.getDate()}</div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Frase Maxwell */}
       <div style={{...S.card,marginBottom:16,padding:'11px 15px',borderLeft:'3px solid var(--win-accent)'}}>
         <div style={{fontSize:9,fontWeight:800,letterSpacing:'.1em',color:'var(--win-accent)',marginBottom:3}}>JOHN C. MAXWELL · LAS 21 LEYES</div>
         <div style={{fontSize:12,color:'var(--win-text)',lineHeight:1.65,fontStyle:'italic'}}>{tip}</div>
+      </div>
+
+      {/* Hoy */}
+      <div style={{...S.card,marginBottom:16}}>
+        <div style={S.cardHeader}>
+          <span style={{fontSize:15}}>☀️</span>
+          <span style={S.cardTitle}>Hoy</span>
+          <span style={{marginLeft:6,fontSize:11,background:'var(--win-accent)',color:'white',padding:'1px 7px',borderRadius:20,fontWeight:700}}>{pendientesHoy.length}</span>
+        </div>
+        <div>
+          {pendientesHoy.length===0 && <div style={{padding:'16px 16px',textAlign:'center',color:'var(--win-muted)',fontSize:12}}>Nada planeado para hoy — agrega algo abajo.</div>}
+          {pendientesHoy.map((a,i) => {
+            const t = TIPOS.find(x=>x.id===a.tipo)||TIPOS[0]
+            return (
+              <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 16px',borderTop:i===0?'none':'1px solid var(--win-border)'}}>
+                <div onClick={()=>toggleHecha(a.id)} title="Marcar como hecho" style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${t.color}`,flexShrink:0,cursor:'pointer'}}/>
+                <span style={{fontSize:15,flexShrink:0}}>{t.emoji}</span>
+                <div style={{flex:1,minWidth:0,fontSize:12.5,color:'var(--win-text)'}}>{a.nota || t.label}{a.monto!=null?` · $${parseFloat(a.monto).toLocaleString('es-MX')}`:''}</div>
+                <button onClick={()=>eliminarAccion(a.id)} title="Eliminar" style={{padding:'3px 7px',borderRadius:5,border:'1px solid var(--win-border)',background:'none',color:'var(--win-muted)',fontSize:10,cursor:'pointer',flexShrink:0}}>✕</button>
+              </div>
+            )
+          })}
+        </div>
+        <div style={{padding:'10px 16px',borderTop: pendientesHoy.length?'1px solid var(--win-border)':'none'}}>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+            {TIPOS.map(t => (
+              <button key={t.id} onClick={()=>setFormHoy(f=>({...f,tipo:t.id}))} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:20,fontSize:10.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:`1.5px solid ${formHoy.tipo===t.id?t.color:'var(--win-border)'}`,background:formHoy.tipo===t.id?t.color+'18':'none',color:formHoy.tipo===t.id?t.color:'var(--win-muted)'}}>{t.emoji} {t.label.split(' ')[0]}</button>
+            ))}
+          </div>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <input value={formHoy.nota} onChange={e=>setFormHoy(f=>({...f,nota:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&agregarHoy()} placeholder="¿Qué planeas hacer hoy?" style={{flex:1,minWidth:160,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
+            {formHoy.tipo==='venta'&&<input type="number" value={formHoy.monto} onChange={e=>setFormHoy(f=>({...f,monto:e.target.value}))} placeholder="Monto MXN" style={{width:115,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>}
+            <button onClick={agregarHoy} style={{padding:'8px 20px',borderRadius:8,background:'var(--win-accent)',color:'white',border:'none',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>+ Agregar</button>
+          </div>
+        </div>
       </div>
 
       {/* Tarjetas de metas */}
@@ -4676,7 +4813,7 @@ function PanelSemana() {
       {/* Formulario rápido */}
       <div style={{...S.card,marginBottom:16,padding:'14px 16px'}}>
         <div style={{fontSize:12,fontWeight:700,color:'var(--win-title)',marginBottom:10,display:'flex',alignItems:'center',gap:6}}>
-          <span style={{fontSize:15}}>⚡</span> Registrar acción
+          <span style={{fontSize:15}}>⚡</span> Registrar algo que ya hiciste
         </div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
           {TIPOS.map(t => (
@@ -4697,14 +4834,14 @@ function PanelSemana() {
         <div style={{...S.cardHeader,cursor:'pointer'}} onClick={()=>setMostrarLog(v=>!v)}>
           <span style={{fontSize:15}}>📋</span>
           <span style={S.cardTitle}>Acciones de la semana</span>
-          <span style={{marginLeft:6,fontSize:11,background:'var(--win-accent)',color:'white',padding:'1px 7px',borderRadius:20,fontWeight:700}}>{(data.acciones||[]).length}</span>
+          <span style={{marginLeft:6,fontSize:11,background:'var(--win-accent)',color:'white',padding:'1px 7px',borderRadius:20,fontWeight:700}}>{logCompletado.length}</span>
           <span style={{marginLeft:'auto',color:'var(--win-muted)',fontSize:12}}>{mostrarLog?'▲':'▼'}</span>
         </div>
         {mostrarLog&&(
           <div>
-            {(data.acciones||[]).length===0
+            {logCompletado.length===0
               ? <div style={{padding:'28px 16px',textAlign:'center',color:'var(--win-muted)',fontSize:12}}>Sin acciones registradas — cada llamada cuenta. Regístrala aquí.</div>
-              : (data.acciones||[]).map((a,i)=>{
+              : logCompletado.map((a,i)=>{
                   const t = TIPOS.find(x=>x.id===a.tipo)||TIPOS[0]
                   const esHoy = a.ts?.startsWith(hoy)
                   return (
