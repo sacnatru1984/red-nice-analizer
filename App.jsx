@@ -296,48 +296,6 @@ function getPlanAccion(afiliado, siguiente, afiliados, tc, umbral) {
   ]
 }
 
-// ── Mi Día: tareas automáticas de seguimiento (estilo To Do), generadas a partir
-// de la misma lógica de rangos/progreso que ya usa el Plan de cada afiliado ──
-function getTareasAuto(afiliados) {
-  if (!afiliados || afiliados.length === 0) return { tareas: [], extraReactivar: 0 }
-  const yo = afiliados.find(a => a.gen === 0) || afiliados[0]
-  const frontales = afiliados.filter(a => a.einPresentador === yo.ein)
-
-  // "Mi Día" es una lista corta y enfocada, no un backlog de toda la red —
-  // se limita a lo más urgente y se avisa cuántas cosas más hay pendientes.
-  const CAP_REACTIVAR = 5
-  const CAP_IMPULSAR = 3
-  const inactivos = frontales
-    .filter(a => (a.pp + a.pg) === 0)
-    .sort((a, b) => (b.telefono ? 1 : 0) - (a.telefono ? 1 : 0)) // prioriza los que sí tienen teléfono (accionables ya)
-  const reactivar = inactivos.slice(0, CAP_REACTIVAR).map(a => ({
-    id: `auto-reactivar-${a.ein}`, tipo: 'reactivar', ein: a.ein,
-    texto: `Reactivar a ${a.nombre.split(' ').slice(0, 2).join(' ')}`,
-    sub: `Sin movimiento este mes${a.telefono ? ' · ' + a.telefono : ''}`,
-  }))
-  const extraReactivar = Math.max(0, inactivos.length - CAP_REACTIVAR)
-
-  const impulsar = frontales
-    .filter(a => (a.pp + a.pg) > 0)
-    .map(a => { const sig = getSiguienteRangoObjetivo(a); if (!sig) return null; const p = getProgresoPct(a, sig); return (p >= 60 && p < 100) ? { a, sig, p } : null })
-    .filter(Boolean)
-    .sort((x, y) => y.p - x.p)
-    .slice(0, CAP_IMPULSAR)
-    .map(({ a, sig, p }) => ({
-      id: `auto-impulsar-${a.ein}`, tipo: 'impulsar', ein: a.ein,
-      texto: `Impulsa a ${a.nombre.split(' ').slice(0, 2).join(' ')}`,
-      sub: `Va en ${p}% hacia ${sig.label} — le faltan pocos puntos`,
-    }))
-
-  const personal = ((yo.pp + yo.pg) === 0) ? [{
-    id: 'auto-propia-actividad', tipo: 'personal', ein: yo.ein,
-    texto: 'Genera tu propia actividad este mes',
-    sub: 'Aún no registras PP ni PG en este período',
-  }] : []
-
-  return { tareas: [...reactivar, ...impulsar, ...personal], extraReactivar }
-}
-
 // ── Parser de Excel ──
 // Normaliza texto: quita acentos, espacios extra, pasa a minúsculas
 function norm(s) {
@@ -2208,115 +2166,6 @@ function RedVisual({ sel, afiliados, filtroRangos, bucketRango }) {
   )
 }
 
-// ── Mi Día — checklist estilo To Do, combinando tareas automáticas de
-// seguimiento (reactivar/impulsar frontales) con tareas manuales del usuario.
-function MiDiaWidget({ afiliados, onSeleccionarEin }) {
-  const LS_KEY = 'rednice-miday'
-  const [store, setStore] = useState(() => {
-    try { const s = localStorage.getItem(LS_KEY); if (s) return JSON.parse(s) } catch (e) {}
-    return { hechas: [], manuales: [] }
-  })
-  const [nuevo, setNuevo] = useState('')
-  const [verHechas, setVerHechas] = useState(false)
-  const save = (d) => { setStore(d); try { localStorage.setItem(LS_KEY, JSON.stringify(d)) } catch (e) {} }
-
-  const { tareas: auto, extraReactivar } = useMemo(() => getTareasAuto(afiliados), [afiliados])
-  const hechas = store.hechas || []
-  const manuales = store.manuales || []
-  const autoPendientes = auto.filter(t => !hechas.includes(t.id))
-  const autoHechas = auto.filter(t => hechas.includes(t.id))
-  const manualesPendientes = manuales.filter(t => !t.hecha)
-  const manualesHechas = manuales.filter(t => t.hecha)
-  const totalPend = autoPendientes.length + manualesPendientes.length
-  const totalHechas = autoHechas.length + manualesHechas.length
-
-  const marcarAuto = (id) => save({ ...store, hechas: hechas.includes(id) ? hechas.filter(x => x !== id) : [...hechas, id] })
-  const marcarManual = (id) => save({ ...store, manuales: manuales.map(t => t.id === id ? { ...t, hecha: !t.hecha } : t) })
-  const eliminarManual = (id) => save({ ...store, manuales: manuales.filter(t => t.id !== id) })
-  const agregarManual = () => {
-    if (!nuevo.trim()) return
-    save({ ...store, manuales: [{ id: 'manual-' + Date.now(), texto: nuevo.trim(), hecha: false }, ...manuales] })
-    setNuevo('')
-  }
-
-  const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
-  const ICONS_TIPO = { reactivar: '🔴', impulsar: '⚡', personal: '🎯' }
-
-  return (
-    <div style={{ background: 'linear-gradient(135deg,#0F172A 0%,#1E3A5F 100%)', borderRadius: 10, marginBottom: 14, overflow: 'hidden' }}>
-      <div style={{ padding: '16px 20px 14px' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.09em', color: 'rgba(255,255,255,.55)', marginBottom: 2, textTransform: 'uppercase' }}>Mi Día</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)', textTransform: 'capitalize' }}>{hoy}</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>{totalPend} pendiente{totalPend !== 1 ? 's' : ''}{totalHechas > 0 ? ` · ${totalHechas} hecha${totalHechas !== 1 ? 's' : ''}` : ''}</div>
-        </div>
-      </div>
-
-      <div style={{ background: 'var(--win-surface)' }}>
-        {(autoPendientes.length === 0 && manualesPendientes.length === 0) && (
-          <div style={{ padding: '20px 20px', textAlign: 'center', color: 'var(--win-muted)', fontSize: 12 }}>
-            Sin tareas pendientes por ahora — buen trabajo. 🎉
-          </div>
-        )}
-
-        {autoPendientes.map(t => (
-          <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--win-border)' }}>
-            <div onClick={() => marcarAuto(t.id)} title="Marcar como hecha" style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--win-accent)', marginTop: 1, flexShrink: 0, cursor: 'pointer' }} />
-            <div style={{ flex: 1, minWidth: 0, cursor: t.ein ? 'pointer' : 'default' }} onClick={() => t.ein && onSeleccionarEin(t.ein)}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--win-text)' }}>{ICONS_TIPO[t.tipo] || '•'} {t.texto}</div>
-              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginTop: 1 }}>{t.sub}</div>
-            </div>
-          </div>
-        ))}
-
-        {extraReactivar > 0 && (
-          <div style={{ padding: '8px 16px', fontSize: 11, color: 'var(--win-muted)', fontStyle: 'italic' }}>
-            + {extraReactivar} frontal{extraReactivar > 1 ? 'es' : ''} más sin movimiento — revisa tu Árbol para verlos todos
-          </div>
-        )}
-
-        {manualesPendientes.map(t => (
-          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--win-border)' }}>
-            <div onClick={() => marcarManual(t.id)} title="Marcar como hecha" style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--win-muted)', flexShrink: 0, cursor: 'pointer' }} />
-            <div style={{ flex: 1, fontSize: 12.5, color: 'var(--win-text)' }}>{t.texto}</div>
-            <button onClick={() => eliminarManual(t.id)} title="Eliminar" style={{ padding: '2px 6px', borderRadius: 5, border: 'none', background: 'none', color: 'var(--win-muted)', fontSize: 11, cursor: 'pointer' }}>✕</button>
-          </div>
-        ))}
-
-        {totalHechas > 0 && (
-          <div style={{ padding: '9px 16px', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--win-accent)' }} onClick={() => setVerHechas(v => !v)}>
-            {verHechas ? '▲' : '▼'} Completadas ({totalHechas})
-          </div>
-        )}
-        {verHechas && autoHechas.map(t => (
-          <div key={t.id} onClick={() => marcarAuto(t.id)} title="Marcar como pendiente" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: '1px solid var(--win-border)', cursor: 'pointer', opacity: .55 }}>
-            <div style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--win-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><div style={{ width: 9, height: 9, color: '#fff' }}><Icons.Check /></div></div>
-            <div style={{ fontSize: 12, color: 'var(--win-text)', textDecoration: 'line-through' }}>{t.texto}</div>
-          </div>
-        ))}
-        {verHechas && manualesHechas.map(t => (
-          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: '1px solid var(--win-border)', opacity: .55 }}>
-            <div onClick={() => marcarManual(t.id)} title="Marcar como pendiente" style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--win-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}><div style={{ width: 9, height: 9, color: '#fff' }}><Icons.Check /></div></div>
-            <div style={{ flex: 1, fontSize: 12, color: 'var(--win-text)', textDecoration: 'line-through' }}>{t.texto}</div>
-            <button onClick={() => eliminarManual(t.id)} title="Eliminar" style={{ padding: '2px 6px', borderRadius: 5, border: 'none', background: 'none', color: 'var(--win-muted)', fontSize: 11, cursor: 'pointer' }}>✕</button>
-          </div>
-        ))}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px' }}>
-          <span style={{ fontSize: 14, color: 'var(--win-accent)', fontWeight: 700 }}>+</span>
-          <input
-            value={nuevo}
-            onChange={e => setNuevo(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && agregarManual()}
-            placeholder="Agregar una tarea..."
-            style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--win-text)', fontFamily: 'inherit', outline: 'none' }}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD }) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
@@ -2405,7 +2254,6 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
   return (
     <div style={{ display: 'grid', gridTemplateColumns: sel ? '1fr 320px' : '1fr', gap: 16, alignItems: 'start' }}>
       <div>
-        <MiDiaWidget afiliados={afiliados} onSeleccionarEin={(ein) => { const a = afiliados.find(x => x.ein === ein); if (a) elegir(a) }} />
         <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 14 }}>
           <div style={{ padding: '12px 16px' }}>
             <div style={{ fontSize: 12, color: 'var(--win-muted)', marginBottom: 8 }}>Selecciona un afiliado para ver su plan personalizado con los requisitos exactos del plan de carrera NICE</div>
