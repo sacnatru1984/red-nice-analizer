@@ -183,8 +183,10 @@
     }
     .rn-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
     .rn-twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-    .rn-tabs { display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+    .rn-tabs { display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1 1 0; min-width: 0; }
     .rn-tabs::-webkit-scrollbar { display: none; }
+    .rn-taskbar { min-width: 0; }
+    .rn-actions { flex-shrink: 0; }
     .rn-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .rn-body { padding: 20px 24px; }
 

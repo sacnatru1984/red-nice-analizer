@@ -451,6 +451,18 @@ function getInitials(nombre) {
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
+// ── Detecta pantallas angostas (celular) para adaptar layouts de columnas
+// fijas que no pueden resolverse solo con CSS del archivo host. ──
+function useIsMobile(breakpoint = 720) {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < breakpoint)
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < breakpoint)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [breakpoint])
+  return isMobile
+}
+
 function contarPorRango(afiliados) {
   const counts = {}
   afiliados.forEach(a => {
@@ -1388,6 +1400,7 @@ function PanelMiRed({ afiliados }) {
 }
 
 function TreeNode({ nodo, depth=0, onGenealogia }) {
+  const isMobile = useIsMobile()
   const [open, setOpen] = useState(depth<2)
   const r = getRango(nodo.rango)
   const hasKids = nodo.children?.length > 0
@@ -1407,19 +1420,19 @@ function TreeNode({ nodo, depth=0, onGenealogia }) {
           <button
             title="Ver genealogía desde este afiliado"
             onClick={e=>{e.stopPropagation(); onGenealogia(nodo.ein)}}
-            style={{display:'flex',alignItems:'center',justifyContent:'center',width:26,height:26,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
+            style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?34:30,height:isMobile?34:30,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
             <div style={{width:14,height:14}}><Icons.GitBranch/></div>
           </button>
         )}
-        <RankBadge rangoStr={nodo.rango}/>
-        <div style={{textAlign:'right',flexShrink:0,minWidth:52}}>
+        {!isMobile && <RankBadge rangoStr={nodo.rango}/>}
+        <div style={{textAlign:'right',flexShrink:0,minWidth:isMobile?40:52}}>
           <div style={{fontSize:12,fontWeight:700,color:'var(--win-gold)'}}>{nodo.pp} PP</div>
           {nodo.pg>0 && <div style={{fontSize:10,color:'#7C3AED'}}>{nodo.pg} PG</div>}
         </div>
-        {hasKids && <div style={{fontSize:10,color:'var(--win-muted)',flexShrink:0,minWidth:16,textAlign:'right'}}>{nodo.children.length}</div>}
+        {hasKids && !isMobile && <div style={{fontSize:10,color:'var(--win-muted)',flexShrink:0,minWidth:16,textAlign:'right'}}>{nodo.children.length}</div>}
       </div>
       {open && hasKids && (
-        <div style={{marginLeft:26,borderLeft:'2px solid var(--win-border)',paddingLeft:12,paddingTop:2}}>
+        <div style={{marginLeft:isMobile?14:26,borderLeft:'2px solid var(--win-border)',paddingLeft:isMobile?8:12,paddingTop:2}}>
           {nodo.children.map(c=><TreeNode key={c.ein} nodo={c} depth={depth+1} onGenealogia={onGenealogia}/>)}
         </div>
       )}
@@ -1428,6 +1441,7 @@ function TreeNode({ nodo, depth=0, onGenealogia }) {
 }
 
 function PanelArbol({ afiliados, onGenealogia }) {
+  const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const tree = buildTree(afiliados)
   const filtrados = q ? afiliados.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())||a.ein.includes(q)) : null
@@ -1450,16 +1464,16 @@ function PanelArbol({ afiliados, onGenealogia }) {
           {q ? filtrados.map(a=>(
             <div key={a.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid var(--win-border)'}}>
               <div style={{width:30,height:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:26,height:26,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}</div>
-              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</div><div style={{fontSize:11,color:'var(--win-muted)'}}>EIN {a.ein} · Gen. {a.gen} · {a.ciudad}</div></div>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nombre}</div><div style={{fontSize:11,color:'var(--win-muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>EIN {a.ein} · Gen. {a.gen} · {a.ciudad}</div></div>
               {onGenealogia && (
                 <button
                   title="Ver genealogía desde este afiliado"
                   onClick={()=>onGenealogia(a.ein)}
-                  style={{display:'flex',alignItems:'center',justifyContent:'center',width:28,height:28,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
+                  style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?34:30,height:isMobile?34:30,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
                   <div style={{width:15,height:15}}><Icons.GitBranch/></div>
                 </button>
               )}
-              <RankBadge rangoStr={a.rango}/>
+              {!isMobile && <RankBadge rangoStr={a.rango}/>}
               <div style={{fontWeight:700,color:'var(--win-gold)',fontSize:12,flexShrink:0}}>{a.pp} PP</div>
             </div>
           )) : tree.map(n=><TreeNode key={n.ein} nodo={n} onGenealogia={onGenealogia}/>)}
@@ -1538,11 +1552,12 @@ function bucketRangoGen(id) {
 }
 
 function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
+  const isMobile = useIsMobile()
   const tree = buildTree(afiliados)
   const [q, setQ] = useState('')
   const [drop, setDrop] = useState(false)
   const [tooltip, setTooltip] = useState(null)
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
   const [history, setHistory] = useState([]) // pila de EINs anteriores
   const scrollRef = useRef(null)
   const [filtroRangos, setFiltroRangos] = useState(() => new Set(RANGOS_FILTRO_GEN.map(x => x.id)))
@@ -1623,7 +1638,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
 
   const zoomIn = () => setZoom(z => Math.min(3, +(z + 0.15).toFixed(2)))
   const zoomOut = () => setZoom(z => Math.max(0.4, +(z - 0.15).toFixed(2)))
-  const zoomReset = () => setZoom(1)
+  const zoomReset = () => setZoom(isMobile ? 0.6 : 1)
 
 
   return (
@@ -1685,7 +1700,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
         </div>
       </div>
       <div style={S.card}>
-        <div style={S.cardHeader}>
+        <div style={{...S.cardHeader, flexWrap: isMobile ? 'wrap' : 'nowrap'}}>
           <button onClick={regresar} disabled={!rootEin && history.length===0}
             title="Regresar a la vista anterior"
             style={{height:28,padding:'0 10px',marginRight:6,border:'1px solid var(--win-border)',borderRadius:6,background:(!rootEin && history.length===0)?'var(--win-surface)':'var(--win-surface2)',cursor:(!rootEin && history.length===0)?'not-allowed':'pointer',fontSize:11,fontWeight:600,color:'var(--win-title)',opacity:(!rootEin && history.length===0)?0.5:1,display:'flex',alignItems:'center',gap:4}}>
@@ -1696,11 +1711,11 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
             style={{height:28,padding:'0 10px',marginRight:10,border:'1px solid var(--win-border)',borderRadius:6,background:(!rootEin && history.length===0)?'var(--win-surface)':'var(--win-surface2)',cursor:(!rootEin && history.length===0)?'not-allowed':'pointer',fontSize:11,fontWeight:600,color:'var(--win-title)',opacity:(!rootEin && history.length===0)?0.5:1}}>
             ⌂ Árbol principal
           </button>
-          <span style={S.cardTitle}>{raiz ? `Ramificaciones de ${raiz.nombre}` : 'Ramificaciones'}</span>
-          <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:6}}>
-            <button onClick={zoomOut} title="Alejar" style={{width:28,height:28,border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:16,fontWeight:700,color:'var(--win-title)',display:'flex',alignItems:'center',justifyContent:'center'}}>−</button>
-            <button onClick={zoomReset} title="Restablecer zoom" style={{minWidth:50,height:28,padding:'0 8px',border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:11,fontWeight:600,color:'var(--win-title)',fontVariantNumeric:'tabular-nums'}}>{Math.round(zoom*100)}%</button>
-            <button onClick={zoomIn} title="Acercar" style={{width:28,height:28,border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:16,fontWeight:700,color:'var(--win-title)',display:'flex',alignItems:'center',justifyContent:'center'}}>+</button>
+          <span style={{...S.cardTitle, ...(isMobile ? {order:1, width:'100%', marginTop:6} : {})}}>{raiz ? `Ramificaciones de ${raiz.nombre}` : 'Ramificaciones'}</span>
+          <div style={{marginLeft: isMobile ? 0 : 'auto',display:'flex',alignItems:'center',gap:6}}>
+            <button onClick={zoomOut} title="Alejar" style={{width:isMobile?36:28,height:isMobile?36:28,border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:16,fontWeight:700,color:'var(--win-title)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>−</button>
+            <button onClick={zoomReset} title="Restablecer zoom" style={{minWidth:50,height:isMobile?36:28,padding:'0 8px',border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:11,fontWeight:600,color:'var(--win-title)',fontVariantNumeric:'tabular-nums',flexShrink:0}}>{Math.round(zoom*100)}%</button>
+            <button onClick={zoomIn} title="Acercar" style={{width:isMobile?36:28,height:isMobile?36:28,border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:16,fontWeight:700,color:'var(--win-title)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>+</button>
           </div>
         </div>
 
@@ -2167,6 +2182,7 @@ function RedVisual({ sel, afiliados, filtroRangos, bucketRango }) {
 }
 
 function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD }) {
+  const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
   const [drop, setDrop] = useState(false)
@@ -2252,8 +2268,8 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: sel ? '1fr 320px' : '1fr', gap: 16, alignItems: 'start' }}>
-      <div>
+    <div style={{ display: 'grid', gridTemplateColumns: sel && !isMobile ? 'minmax(0,1fr) 320px' : 'minmax(0,1fr)', gap: 16, alignItems: 'start' }}>
+      <div style={{ minWidth: 0 }}>
         <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 14 }}>
           <div style={{ padding: '12px 16px' }}>
             <div style={{ fontSize: 12, color: 'var(--win-muted)', marginBottom: 8 }}>Selecciona un afiliado para ver su plan personalizado con los requisitos exactos del plan de carrera NICE</div>
@@ -2281,12 +2297,12 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
           </div>
         </div>
 
-        <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 14, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 14, padding: '11px 16px', display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 14, flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <div style={{ width: 15, height: 15, color: 'var(--win-accent)' }}><Icons.Sliders/></div>
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)' }}>Desc. por Red (informativo)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: 'var(--win-muted)' }}>Base del volumen:</span>
             <div style={{ display: 'flex', background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 7, padding: 2 }}>
               {[{ k: 'pp', l: 'PP' }, { k: 'ppg', l: 'PP+PG' }, { k: 'pg', l: 'PG' }].map(o => (
@@ -2294,7 +2310,7 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
               ))}
             </div>
           </div>
-          <span style={{ fontSize: 10.5, color: 'var(--win-muted)', marginLeft: 'auto', maxWidth: 280, lineHeight: 1.4 }}>Un frontal <b style={{ color: 'var(--win-text)' }}>cuenta como Oro</b> si es rango Oro+ y está activo este mes. El monto en USD es solo informativo del Reembolso por Diferencial.</span>
+          <span style={{ fontSize: 10.5, color: 'var(--win-muted)', marginLeft: isMobile ? 0 : 'auto', maxWidth: isMobile ? '100%' : 280, lineHeight: 1.4 }}>Un frontal <b style={{ color: 'var(--win-text)' }}>cuenta como Oro</b> si es rango Oro+ y está activo este mes. El monto en USD es solo informativo del Reembolso por Diferencial.</span>
         </div>
 
         {!sel && (
@@ -2309,11 +2325,11 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
 
         {sel && (
           <div>
-            <div style={{ background: 'linear-gradient(135deg,#1E3A8A 0%,#2563EB 100%)', borderRadius: 10, padding: '18px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ background: 'linear-gradient(135deg,#1E3A8A 0%,#2563EB 100%)', borderRadius: 10, padding: '18px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', border: '2px solid rgba(255,255,255,.3)' }}>{RANGO_IMG[r?.id] ? <img src={RANGO_IMG[r?.id]} alt={r?.label} style={{ width: 46, height: 46, objectFit: 'contain' }}/> : <span style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>{getInitials(sel.nombre)}</span>}</div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 3 }}>{sel.nombre}</div><div style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>EIN {sel.ein} · Gen. {sel.gen} · {sel.ciudad}, {sel.estado}</div></div>
-              <RankBadge rangoStr={sel.rango}/>
-              <button onClick={() => exportAffiliateReport(sel, sig, pct, getChecks(), getAcciones(), pasos)} title="Descargar plan como imagen" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: 'rgba(255,255,255,.16)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sel.nombre}</div><div style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>EIN {sel.ein} · Gen. {sel.gen} · {sel.ciudad}, {sel.estado}</div></div>
+              {!isMobile && <RankBadge rangoStr={sel.rango}/>}
+              <button onClick={() => exportAffiliateReport(sel, sig, pct, getChecks(), getAcciones(), pasos)} title="Descargar plan como imagen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: 'rgba(255,255,255,.16)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, width: isMobile ? '100%' : 'auto', order: isMobile ? 1 : 0 }}>
                 <div style={{ width: 14, height: 14 }}><Icons.Download/></div>
                 Descargar
               </button>
@@ -2610,7 +2626,8 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
                       <div style={{ padding: '12px 16px', background: 'var(--win-surface2)', borderBottom: '1px solid var(--win-border)' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-accent)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Frontales Oro de {sel.nombre.split(' ').slice(0, 2).join(' ')}</div>
                         <div style={{ fontSize: 11, color: 'var(--win-muted)', marginBottom: 10, lineHeight: 1.5 }}>Cuenta como <b style={{ color: 'var(--win-text)' }}>frontal Oro</b> quien es rango Oro o superior <b style={{ color: 'var(--win-text)' }}>y está activo</b> este mes (PP+PG&gt;0). La columna <b style={{ color: 'var(--win-text)' }}>Desc. Red</b> es informativa: (valor del punto de su rango − $12.06 del punto Oro) × {volBase === 'pg' ? 'PG' : volBase === 'ppg' ? 'PP+PG' : 'PP'} de su red ÷ ${tcUse.toFixed(2)} MXN/USD.</div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 12 }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
                               {['Frontal', 'Actividad', 'Desc. Red (USD)', '¿Cuenta?'].map(h => (
@@ -2645,13 +2662,15 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
                             })}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )}
                     {candidatos.length > 0 && (
                       <div style={{ padding: '12px 16px', background: 'var(--win-surface2)' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-accent)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Candidatos más probables a frontal Oro</div>
                         <div style={{ fontSize: 11, color: 'var(--win-muted)', marginBottom: 10 }}>Frontales directos con mayor volumen — prioriza apoyarlos para que alcancen Oro (3,000 pts combinados) y cuenten como tu frontal Oro.</div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 12 }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
                               {['Rango','Nombre','PP','PG','Total','Gen.'].map(h => (
@@ -2680,6 +2699,7 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
                             })}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2932,6 +2952,7 @@ function DescuentosPorRed() {
 }
 
 function CertificadoModal({ afiliados, onClose }) {
+  const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
   const [rangoId, setRangoId] = useState(null)
@@ -2974,7 +2995,7 @@ function CertificadoModal({ afiliados, onClose }) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,28,.62)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.45)', width: '100%', maxWidth: 1080, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.45)', width: '100%', maxWidth: 1080, maxHeight: '92vh', overflow: isMobile ? 'auto' : 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg,#C9A227,#8A6A1E)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}><div style={{ width: 17, height: 17 }}><Icons.Award/></div></div>
           <div style={{ flex: 1 }}>
@@ -2983,7 +3004,7 @@ function CertificadoModal({ afiliados, onClose }) {
           </div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--win-border)', background: 'var(--win-surface2)', color: 'var(--win-muted)', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', flex: 1, minHeight: 0 }} className="rn-cert-grid">
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', flex: isMobile ? 'none' : 1, minHeight: 0 }} className="rn-cert-grid">
           {/* Panel de controles */}
           <div style={{ borderRight: '1px solid var(--win-border)', padding: 18, overflowY: 'auto', background: 'var(--win-surface2)' }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: 'var(--win-muted)', textTransform: 'uppercase', marginBottom: 8 }}>1 · Afiliado</div>
@@ -5009,6 +5030,7 @@ function ModalBackoffice({ onClose, onSaved }) {
 }
 
 function App() {
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState('red')
   const [afiliados, setAfiliados] = useState([])
   const [archivos, setArchivos] = useState([])
@@ -5180,16 +5202,16 @@ function App() {
     <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--win-bg)'}}>
       {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
-      <div className="rn-taskbar" style={{height:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:'0 16px',gap:12,flexShrink:0,zIndex:100}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
+      <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
           <div style={{width:26,height:26,background:'var(--win-accent)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'white',boxShadow:'0 0 0 1px rgba(120,200,255,.25), 0 4px 14px rgba(37,99,235,.45)'}}>
             <div style={{width:14,height:14}}><Icons.Network/></div>
           </div>
-          <span style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>Red<span style={{color:'var(--win-accent)'}}>NICE</span></span>
+          {!isMobile && <span style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>Red<span style={{color:'var(--win-accent)'}}>NICE</span></span>}
         </div>
         <div className="rn-tabs">
         {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} title={t.l} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:6,fontSize:12,color:tab===t.id?'var(--win-accent)':'var(--win-text)',cursor:'pointer',transition:'.12s',border:'none',background:tab===t.id?'var(--win-accent-l)':'none',fontFamily:'inherit',fontWeight:500}}>
+          <button key={t.id} onClick={()=>setTab(t.id)} title={t.l} style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'10px 11px':'5px 12px',borderRadius:6,fontSize:12,color:tab===t.id?'var(--win-accent)':'var(--win-text)',cursor:'pointer',transition:'.12s',border:'none',background:tab===t.id?'var(--win-accent-l)':'none',fontFamily:'inherit',fontWeight:500}}>
             <div style={{width:14,height:14}}><t.I/></div>
             <span className="rn-tab-label">{t.l}</span>
             {t.id==='archivos'&&duplicados.length>0&&<span style={{background:'var(--win-red)',color:'white',fontSize:9,fontWeight:700,borderRadius:10,padding:'1px 5px'}}>{duplicados.length}</span>}
@@ -5201,11 +5223,11 @@ function App() {
             <div style={{width:22,height:22,borderRadius:'50%',background:'var(--win-accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700}}>{getInitials(self.nombre)}</div>
             {self.nombre.split(' ').slice(0,2).join(' ')}
           </div>}
-          <button onClick={()=>fileRef.current.click()} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:6,background:'var(--win-accent)',color:'white',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'inherit'}}>
+          <button onClick={()=>fileRef.current.click()} title="Cargar Excel" style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'0':'6px 14px',width:isMobile?38:'auto',height:isMobile?38:'auto',justifyContent:'center',borderRadius:6,background:'var(--win-accent)',color:'white',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
             <div style={{width:14,height:14}}><Icons.Upload/></div>
-            Cargar Excel
+            {!isMobile && 'Cargar Excel'}
           </button>
-          <button onClick={toggleTheme} title={theme==='dark'?'Modo claro':'Modo oscuro'} style={{display:'flex',alignItems:'center',justifyContent:'center',width:32,height:32,borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',cursor:'pointer',color:'var(--win-text)',fontSize:14,padding:0}}>
+          <button onClick={toggleTheme} title={theme==='dark'?'Modo claro':'Modo oscuro'} style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:32,height:isMobile?38:32,borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',cursor:'pointer',color:'var(--win-text)',fontSize:14,padding:0,flexShrink:0}}>
             {theme==='dark'?'☀️':'🌙'}
           </button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={handleFile}/>
