@@ -554,6 +554,7 @@ const Icons = {
   TrendUp: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
   Calendar: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   Target: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+  Grid: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
 }
 
 const s = (styles) => styles
@@ -1219,6 +1220,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdo
 }
 
 function PanelMiRed({ afiliados }) {
+  const [showDB, setShowDB] = useState(false)
   const total = afiliados.length
   const activos = afiliados.filter(a => (a.pp||0)+(a.pg||0)>0).length
   const totalPP = afiliados.reduce((s,a) => s+(a.pp||0), 0)
@@ -1234,7 +1236,12 @@ function PanelMiRed({ afiliados }) {
   const profundidad = afiliados.reduce((m,a)=>Math.max(m,a.gen||0),0)
   return (
     <div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
+      {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
+      <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:12}}>
+        <button onClick={()=>setShowDB(true)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-accent)',border:'1px solid var(--win-accent)',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+          <div style={{width:15,height:15}}><Icons.Grid/></div>
+          Base de datos
+        </button>
         <button onClick={()=>exportNetworkReport(afiliados)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-surface)',border:'1px solid var(--win-border2)',color:'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
           <div style={{width:15,height:15}}><Icons.Download/></div>
           Exportar reporte
@@ -1394,6 +1401,201 @@ function PanelMiRed({ afiliados }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+function fmtFecha(v) {
+  if (v == null || v === '') return '—'
+  if (v instanceof Date) return isNaN(v.getTime()) ? '—' : v.toLocaleDateString('es-MX')
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000))
+    return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('es-MX')
+  }
+  return String(v)
+}
+
+const BASE_DATOS_COLS = [
+  { key: 'gen', label: 'Generación', align: 'center' },
+  { key: 'ein', label: 'EIN' },
+  { key: 'nombre', label: 'Nombre' },
+  { key: 'fechaContrato', label: 'Fecha contrato' },
+  { key: 'fechaRegistro', label: 'Fecha registro' },
+  { key: 'rango', label: 'Rango' },
+  { key: 'rangoVenta', label: 'Rango venta' },
+  { key: 'telefono', label: 'Teléfono' },
+  { key: 'pp', label: 'PP', align: 'right' },
+  { key: 'pg', label: 'PG', align: 'right' },
+  { key: 'pnd', label: 'PND', align: 'right' },
+  { key: 'einPresentador', label: 'Número de presentador' },
+  { key: 'presentador', label: 'Presentador' },
+  { key: 'estado', label: 'Estado' },
+  { key: 'ciudad', label: 'Ciudad' },
+]
+
+async function exportBaseDatosExcel(afiliados) {
+  const wb = new window.ExcelJS.Workbook()
+  wb.creator = 'RedNICE'
+  const ws = wb.addWorksheet('Base de Datos NICE')
+
+  ws.columns = [
+    { header: 'Generación', key: 'gen', width: 10 },
+    { header: 'EIN', key: 'ein', width: 12 },
+    { header: 'Nombre', key: 'nombre', width: 28 },
+    { header: 'Fecha contrato', key: 'fechaContrato', width: 14 },
+    { header: 'Fecha registro', key: 'fechaRegistro', width: 14 },
+    { header: 'Rango', key: 'rango', width: 20 },
+    { header: 'Rango venta', key: 'rangoVenta', width: 14 },
+    { header: 'Teléfono', key: 'telefono', width: 14 },
+    { header: 'PP', key: 'pp', width: 9 },
+    { header: 'PG', key: 'pg', width: 9 },
+    { header: 'PND', key: 'pnd', width: 9 },
+    { header: 'Número de presentador', key: 'einPresentador', width: 18 },
+    { header: 'Presentador', key: 'presentador', width: 24 },
+    { header: 'Estado', key: 'estado', width: 16 },
+    { header: 'Ciudad', key: 'ciudad', width: 16 },
+  ]
+
+  const headerRow = ws.getRow(1)
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A2E' } }
+  headerRow.alignment = { vertical: 'middle' }
+  headerRow.height = 20
+
+  const fechaVal = (v) => {
+    if (v == null || v === '') return ''
+    if (v instanceof Date) return v
+    if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000))
+    return String(v)
+  }
+
+  const imgIdCache = {}
+  afiliados.forEach((a, i) => {
+    const rowIndex = i + 2
+    const r = getRango(a.rango)
+    const row = ws.addRow({
+      gen: a.gen ?? '',
+      ein: a.ein || '',
+      nombre: a.nombre || '',
+      fechaContrato: fechaVal(a.fechaContrato),
+      fechaRegistro: fechaVal(a.fechaRegistro),
+      rango: r.label,
+      rangoVenta: a.rangoVenta || '',
+      telefono: a.telefono || '',
+      pp: a.pp || 0,
+      pg: a.pg || 0,
+      pnd: a.pnd || 0,
+      einPresentador: a.einPresentador || '',
+      presentador: a.presentador || '',
+      estado: a.estado || '',
+      ciudad: a.ciudad || '',
+    })
+    row.height = 18
+    const rangoCell = row.getCell('rango')
+    rangoCell.alignment = { indent: 3, vertical: 'middle' }
+    rangoCell.font = { color: { argb: 'FF' + (r.color || '#555').replace('#', '') } }
+
+    const src = RANGO_IMG[r.id]
+    if (src && src.startsWith('data:image')) {
+      let imgId = imgIdCache[r.id]
+      if (imgId == null) {
+        const base64 = src.split(',')[1]
+        imgId = wb.addImage({ base64, extension: 'png' })
+        imgIdCache[r.id] = imgId
+      }
+      ws.addImage(imgId, { tl: { col: 5, row: rowIndex - 1 }, ext: { width: 15, height: 15 } })
+    }
+  })
+
+  ws.getColumn('pp').numFmt = '#,##0'
+  ws.getColumn('pg').numFmt = '#,##0'
+  ws.getColumn('pnd').numFmt = '#,##0'
+  ws.getColumn('fechaContrato').numFmt = 'dd/mm/yyyy'
+  ws.getColumn('fechaRegistro').numFmt = 'dd/mm/yyyy'
+  ws.autoFilter = { from: 'A1', to: 'O1' }
+  ws.views = [{ state: 'frozen', ySplit: 1 }]
+
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `Base-de-datos-NICE-${new Date().toISOString().slice(0, 10)}.xlsx`
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+function BaseDatosModal({ afiliados, onClose }) {
+  const isMobile = useIsMobile()
+  const [q, setQ] = useState('')
+  const [exportando, setExportando] = useState(false)
+
+  const filtrados = q.trim()
+    ? afiliados.filter(a => (a.nombre || '').toLowerCase().includes(q.toLowerCase()) || (a.ein || '').toLowerCase().includes(q.toLowerCase()))
+    : afiliados
+
+  const descargar = async () => {
+    setExportando(true)
+    try { await exportBaseDatosExcel(filtrados) } finally { setExportando(false) }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,28,.62)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 0 : 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: isMobile ? 0 : 14, boxShadow: '0 24px 70px rgba(0,0,0,.45)', width: '100%', maxWidth: 1400, height: isMobile ? '100%' : '92vh', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--win-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}><div style={{ width: 18, height: 18 }}><Icons.Grid/></div></div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>Base de datos de la red</div>
+            <div style={{ fontSize: 11.5, color: 'var(--win-muted)' }}>{filtrados.length} de {afiliados.length} afiliados</div>
+          </div>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o EIN…" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--win-border2)', background: 'var(--win-surface2)', fontSize: 12.5, fontFamily: 'inherit', color: 'var(--win-text)', outline: 'none', width: isMobile ? '100%' : 220, boxSizing: 'border-box' }}/>
+          <button onClick={descargar} disabled={exportando} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 8, background: 'var(--win-accent)', border: '1px solid var(--win-accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: exportando ? 'default' : 'pointer', fontFamily: 'inherit', opacity: exportando ? .7 : 1, flexShrink: 0 }}>
+            <div style={{ width: 14, height: 14 }}><Icons.Download/></div>
+            {exportando ? 'Generando…' : 'Exportar a Excel'}
+          </button>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--win-border)', background: 'var(--win-surface2)', color: 'var(--win-muted)', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit', flexShrink: 0 }}>✕</button>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 1300, borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ position: 'sticky', top: 0, background: 'var(--win-surface2)', zIndex: 1 }}>
+                {BASE_DATOS_COLS.map(c => (
+                  <th key={c.key} style={{ padding: '10px 12px', textAlign: c.align || 'left', fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--win-muted)', borderBottom: '1px solid var(--win-border)', whiteSpace: 'nowrap' }}>{c.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map((a, i) => {
+                const r = getRango(a.rango)
+                return (
+                  <tr key={a.ein || i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--win-muted)' }}>{a.gen ?? ''}</td>
+                    <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums', color: 'var(--win-text)' }}>{a.ein}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--win-title)', whiteSpace: 'nowrap' }}>{a.nombre}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-muted)', whiteSpace: 'nowrap' }}>{fmtFecha(a.fechaContrato)}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-muted)', whiteSpace: 'nowrap' }}>{fmtFecha(a.fechaRegistro)}</td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {RANGO_IMG[r.id] && <img src={RANGO_IMG[r.id]} alt={r.label} style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }}/>}
+                        <span style={{ color: r.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{r.label}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-muted)', whiteSpace: 'nowrap' }}>{a.rangoVenta || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-text)', whiteSpace: 'nowrap' }}>{a.telefono || '—'}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--win-gold)', fontVariantNumeric: 'tabular-nums' }}>{(a.pp || 0).toLocaleString()}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#7C3AED', fontVariantNumeric: 'tabular-nums' }}>{(a.pg || 0).toLocaleString()}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--win-muted)', fontVariantNumeric: 'tabular-nums' }}>{(a.pnd || 0).toLocaleString()}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-muted)', whiteSpace: 'nowrap' }}>{a.einPresentador || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-text)', whiteSpace: 'nowrap' }}>{a.presentador || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-muted)', whiteSpace: 'nowrap' }}>{a.estado || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--win-muted)', whiteSpace: 'nowrap' }}>{a.ciudad || '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
