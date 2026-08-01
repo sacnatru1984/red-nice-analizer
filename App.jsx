@@ -701,7 +701,7 @@ async function exportAffiliateReport(sel, sig, pct, checks, acciones, pasos) {
     ctx.fillStyle=REP.card; ctx.strokeStyle=REP.cardBorder; ctx.lineWidth=1.5; const cardH=70+acciones.length*78; rrect(ctx,60,y,W-120,cardH,18); ctx.fill(); ctx.stroke()
     const grad=ctx.createLinearGradient(60,y,W-60,y+56); grad.addColorStop(0,'#0E7FB8'); grad.addColorStop(1,'#2563EB')
     ctx.save(); rrect(ctx,60,y,W-120,56,18); ctx.clip(); ctx.fillStyle=grad; ctx.fillRect(60,y,W-120,56); ctx.restore()
-    ctx.fillStyle='#fff'; ctx.font='700 21px DM Sans, sans-serif'; ctx.fillText('Tu enfoque esta semana',90,y+36)
+    ctx.fillStyle='#fff'; ctx.font='700 21px DM Sans, sans-serif'; ctx.fillText('Personas a contactar',90,y+36)
     let ay=y+90
     acciones.forEach((a,i)=>{ ctx.fillStyle='rgba(58,143,242,.18)'; rrect(ctx,90,ay-22,34,34,9); ctx.fill(); ctx.fillStyle=REP.accent; ctx.font='700 18px DM Sans, sans-serif'; ctx.fillText(String(i+1),101,ay+2)
       ctx.fillStyle=REP.text; ctx.font='600 20px DM Sans, sans-serif'; ctx.fillText(a.t.length>58?a.t.slice(0,58)+'…':a.t,140,ay-2)
@@ -2124,7 +2124,7 @@ const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
 Object.assign(window, {
   getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, valorPuntoDe, frontalGenera, getPlanAccion,
   computeFrontalesOro, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S,
-  parseWorkbookFile, MESES_ES, MESES_CORTO,
+  parseWorkbookFile, MESES_ES, MESES_CORTO, exportAffiliateReport,
 })
 
 function ModalBackoffice({ onClose, onSaved }) {
