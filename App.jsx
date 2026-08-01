@@ -2432,45 +2432,33 @@ function App() {
       {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-          <div style={{width:26,height:26,background:'var(--win-accent)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'white',boxShadow:'0 0 0 1px rgba(120,200,255,.25), 0 4px 14px rgba(37,99,235,.45)'}}>
-            <div style={{width:14,height:14}}><Icons.Network/></div>
-          </div>
-          {!isMobile && <span style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>Red<span style={{color:'var(--win-accent)'}}>NICE</span></span>}
+        <div style={{position:'relative',flexShrink:0}}>
+          <button onClick={()=>setMenuTabsAbierto(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px 5px 5px',borderRadius:8,border:'1px solid transparent',background:menuTabsAbierto?'var(--win-surface2)':'none',cursor:'pointer',fontFamily:'inherit'}}>
+            <div style={{width:26,height:26,background:'var(--win-accent)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'white',boxShadow:'0 0 0 1px rgba(120,200,255,.25), 0 4px 14px rgba(37,99,235,.45)',flexShrink:0}}>
+              <div style={{width:14,height:14}}><Icons.Network/></div>
+            </div>
+            {!isMobile && <span style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>Red<span style={{color:'var(--win-accent)'}}>NICE</span></span>}
+            <span style={{fontSize:9,color:'var(--win-muted)',transform:menuTabsAbierto?'rotate(180deg)':'none',transition:'transform .15s'}}>▾</span>
+          </button>
+          {menuTabsAbierto && (
+            <>
+              <div onClick={()=>setMenuTabsAbierto(false)} style={{position:'fixed',inset:0,zIndex:150,background:'rgba(0,0,0,.35)'}}/>
+              <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:151,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:10,boxShadow:'0 14px 34px rgba(0,0,0,.28)',padding:8,display:'flex',flexWrap:'wrap',gap:6,width:'max-content',maxWidth:isMobile?'calc(100vw - 20px)':480}}>
+                {TABS.map(t=>(
+                  <button key={t.id} onClick={()=>{setTab(t.id);setMenuTabsAbierto(false)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 12px',borderRadius:7,border:'none',background:tab===t.id?'var(--win-accent)':'var(--win-surface2)',color:tab===t.id?'#fff':'var(--win-text)',fontSize:12,fontWeight:600,fontFamily:'inherit',cursor:'pointer',whiteSpace:'nowrap'}}>
+                    <div style={{width:14,height:14,flexShrink:0}}><t.I/></div>
+                    {t.l}
+                    {t.id==='archivos'&&duplicados.length>0&&<span style={{background:'var(--win-red)',color:tab===t.id?'var(--win-accent)':'white',fontSize:9,fontWeight:700,borderRadius:10,padding:'1px 5px'}}>{duplicados.length}</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
-        {isMobile ? (
-          <div style={{position:'relative',flex:'1 1 0',minWidth:0}}>
-            <button onClick={()=>setMenuTabsAbierto(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',fontSize:13,fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>
-              <div style={{width:15,height:15,flexShrink:0}}><curTab.I/></div>
-              <span style={{flex:1,textAlign:'left',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{curTab.l}</span>
-              <span style={{fontSize:10,color:'var(--win-muted)',transform:menuTabsAbierto?'rotate(180deg)':'none',transition:'transform .15s',flexShrink:0}}>▾</span>
-            </button>
-            {menuTabsAbierto && (
-              <>
-                <div onClick={()=>setMenuTabsAbierto(false)} style={{position:'fixed',inset:0,zIndex:150,background:'rgba(0,0,0,.35)'}}/>
-                <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,right:0,zIndex:151,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:10,boxShadow:'0 14px 34px rgba(0,0,0,.28)',overflow:'hidden',maxHeight:'70vh',overflowY:'auto'}}>
-                  {TABS.map(t=>(
-                    <button key={t.id} onClick={()=>{setTab(t.id);setMenuTabsAbierto(false)}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'13px 14px',border:'none',borderBottom:'1px solid var(--win-border)',background:tab===t.id?'var(--win-accent-l)':'var(--win-surface)',color:tab===t.id?'var(--win-accent)':'var(--win-text)',fontSize:13,fontWeight:tab===t.id?700:500,fontFamily:'inherit',cursor:'pointer',textAlign:'left'}}>
-                      <div style={{width:15,height:15,flexShrink:0}}><t.I/></div>
-                      <span style={{flex:1}}>{t.l}</span>
-                      {t.id==='archivos'&&duplicados.length>0&&<span style={{background:'var(--win-red)',color:'white',fontSize:9,fontWeight:700,borderRadius:10,padding:'1px 6px',flexShrink:0}}>{duplicados.length}</span>}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="rn-tabs">
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} title={t.l} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:6,fontSize:12,color:tab===t.id?'var(--win-accent)':'var(--win-text)',cursor:'pointer',transition:'.12s',border:'none',background:tab===t.id?'var(--win-accent-l)':'none',fontFamily:'inherit',fontWeight:500}}>
-              <div style={{width:14,height:14}}><t.I/></div>
-              <span className="rn-tab-label">{t.l}</span>
-              {t.id==='archivos'&&duplicados.length>0&&<span style={{background:'var(--win-red)',color:'white',fontSize:9,fontWeight:700,borderRadius:10,padding:'1px 5px'}}>{duplicados.length}</span>}
-            </button>
-          ))}
-          </div>
-        )}
+        <div style={{flex:'1 1 0',minWidth:0,display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:'var(--win-text)'}}>
+          <div style={{width:14,height:14,flexShrink:0,color:'var(--win-accent)'}}><curTab.I/></div>
+          <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{curTab.l}</span>
+        </div>
         <div className="rn-actions">
           {self&&<div className="rn-user-chip" style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px',borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',fontSize:12,color:'var(--win-text)',fontWeight:500}}>
             <div style={{width:22,height:22,borderRadius:'50%',background:'var(--win-accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700}}>{getInitials(self.nombre)}</div>
