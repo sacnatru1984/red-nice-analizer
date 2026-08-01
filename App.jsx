@@ -2516,14 +2516,6 @@ function App() {
                   <div style={{width:18,height:18}}><Icons.Upload/></div>
                   Seleccionar archivo Excel
                 </button>
-                <div style={{display:'flex',alignItems:'center',gap:10,width:'100%',maxWidth:320}}>
-                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
-                  <span style={{fontSize:11,color:'rgba(180,210,240,.45)',letterSpacing:'.08em'}}>o</span>
-                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
-                </div>
-                <button onClick={()=>setShowBackoffice(true)} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 22px',borderRadius:10,background:backofficeConectado?'rgba(22,163,74,.2)':'rgba(13,30,48,.55)',border:`1px solid ${backofficeConectado?'rgba(52,211,153,.5)':'rgba(120,200,255,.35)'}`,backdropFilter:'blur(6px)',color:backofficeConectado?'#4ade80':'#BFE4FB',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',letterSpacing:'.02em',transition:'.2s'}}>
-                  {backofficeConectado ? '✓ Backoffice conectado' : '🔑 Conectar Backoffice NICE'}
-                </button>
                 <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1,marginTop:2}}>
                   {demoLoading ? 'Cargando ejemplo…' : 'o explora la app con datos de ejemplo'}
                 </button>
