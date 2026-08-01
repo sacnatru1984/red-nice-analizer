@@ -2443,12 +2443,12 @@ function App() {
           {menuTabsAbierto && (
             <>
               <div onClick={()=>setMenuTabsAbierto(false)} style={{position:'fixed',inset:0,zIndex:150,background:'rgba(0,0,0,.35)'}}/>
-              <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:151,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:10,boxShadow:'0 14px 34px rgba(0,0,0,.28)',padding:8,display:'flex',flexWrap:'wrap',gap:6,width:'max-content',maxWidth:isMobile?'calc(100vw - 20px)':480}}>
-                {TABS.map(t=>(
-                  <button key={t.id} onClick={()=>{setTab(t.id);setMenuTabsAbierto(false)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 12px',borderRadius:7,border:'none',background:tab===t.id?'var(--win-accent)':'var(--win-surface2)',color:tab===t.id?'#fff':'var(--win-text)',fontSize:12,fontWeight:600,fontFamily:'inherit',cursor:'pointer',whiteSpace:'nowrap'}}>
-                    <div style={{width:14,height:14,flexShrink:0}}><t.I/></div>
-                    {t.l}
-                    {t.id==='archivos'&&duplicados.length>0&&<span style={{background:'var(--win-red)',color:tab===t.id?'var(--win-accent)':'white',fontSize:9,fontWeight:700,borderRadius:10,padding:'1px 5px'}}>{duplicados.length}</span>}
+              <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:151,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:10,boxShadow:'0 14px 34px rgba(0,0,0,.28)',overflow:'hidden',width:230,maxWidth:'calc(100vw - 20px)',maxHeight:'70vh',overflowY:'auto'}}>
+                {TABS.map((t,i)=>(
+                  <button key={t.id} onClick={()=>{setTab(t.id);setMenuTabsAbierto(false)}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'11px 14px',border:'none',borderTop:i===0?'none':'1px solid var(--win-border)',background:tab===t.id?'var(--win-accent-l)':'var(--win-surface)',color:tab===t.id?'var(--win-accent)':'var(--win-text)',fontSize:13,fontWeight:tab===t.id?700:500,fontFamily:'inherit',cursor:'pointer',textAlign:'left'}}>
+                    <div style={{width:15,height:15,flexShrink:0}}><t.I/></div>
+                    <span style={{flex:1}}>{t.l}</span>
+                    {t.id==='archivos'&&duplicados.length>0&&<span style={{background:'var(--win-red)',color:'white',fontSize:9,fontWeight:700,borderRadius:10,padding:'1px 6px',flexShrink:0}}>{duplicados.length}</span>}
                   </button>
                 ))}
               </div>
