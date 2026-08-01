@@ -2121,10 +2121,41 @@ const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
 // vía x-import — se exponen en window porque ese runtime no soporta
 // import/require entre archivos .jsx.
 // ════════════════════════════════════════════════════
+
+// Días transcurridos desde una fecha que puede venir como Date, número de Excel o texto
+function diasDesde(v) {
+  let d = null
+  if (v instanceof Date) d = v
+  else if (typeof v === 'number') d = new Date(Math.round((v - 25569) * 86400 * 1000))
+  else if (v) { const p = new Date(v); if (!isNaN(p.getTime())) d = p }
+  if (!d || isNaN(d.getTime())) return null
+  return Math.floor((Date.now() - d.getTime()) / 86400000)
+}
+
+// A quién debe contactar el dueño de `ein` esta semana: oros sin movimiento (urgente),
+// candidatos cercanos a Oro (oportunidad), nuevos en sus primeros 15 días, y el resto sin movimiento.
+// Compartido entre Plan (por afiliado consultado) y Mi Semana (siempre sobre uno mismo).
+function getContactosDirectos(afiliados, ein) {
+  const directos = afiliados.filter(a => a.einPresentador === ein)
+  const orosInactivos = directos.filter(a => esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0)
+  const candidatosOro = directos
+    .filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) > 0)
+    .map(a => ({ a, total: (a.pp || 0) + (a.pg || 0), falta: Math.max(0, 3000 - ((a.pp || 0) + (a.pg || 0))) }))
+    .sort((x, y) => x.falta - y.falta)
+    .slice(0, 5)
+  const nuevos15 = directos
+    .map(a => ({ a, dias: diasDesde(a.fechaContrato) }))
+    .filter(x => x.dias !== null && x.dias >= 0 && x.dias <= 15)
+    .sort((x, y) => x.dias - y.dias)
+  const einsNuevos = new Set(nuevos15.map(x => x.a.ein))
+  const sinMovimiento = directos.filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0 && !einsNuevos.has(a.ein))
+  return { directos, orosInactivos, candidatosOro, nuevos15, sinMovimiento }
+}
+
 Object.assign(window, {
   getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, valorPuntoDe, frontalGenera, getPlanAccion,
   computeFrontalesOro, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S,
-  parseWorkbookFile, MESES_ES, MESES_CORTO, exportAffiliateReport,
+  parseWorkbookFile, MESES_ES, MESES_CORTO, exportAffiliateReport, diasDesde, getContactosDirectos,
 })
 
 function ModalBackoffice({ onClose, onSaved }) {
@@ -2495,7 +2526,7 @@ function App() {
       {/* Body */}
       <div className="rn-body" style={{flex:1,overflowY:'auto',background:'var(--win-bg)'}}>
         {tab==='reportes'&&(PanelReportes?<PanelReportes periodos={periodos} onAgregarPeriodo={onAgregarPeriodo} onEliminarPeriodo={onEliminarPeriodo} tc={tc}/>:<PanelCargando/>)}
-        {tab==='semana'&&(PanelSemana?<PanelSemana/>:<PanelCargando/>)}
+        {tab==='semana'&&(PanelSemana?<PanelSemana afiliados={afiliadosCalc}/>:<PanelCargando/>)}
         {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&(
           <div className="rn-welcome">
             <div className="rn-welcome__bg"/>

@@ -69,34 +69,10 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
     return checks
   }
 
-  // ── Personas a contactar: une en un solo cálculo lo que antes vivía en
-  // 2 lugares (Seguimiento prioritario + tabla "Candidatos" dentro de Plan de acción) ──
-  // Días transcurridos desde una fecha que puede venir como Date, número de Excel o texto (igual que fmtFecha)
-  const diasDesde = (v) => {
-    let d = null
-    if (v instanceof Date) d = v
-    else if (typeof v === 'number') d = new Date(Math.round((v - 25569) * 86400 * 1000))
-    else if (v) { const p = new Date(v); if (!isNaN(p.getTime())) d = p }
-    if (!d || isNaN(d.getTime())) return null
-    return Math.floor((Date.now() - d.getTime()) / 86400000)
-  }
-
-  const getContactos = () => {
-    const directos = afiliados.filter(a => a.einPresentador === sel.ein)
-    const orosInactivos = directos.filter(a => esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0)
-    const candidatosOro = directos
-      .filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) > 0)
-      .map(a => ({ a, total: (a.pp || 0) + (a.pg || 0), falta: Math.max(0, 3000 - ((a.pp || 0) + (a.pg || 0))) }))
-      .sort((x, y) => x.falta - y.falta)
-      .slice(0, 5)
-    const nuevos15 = directos
-      .map(a => ({ a, dias: diasDesde(a.fechaContrato) }))
-      .filter(x => x.dias !== null && x.dias >= 0 && x.dias <= 15)
-      .sort((x, y) => x.dias - y.dias)
-    const einsNuevos = new Set(nuevos15.map(x => x.a.ein))
-    const sinMovimiento = directos.filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0 && !einsNuevos.has(a.ein))
-    return { directos, orosInactivos, candidatosOro, nuevos15, sinMovimiento }
-  }
+  // Personas a contactar: une en un solo cálculo lo que antes vivía en 2 lugares
+  // (Seguimiento prioritario + tabla "Candidatos" dentro de Plan de acción).
+  // Compartida con Mi Semana vía window.getContactosDirectos (App.jsx).
+  const getContactos = () => window.getContactosDirectos(afiliados, sel.ein)
 
   const contactosParaExport = () => {
     if (!sel) return []

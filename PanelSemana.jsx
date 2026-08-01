@@ -1,7 +1,11 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
-let S
+let S, getContactosDirectos
 
 const dateKey = (d) => { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}` }
+
+// Tipos que cuentan como "actividad real" para la racha — publicación sola no la mueve,
+// para que la racha no se pueda ganar sin tocar prospección/afiliación/venta.
+const TIPOS_RACHA = new Set(['prospecto', 'afiliacion', 'venta'])
 
 function getHistorialOtrasSemanas(excludeKey) {
   const acciones = []
@@ -18,13 +22,13 @@ function getHistorialOtrasSemanas(excludeKey) {
   return acciones
 }
 
-function calcRacha(diasConActividad) {
+function calcRacha(diasConActividadReal) {
   let cursor = new Date()
   let key = dateKey(cursor)
-  // si hoy aún no tiene actividad, no rompe la racha de inmediato — cuenta desde ayer
-  if (!diasConActividad.has(key)) { cursor.setDate(cursor.getDate() - 1); key = dateKey(cursor) }
+  // si hoy aún no tiene actividad real, no rompe la racha de inmediato — cuenta desde ayer
+  if (!diasConActividadReal.has(key)) { cursor.setDate(cursor.getDate() - 1); key = dateKey(cursor) }
   let racha = 0
-  while (diasConActividad.has(key)) { racha++; cursor.setDate(cursor.getDate() - 1); key = dateKey(cursor) }
+  while (diasConActividadReal.has(key)) { racha++; cursor.setDate(cursor.getDate() - 1); key = dateKey(cursor) }
   return racha
 }
 
@@ -40,8 +44,8 @@ function getDiasDelMes() {
   return dias
 }
 
-function PanelSemana() {
-  ;({ S } = window)
+function PanelSemana({ afiliados }) {
+  ;({ S, getContactosDirectos } = window)
   const getWeekKey = () => {
     const d = new Date()
     const jan1 = new Date(d.getFullYear(), 0, 1)
@@ -71,13 +75,14 @@ function PanelSemana() {
   })
   const [editando, setEditando] = useState(false)
   const [metasTemp, setMetasTemp] = useState(data.metas)
-  const [form, setForm] = useState({ tipo:'prospecto', nota:'', monto:'' })
-  const [formHoy, setFormHoy] = useState({ tipo:'prospecto', nota:'', monto:'' })
+  const [form, setForm] = useState({ tipo:'prospecto', nota:'', monto:'', hecha:true })
   const [mostrarLog, setMostrarLog] = useState(true)
+  const formRef = useRef(null)
+  const notaRef = useRef(null)
 
   const save = (d) => { setData(d); try { localStorage.setItem(SK, JSON.stringify(d)) } catch (e) {} }
 
-  // Solo lo ya "hecho" cuenta para metas y progreso — lo planeado en "Hoy" todavía no.
+  // Solo lo ya "hecho" cuenta para metas y progreso — lo planeado todavía no.
   const progreso = useMemo(() => {
     const acc = (data.acciones || []).filter(a => a.hecha !== false)
     return {
@@ -93,18 +98,50 @@ function PanelSemana() {
     const actuales = (data.acciones || []).filter(a => a.hecha !== false)
     return [...actuales, ...getHistorialOtrasSemanas(SK)]
   }, [data.acciones, SK])
-  const diasConActividad = useMemo(() => new Set(historial.map(a => dateKey(a.tsHecha || a.ts))), [historial])
-  const racha = useMemo(() => calcRacha(diasConActividad), [diasConActividad])
+  // Por día: 'real' si hubo prospecto/afiliación/venta, 'ligera' si solo hubo publicación, si no no aparece.
+  const tierPorDia = useMemo(() => {
+    const m = new Map()
+    historial.forEach(a => {
+      const k = dateKey(a.tsHecha || a.ts)
+      const esReal = TIPOS_RACHA.has(a.tipo)
+      if (esReal) m.set(k, 'real')
+      else if (!m.has(k)) m.set(k, 'ligera')
+    })
+    return m
+  }, [historial])
+  const diasConActividadReal = useMemo(() => new Set([...tierPorDia].filter(([,t])=>t==='real').map(([k])=>k)), [tierPorDia])
+  const racha = useMemo(() => calcRacha(diasConActividadReal), [diasConActividadReal])
   const diasDelMes = useMemo(() => getDiasDelMes(), [])
   const pendientesHoy = (data.acciones || []).filter(a => a.hecha === false)
   const logCompletado = (data.acciones || []).filter(a => a.hecha !== false)
 
-  const agregarHoy = () => {
-    if (formHoy.tipo === 'venta' && !formHoy.monto) return
-    if (formHoy.tipo !== 'venta' && !formHoy.nota.trim()) return
-    const nueva = { id:Date.now(), ts:new Date().toISOString(), tipo:formHoy.tipo, nota:formHoy.nota.trim(), monto:formHoy.tipo==='venta'?(parseFloat(formHoy.monto)||0):undefined, hecha:false }
+  // Sugeridos de tu red — mismos cálculos que "Personas a contactar" en Plan, pero siempre sobre uno mismo.
+  const sugeridos = useMemo(() => {
+    if (!afiliados || !afiliados.length || !getContactosDirectos) return []
+    const yo = afiliados.find(a => a.gen === 0) || afiliados[0]
+    if (!yo) return []
+    const { orosInactivos, candidatosOro, nuevos15 } = getContactosDirectos(afiliados, yo.ein)
+    const lista = [
+      ...orosInactivos.map(a => ({ nombre: a.nombre, motivo: 'Oro sin movimiento — reactivar', urgente: true })),
+      ...nuevos15.filter(x => (x.a.pp||0)+(x.a.pg||0)===0).map(({a,dias}) => ({ nombre: a.nombre, motivo: `Nuevo, día ${dias}/15 — activar`, urgente: true })),
+      ...candidatosOro.map(({a,falta}) => ({ nombre: a.nombre, motivo: `A ${falta.toLocaleString()} pts de ser Oro — impulsar`, urgente: false })),
+    ]
+    return lista.slice(0, 5)
+  }, [afiliados])
+
+  const usarSugerido = (s) => {
+    setForm({ tipo:'prospecto', nota:s.nombre, monto:'', hecha:false })
+    formRef.current?.scrollIntoView({ behavior:'smooth', block:'center' })
+    setTimeout(() => notaRef.current?.focus(), 300)
+  }
+
+  const agregar = () => {
+    if (form.tipo === 'venta' && !form.monto) return
+    if (form.tipo !== 'venta' && !form.nota.trim()) return
+    const ahora = new Date().toISOString()
+    const nueva = { id:Date.now(), ts:ahora, tipo:form.tipo, nota:form.nota.trim(), monto:form.tipo==='venta'?(parseFloat(form.monto)||0):undefined, hecha:form.hecha, ...(form.hecha?{tsHecha:ahora}:{}) }
     save({ ...data, acciones:[nueva, ...(data.acciones||[])] })
-    setFormHoy(f => ({ ...f, nota:'', monto:'' }))
+    setForm(f => ({ ...f, nota:'', monto:'' }))
   }
   const toggleHecha = (id) => {
     save({ ...data, acciones: (data.acciones||[]).map(a => {
@@ -121,13 +158,6 @@ function PanelSemana() {
      pct(progreso.ventas, data.metas.ventas)) / 4
   )
 
-  const agregarAccion = () => {
-    if (form.tipo === 'venta' && !form.monto) return
-    if (form.tipo !== 'venta' && !form.nota.trim()) return
-    const nueva = { id:Date.now(), ts:new Date().toISOString(), tipo:form.tipo, nota:form.nota.trim(), monto:form.tipo==='venta'?(parseFloat(form.monto)||0):undefined }
-    save({ ...data, acciones:[nueva,...(data.acciones||[])] })
-    setForm(f => ({ ...f, nota:'', monto:'' }))
-  }
   const eliminarAccion = (id) => save({ ...data, acciones:(data.acciones||[]).filter(a=>a.id!==id) })
   const guardarMetas = () => { save({ ...data, metas:metasTemp }); setEditando(false) }
   const resetSemana = () => {
@@ -137,6 +167,9 @@ function PanelSemana() {
 
   const { mon, sun } = getWeekRange()
   const hoy = new Date().toISOString().split('T')[0]
+  const hoyMid = new Date(); hoyMid.setHours(0,0,0,0)
+  const sunMid = new Date(sun); sunMid.setHours(0,0,0,0)
+  const diasRestantes = Math.max(1, Math.round((sunMid - hoyMid) / 86400000) + 1)
   const MAXWELL_TIPS = [
     'Ley del Proceso: el liderazgo crece día a día, no de un día para otro. Cada llamada que haces hoy construye tu red de mañana.',
     'Ley del Magnetismo: eres el tipo de líder que atraes. Actúa hoy como el empresario que quieres duplicar en tu red.',
@@ -182,7 +215,7 @@ function PanelSemana() {
             <span style={{fontSize:26}}>🔥</span>
             <div>
               <div style={{fontSize:20,fontWeight:800,color:'var(--win-title)',lineHeight:1}}>{racha} día{racha!==1?'s':''}</div>
-              <div style={{fontSize:11,color:'var(--win-muted)'}}>{racha>0?'de constancia seguidos':'Registra algo hoy para empezar tu racha'}</div>
+              <div style={{fontSize:11,color:'var(--win-muted)'}}>{racha>0?'de prospección, afiliación o venta seguidos':'Contacta a alguien hoy para empezar tu racha'}</div>
             </div>
           </div>
           <div style={{fontSize:12,fontWeight:700,color:'var(--win-title)',textTransform:'capitalize'}}>{new Date().toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</div>
@@ -192,20 +225,25 @@ function PanelSemana() {
           {diasDelMes.map((d,i) => {
             if (!d) return <div key={i}/>
             const k = dateKey(d)
-            const activo = diasConActividad.has(k)
+            const tier = tierPorDia.get(k)
             const esHoyCell = k === dateKey(new Date())
             const futuro = d > new Date()
             return (
-              <div key={i} title={d.toLocaleDateString('es-MX',{day:'numeric',month:'long'})} style={{
+              <div key={i} title={d.toLocaleDateString('es-MX',{day:'numeric',month:'long'}) + (tier==='real'?' · actividad real':tier==='ligera'?' · solo publicación':'')} style={{
                 aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',
                 borderRadius:7,fontSize:11,fontWeight:esHoyCell?800:600,
-                background: activo ? 'var(--win-green)' : 'var(--win-surface2)',
-                color: activo ? '#fff' : 'var(--win-text)',
+                background: tier==='real' ? 'var(--win-green)' : tier==='ligera' ? 'var(--win-green-l)' : 'var(--win-surface2)',
+                color: tier==='real' ? '#fff' : tier==='ligera' ? 'var(--win-green)' : 'var(--win-text)',
                 border: esHoyCell ? '2px solid var(--win-accent)' : '1px solid transparent',
-                opacity: futuro && !activo ? .45 : 1,
+                opacity: futuro && !tier ? .45 : 1,
               }}>{d.getDate()}</div>
             )
           })}
+        </div>
+        <div style={{display:'flex',gap:14,marginTop:10,flexWrap:'wrap'}}>
+          {[{c:'var(--win-green)',l:'Prospección, afiliación o venta'},{c:'var(--win-green-l)',lc:'var(--win-green)',l:'Solo publicación'}].map(x=>(
+            <div key={x.l} style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:'var(--win-muted)'}}><div style={{width:9,height:9,borderRadius:3,background:x.c,border:x.lc?`1px solid ${x.lc}`:'none'}}/>{x.l}</div>
+          ))}
         </div>
       </div>
 
@@ -215,46 +253,59 @@ function PanelSemana() {
         <div style={{fontSize:12,color:'var(--win-text)',lineHeight:1.65,fontStyle:'italic'}}>{tip}</div>
       </div>
 
-      {/* Hoy */}
-      <div style={{...S.card,marginBottom:16}}>
-        <div style={S.cardHeader}>
-          <span style={{fontSize:15}}>☀️</span>
-          <span style={S.cardTitle}>Hoy</span>
-          <span style={{marginLeft:6,fontSize:11,background:'var(--win-accent)',color:'white',padding:'1px 7px',borderRadius:20,fontWeight:700}}>{pendientesHoy.length}</span>
-        </div>
-        <div>
-          {pendientesHoy.length===0 && <div style={{padding:'16px 16px',textAlign:'center',color:'var(--win-muted)',fontSize:12}}>Nada planeado para hoy — agrega algo abajo.</div>}
-          {pendientesHoy.map((a,i) => {
-            const t = TIPOS.find(x=>x.id===a.tipo)||TIPOS[0]
-            return (
-              <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 16px',borderTop:i===0?'none':'1px solid var(--win-border)'}}>
-                <div onClick={()=>toggleHecha(a.id)} title="Marcar como hecho" style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${t.color}`,flexShrink:0,cursor:'pointer'}}/>
-                <span style={{fontSize:15,flexShrink:0}}>{t.emoji}</span>
-                <div style={{flex:1,minWidth:0,fontSize:12.5,color:'var(--win-text)'}}>{a.nota || t.label}{a.monto!=null?` · $${parseFloat(a.monto).toLocaleString('es-MX')}`:''}</div>
-                <button onClick={()=>eliminarAccion(a.id)} title="Eliminar" style={{padding:'3px 7px',borderRadius:5,border:'1px solid var(--win-border)',background:'none',color:'var(--win-muted)',fontSize:10,cursor:'pointer',flexShrink:0}}>✕</button>
+      {/* Sugeridos de tu red */}
+      {sugeridos.length > 0 && (
+        <div style={{...S.card,marginBottom:16,overflow:'hidden'}}>
+          <div style={S.cardHeader}>
+            <span style={{fontSize:15}}>🎯</span>
+            <span style={S.cardTitle}>Sugeridos de tu red esta semana</span>
+          </div>
+          <div>
+            {sugeridos.map((s,i) => (
+              <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 16px',borderTop:i===0?'none':'1px solid var(--win-border)'}}>
+                {s.urgente && <span style={{width:7,height:7,borderRadius:'50%',background:'#DC2626',flexShrink:0}}/>}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12.5,fontWeight:600,color:'var(--win-title)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.nombre}</div>
+                  <div style={{fontSize:11,color:'var(--win-muted)'}}>{s.motivo}</div>
+                </div>
+                <button onClick={()=>usarSugerido(s)} style={{padding:'5px 12px',borderRadius:7,background:'var(--win-accent-l)',color:'var(--win-accent)',border:'1px solid var(--win-accent)40',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>+ Agregar</button>
               </div>
-            )
-          })}
-        </div>
-        <div style={{padding:'10px 16px',borderTop: pendientesHoy.length?'1px solid var(--win-border)':'none'}}>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-            {TIPOS.map(t => (
-              <button key={t.id} onClick={()=>setFormHoy(f=>({...f,tipo:t.id}))} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:20,fontSize:10.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:`1.5px solid ${formHoy.tipo===t.id?t.color:'var(--win-border)'}`,background:formHoy.tipo===t.id?t.color+'18':'none',color:formHoy.tipo===t.id?t.color:'var(--win-muted)'}}>{t.emoji} {t.label.split(' ')[0]}</button>
             ))}
           </div>
-          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-            <input value={formHoy.nota} onChange={e=>setFormHoy(f=>({...f,nota:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&agregarHoy()} placeholder="¿Qué planeas hacer hoy?" style={{flex:1,minWidth:160,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
-            {formHoy.tipo==='venta'&&<input type="number" value={formHoy.monto} onChange={e=>setFormHoy(f=>({...f,monto:e.target.value}))} placeholder="Monto MXN" style={{width:115,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>}
-            <button onClick={agregarHoy} style={{padding:'8px 20px',borderRadius:8,background:'var(--win-accent)',color:'white',border:'none',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>+ Agregar</button>
+        </div>
+      )}
+
+      {/* Pendientes de hoy */}
+      {pendientesHoy.length > 0 && (
+        <div style={{...S.card,marginBottom:16}}>
+          <div style={S.cardHeader}>
+            <span style={{fontSize:15}}>☀️</span>
+            <span style={S.cardTitle}>Pendientes</span>
+            <span style={{marginLeft:6,fontSize:11,background:'var(--win-accent)',color:'white',padding:'1px 7px',borderRadius:20,fontWeight:700}}>{pendientesHoy.length}</span>
+          </div>
+          <div>
+            {pendientesHoy.map((a,i) => {
+              const t = TIPOS.find(x=>x.id===a.tipo)||TIPOS[0]
+              return (
+                <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 16px',borderTop:i===0?'none':'1px solid var(--win-border)'}}>
+                  <div onClick={()=>toggleHecha(a.id)} title="Marcar como hecho" style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${t.color}`,flexShrink:0,cursor:'pointer'}}/>
+                  <span style={{fontSize:15,flexShrink:0}}>{t.emoji}</span>
+                  <div style={{flex:1,minWidth:0,fontSize:12.5,color:'var(--win-text)'}}>{a.nota || t.label}{a.monto!=null?` · $${parseFloat(a.monto).toLocaleString('es-MX')}`:''}</div>
+                  <button onClick={()=>eliminarAccion(a.id)} title="Eliminar" style={{padding:'3px 7px',borderRadius:5,border:'1px solid var(--win-border)',background:'none',color:'var(--win-muted)',fontSize:10,cursor:'pointer',flexShrink:0}}>✕</button>
+                </div>
+              )
+            })}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Tarjetas de metas */}
+      {/* Tarjetas de metas — con ritmo diario */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12,marginBottom:16}}>
         {MET_CONFIG.map(m => {
           const p = pct(m.val, m.meta)
           const done = p >= 100
+          const faltante = Math.max(0, m.meta - m.val)
+          const ritmo = Math.ceil(faltante / diasRestantes)
           return (
             <div key={m.key} style={{...S.card,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
               <div style={{position:'absolute',inset:0,background:m.color,opacity:.04,pointerEvents:'none'}}/>
@@ -270,19 +321,22 @@ function PanelSemana() {
               <div style={{background:'var(--win-border)',borderRadius:4,height:5,marginBottom:6}}>
                 <div style={{width:`${p}%`,height:'100%',background:done?'var(--win-green)':m.color,borderRadius:4,transition:'width .4s ease'}}/>
               </div>
+              <div style={{fontSize:10,color:'var(--win-muted)',marginBottom:8}}>
+                {done ? 'Vas a tiempo' : `Te ${faltante===1?'falta 1':'faltan '+faltante} · ~${m.key==='ventas'?'$'+ritmo.toLocaleString('es-MX'):ritmo}/día (${diasRestantes}d)`}
+              </div>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <span style={{fontSize:10,color:'var(--win-muted)'}}>{p}%</span>
-                <button onClick={()=>setForm(f=>({...f,tipo:m.tipo}))} style={{fontSize:10,padding:'3px 9px',borderRadius:6,background:m.color+'18',color:m.color,border:`1px solid ${m.color}40`,cursor:'pointer',fontWeight:700,fontFamily:'inherit'}}>+ Registrar</button>
+                <button onClick={()=>{setForm(f=>({...f,tipo:m.tipo}));formRef.current?.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>notaRef.current?.focus(),300)}} style={{fontSize:10,padding:'3px 9px',borderRadius:6,background:m.color+'18',color:m.color,border:`1px solid ${m.color}40`,cursor:'pointer',fontWeight:700,fontFamily:'inherit'}}>+ Registrar</button>
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Formulario rápido */}
-      <div style={{...S.card,marginBottom:16,padding:'14px 16px'}}>
+      {/* Formulario único de registro */}
+      <div ref={formRef} style={{...S.card,marginBottom:16,padding:'14px 16px'}}>
         <div style={{fontSize:12,fontWeight:700,color:'var(--win-title)',marginBottom:10,display:'flex',alignItems:'center',gap:6}}>
-          <span style={{fontSize:15}}>⚡</span> Registrar algo que ya hiciste
+          <span style={{fontSize:15}}>⚡</span> Registrar acción
         </div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
           {TIPOS.map(t => (
@@ -291,10 +345,17 @@ function PanelSemana() {
             </button>
           ))}
         </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          <input value={form.nota} onChange={e=>setForm(f=>({...f,nota:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&agregarAccion()} placeholder={form.tipo==='venta'?'¿Qué vendiste? (nombre o descripción)':'¿Con quién? / ¿Qué lograste?'} style={{flex:1,minWidth:160,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:10}}>
+          <input ref={notaRef} value={form.nota} onChange={e=>setForm(f=>({...f,nota:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&agregar()} placeholder={form.tipo==='venta'?'¿Qué vendiste? (nombre o descripción)':'¿Con quién? / ¿Qué lograste?'} style={{flex:1,minWidth:160,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
           {form.tipo==='venta'&&<input type="number" value={form.monto} onChange={e=>setForm(f=>({...f,monto:e.target.value}))} placeholder="Monto MXN" style={{width:115,padding:'8px 12px',borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-text)',fontSize:12,fontFamily:'inherit',outline:'none'}}/>}
-          <button onClick={agregarAccion} style={{padding:'8px 20px',borderRadius:8,background:'var(--win-accent)',color:'white',border:'none',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Registrar</button>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <div style={{display:'flex',background:'var(--win-surface2)',border:'1px solid var(--win-border)',borderRadius:8,padding:2}}>
+            {[{v:true,l:'✅ Ya lo hice'},{v:false,l:'🗓️ Lo voy a hacer'}].map(o=>(
+              <button key={String(o.v)} onClick={()=>setForm(f=>({...f,hecha:o.v}))} style={{padding:'7px 12px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:11.5,fontWeight:600,background:form.hecha===o.v?'var(--win-accent)':'transparent',color:form.hecha===o.v?'#fff':'var(--win-text)'}}>{o.l}</button>
+            ))}
+          </div>
+          <button onClick={agregar} style={{padding:'8px 20px',borderRadius:8,background:'var(--win-accent)',color:'white',border:'none',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',marginLeft:'auto'}}>{form.hecha?'Registrar':'Agregar a pendientes'}</button>
         </div>
       </div>
 
