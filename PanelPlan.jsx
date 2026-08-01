@@ -1,5 +1,5 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
-let getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, frontalGenera, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, exportAffiliateReport
+let getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, frontalGenera, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport
 
 function useExternal(name) {
   const [v, setV] = useState(() => (typeof window !== 'undefined' ? window[name] : undefined))
@@ -12,31 +12,17 @@ function useExternal(name) {
 }
 
 function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD }) {
-  ;({ getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, frontalGenera, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, exportAffiliateReport } = window)
-  const RedVisual = useExternal('RedVisual')
+  ;({ getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, frontalGenera, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport } = window)
+  const PanelGenealogia = useExternal('PanelGenealogia')
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
   const [drop, setDrop] = useState(false)
   const [verDetalle, setVerDetalle] = useState(false)
   const [verTodosInactivos, setVerTodosInactivos] = useState(false)
-  const RANGOS_FILTRO = [
-    { id: 'ORO_EJECUTIVO', label: 'Oro Ejecutivo' },
-    { id: 'ORO', label: 'Oro' },
-    { id: 'PLATA', label: 'Plata' },
-    { id: 'BRONCE', label: 'Bronce' },
-    { id: 'COBRE', label: 'Cobre' },
-    { id: 'EIN', label: 'Empresario' },
-  ]
-  const [filtroRangos, setFiltroRangos] = useState(() => new Set(RANGOS_FILTRO.map(x => x.id)))
-  const toggleFiltro = (id) => setFiltroRangos(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  const bucketRango = (id) => {
-    if (['ORO_MASTER', 'ORO_SENIOR', 'ORO_EJECUTIVO', 'PLATINO', 'DIAMANTE', 'DIAMANTE_MASTER', 'DOBLE_DIAMANTE'].includes(id)) return 'ORO_EJECUTIVO'
-    if (['ORO', 'ORO_EXPERTO', 'ORO_PREMIER', 'ORO_ELITE'].includes(id)) return 'ORO'
-    return id
-  }
+  const [detalleRootEin, setDetalleRootEin] = useState(null)
   const res = q.length > 1 ? afiliados.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase()) || a.ein.includes(q)).slice(0, 8) : []
-  const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false); setVerDetalle(false); setVerTodosInactivos(false) }
+  const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false); setVerDetalle(false); setVerTodosInactivos(false); setDetalleRootEin(null) }
   const limpiar = () => { setSel(null); setQ(''); setDrop(false) }
   const hasData = afiliados.length > 0
   useEffect(() => {
@@ -109,8 +95,7 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
   const waLink = (tel) => `https://wa.me/52${tel.toString().replace(/\D/g, '')}`
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: sel && !isMobile ? 'minmax(0,1fr) 320px' : 'minmax(0,1fr)', gap: 16, alignItems: 'start' }}>
-      <div style={{ minWidth: 0 }}>
+    <div style={{ minWidth: 0 }}>
         <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 14 }}>
           <div style={{ padding: '12px 16px' }}>
             <div style={{ fontSize: 12, color: 'var(--win-muted)', marginBottom: 8 }}>Selecciona un afiliado para ver su plan personalizado con los requisitos exactos del plan de carrera NICE</div>
@@ -304,34 +289,16 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
 
             {/* ── Ver detalle completo (colapsable) ── */}
             {(() => {
-              const RANGOS_PG = ['EIN','COBRE','BRONCE','PLATA','ORO','ORO_EXPERTO','ORO_PREMIER','ORO_ELITE','PLATINO','ORO_EJECUTIVO','ORO_SENIOR','ORO_MASTER']
-              const ORDEN_RANGO = ['ORO_MASTER','ORO_SENIOR','ORO_EJECUTIVO','PLATINO','ORO_ELITE','ORO_PREMIER','ORO_EXPERTO','ORO','PLATA','BRONCE','COBRE','EIN']
-              const base = afiliados.filter(a => {
-                if (a.ein === sel.ein) return false
-                if (a.gen <= sel.gen) return false
-                const rb = getRango(a.rango)
-                return RANGOS_PG.includes(rb.id) && (a.pp + a.pg) > 0
-              })
-              const colaboradores = base
-                .filter(a => filtroRangos.has(bucketRango(getRango(a.rango).id)))
-                .sort((a, b) => {
-                  const ra = getRango(a.rango); const rb = getRango(b.rango)
-                  const orderA = ORDEN_RANGO.indexOf(ra.id); const orderB = ORDEN_RANGO.indexOf(rb.id)
-                  if (orderA !== orderB) return orderA - orderB
-                  return (b.pp + b.pg) - (a.pp + a.pg)
-                })
               const frontalesDir = afiliados.filter(a => a.einPresentador === sel.ein)
-              const tcUse = tc || TC_FALLBACK
               const orosFrontales = frontalesDir.filter(a => esOroPlus(a))
                 .map(a => ({ a, g: frontalGenera(a, tc, umbralUSD), act: (a.pp || 0) + (a.pg || 0) }))
                 .sort((x, y) => (y.g.genera - x.g.genera) || (y.g.usd - x.g.usd))
-              if (base.length === 0 && orosFrontales.length === 0) return null
               return (
                 <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden' }}>
                   <button onClick={() => setVerDetalle(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <div style={{ width: 14, height: 14, color: 'var(--win-muted)' }}><Icons.Sliders/></div>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--win-title)' }}>Ver detalle completo</span>
-                    <span style={{ fontSize: 11, color: 'var(--win-muted)' }}>· colaboradores, frontales Oro y Desc. por Red estimado</span>
+                    <span style={{ fontSize: 11, color: 'var(--win-muted)' }}>· explorar red, frontales Oro y Desc. por Red estimado</span>
                     <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--win-muted)', transform: verDetalle ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
                   </button>
                   {verDetalle && (
@@ -347,7 +314,7 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
                       </div>
 
                       {orosFrontales.length > 0 && (
-                        <div style={{ padding: '12px 16px', borderBottom: base.length > 0 ? '1px solid var(--win-border)' : 'none' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)' }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-accent)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Frontales Oro{pos.deSujeto}</div>
                           <div style={{ fontSize: 11, color: 'var(--win-muted)', marginBottom: 10, lineHeight: 1.5 }}>Cuenta como <b style={{ color: 'var(--win-text)' }}>frontal Oro</b> quien es rango Oro o superior <b style={{ color: 'var(--win-text)' }}>y está activo</b> este mes (PP+PG&gt;0).</div>
                           <div style={{ overflowX: 'auto' }}>
@@ -390,76 +357,17 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
                         </div>
                       )}
 
-                      {base.length > 0 && (
-                        <div>
-                          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)' }}>Colaboradores a {pos.suyos} Puntos de Grupo</span>
-                            <span style={{ marginLeft: 'auto', background: '#F5F0FF', color: '#7C3AED', padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{colaboradores.length} personas</span>
-                          </div>
-                          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', background: 'var(--win-surface2)', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', color: 'var(--win-muted)', textTransform: 'uppercase', alignSelf: 'center' }}>Filtrar rangos:</span>
-                            {RANGOS_FILTRO.map(f => {
-                              const rDef = RANGOS.find(rr => rr.id === f.id)
-                              const checked = filtroRangos.has(f.id)
-                              return (
-                                <label key={f.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none', opacity: checked ? 1 : 0.5 }}>
-                                  {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{ width: 32, height: 32, objectFit: 'contain' }}/>}
-                                  <span style={{ background: rDef?.bg, color: rDef?.color, padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{f.label}</span>
-                                  <input type="checkbox" checked={checked} onChange={() => toggleFiltro(f.id)} style={{ cursor: 'pointer', accentColor: 'var(--win-accent)' }}/>
-                                </label>
-                              )
-                            })}
-                          </div>
-                          <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 12 }}>
-                            <thead>
-                              <tr style={{ borderBottom: '1px solid var(--win-border)', background: 'var(--win-surface2)' }}>
-                                {['Rango', 'Nombre', 'PP', 'PG', 'Total', 'Gen.'].map(h => (
-                                  <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontSize: 10, fontWeight: 600, letterSpacing: '.05em', color: 'var(--win-muted)' }}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                const grupos = {}
-                                colaboradores.forEach(a => { (grupos[a.gen] = grupos[a.gen] || []).push(a) })
-                                const gens = Object.keys(grupos).map(Number).sort((a, b) => a - b)
-                                const rows = []
-                                gens.forEach((g, gi) => {
-                                  const lista = grupos[g]
-                                  rows.push(
-                                    <tr key={`gen-${g}`} style={{ background: 'var(--win-surface2)', borderTop: gi > 0 ? '2px solid var(--win-border)' : 'none', borderBottom: '1px solid var(--win-border)' }}>
-                                      <td colSpan={6} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--win-accent)', textTransform: 'uppercase' }}>
-                                        Generación {g} · {lista.length} {lista.length === 1 ? 'persona' : 'personas'}
-                                      </td>
-                                    </tr>
-                                  )
-                                  lista.forEach((a, i) => {
-                                    const rr = getRango(a.rango)
-                                    rows.push(
-                                      <tr key={a.ein} style={{ borderBottom: '1px solid var(--win-border)', background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}>
-                                        <td style={{ padding: '8px 12px' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            {RANGO_IMG[rr.id] && <img src={RANGO_IMG[rr.id]} alt={rr.label} style={{ width: 26, height: 26, objectFit: 'contain', flexShrink: 0 }}/>}
-                                            <span style={{ background: rr.bg, color: rr.color, padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{rr.label}</span>
-                                          </div>
-                                        </td>
-                                        <td style={{ padding: '8px 12px', fontWeight: 500, color: 'var(--win-title)' }}>{a.nombre}</td>
-                                        <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--win-gold)' }}>{a.pp.toLocaleString()}</td>
-                                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#7C3AED' }}>{a.pg.toLocaleString()}</td>
-                                        <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--win-accent)' }}>{(a.pp + a.pg).toLocaleString()}</td>
-                                        <td style={{ padding: '8px 12px', color: 'var(--win-muted)', fontSize: 11 }}>Gen. {a.gen}</td>
-                                      </tr>
-                                    )
-                                  })
-                                })
-                                return rows
-                              })()}
-                            </tbody>
-                          </table>
-                          </div>
+                      <div>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)' }}>Explorar la red{pos.deSujeto}</span>
+                          <span style={{ fontSize: 11, color: 'var(--win-muted)', marginLeft: 8 }}>busca a cualquier afiliado y filtra por rango</span>
                         </div>
-                      )}
+                        <div style={{ padding: '14px 16px' }}>
+                          {PanelGenealogia
+                            ? <PanelGenealogia afiliados={afiliados} rootEin={detalleRootEin || sel.ein} onChangeRoot={setDetalleRootEin} tc={tc}/>
+                            : <div style={{ textAlign: 'center', padding: 20, color: 'var(--win-muted)', fontSize: 12 }}>Cargando…</div>}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -468,8 +376,6 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
           </div>
           )
         })()}
-      </div>
-      {sel && <RedVisual sel={sel} afiliados={afiliados} filtroRangos={filtroRangos} bucketRango={bucketRango}/>}
     </div>
   )
 }
