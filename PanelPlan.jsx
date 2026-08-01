@@ -71,6 +71,16 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
 
   // ── Personas a contactar: une en un solo cálculo lo que antes vivía en
   // 2 lugares (Seguimiento prioritario + tabla "Candidatos" dentro de Plan de acción) ──
+  // Días transcurridos desde una fecha que puede venir como Date, número de Excel o texto (igual que fmtFecha)
+  const diasDesde = (v) => {
+    let d = null
+    if (v instanceof Date) d = v
+    else if (typeof v === 'number') d = new Date(Math.round((v - 25569) * 86400 * 1000))
+    else if (v) { const p = new Date(v); if (!isNaN(p.getTime())) d = p }
+    if (!d || isNaN(d.getTime())) return null
+    return Math.floor((Date.now() - d.getTime()) / 86400000)
+  }
+
   const getContactos = () => {
     const directos = afiliados.filter(a => a.einPresentador === sel.ein)
     const orosInactivos = directos.filter(a => esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0)
@@ -79,15 +89,21 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
       .map(a => ({ a, total: (a.pp || 0) + (a.pg || 0), falta: Math.max(0, 3000 - ((a.pp || 0) + (a.pg || 0))) }))
       .sort((x, y) => x.falta - y.falta)
       .slice(0, 5)
-    const sinMovimiento = directos.filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0)
-    return { directos, orosInactivos, candidatosOro, sinMovimiento }
+    const nuevos15 = directos
+      .map(a => ({ a, dias: diasDesde(a.fechaContrato) }))
+      .filter(x => x.dias !== null && x.dias >= 0 && x.dias <= 15)
+      .sort((x, y) => x.dias - y.dias)
+    const einsNuevos = new Set(nuevos15.map(x => x.a.ein))
+    const sinMovimiento = directos.filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0 && !einsNuevos.has(a.ein))
+    return { directos, orosInactivos, candidatosOro, nuevos15, sinMovimiento }
   }
 
   const contactosParaExport = () => {
     if (!sel) return []
-    const { orosInactivos, candidatosOro } = getContactos()
+    const { orosInactivos, candidatosOro, nuevos15 } = getContactos()
     return [
       ...orosInactivos.map(a => ({ t: `Reactivar a ${a.nombre.split(' ').slice(0, 2).join(' ')}`, s: 'Es rango Oro o superior pero sin movimiento este mes' })),
+      ...nuevos15.filter(x => (x.a.pp || 0) + (x.a.pg || 0) === 0).slice(0, 2).map(({ a, dias }) => ({ t: `Activar a ${a.nombre.split(' ').slice(0, 2).join(' ')} (nuevo)`, s: `Se afilió hace ${dias} día${dias === 1 ? '' : 's'} y aún no tiene PP/PG` })),
       ...candidatosOro.slice(0, 3).map(({ a, total, falta }) => ({ t: `Impulsar a ${a.nombre.split(' ').slice(0, 2).join(' ')}`, s: `${total.toLocaleString()} de 3,000 pts para ser frontal Oro — faltan ${falta.toLocaleString()}` })),
     ].slice(0, 5)
   }
@@ -134,8 +150,8 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
         )}
 
         {sel && (() => {
-          const { orosInactivos, candidatosOro, sinMovimiento } = getContactos()
-          const hayContactos = orosInactivos.length > 0 || candidatosOro.length > 0 || sinMovimiento.length > 0
+          const { orosInactivos, candidatosOro, nuevos15, sinMovimiento } = getContactos()
+          const hayContactos = orosInactivos.length > 0 || nuevos15.length > 0 || candidatosOro.length > 0 || sinMovimiento.length > 0
           return (
           <div>
             <div style={{ background: 'linear-gradient(135deg,#1E3A8A 0%,#2563EB 100%)', borderRadius: 10, padding: '18px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
@@ -228,6 +244,31 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</div>
                             <div style={{ fontSize: 11, color: 'var(--win-muted)', marginTop: 2 }}>{rr.label} · 0 pts este mes</div>
+                          </div>
+                          {a.telefono && <a href={waLink(a.telefono)} target='_blank' rel='noopener noreferrer' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 WhatsApp</a>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {nuevos15.length > 0 && (
+                  <div style={{ borderBottom: '1px solid var(--win-border)' }}>
+                    <div style={{ padding: '8px 16px', background: '#EFF6FF' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '.06em' }}>🆕 Nuevos — primeros 15 días ({nuevos15.length})</span>
+                    </div>
+                    {nuevos15.map(({ a, dias }, i) => {
+                      const rr = getRango(a.rango)
+                      const activo = (a.pp || 0) + (a.pg || 0) > 0
+                      return (
+                        <div key={a.ein} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < nuevos15.length - 1 ? '1px solid var(--win-border)' : 'none' }}>
+                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: rr.bg, border: `2px solid ${rr.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                            {RANGO_IMG[rr.id] ? <img src={RANGO_IMG[rr.id]} alt='' style={{ width: 24, height: 24, objectFit: 'contain' }} /> : <span style={{ fontSize: 9, fontWeight: 700, color: rr.color }}>{getInitials(a.nombre)}</span>}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</div>
+                            <div style={{ fontSize: 11, marginTop: 2, color: activo ? 'var(--win-green)' : '#DC2626', fontWeight: activo ? 500 : 700 }}>
+                              Día {dias} de 15 · {activo ? `ya activó (${((a.pp||0)+(a.pg||0)).toLocaleString()} pts)` : 'aún sin PP/PG — actívalo antes de que se acabe la ventana'}
+                            </div>
                           </div>
                           {a.telefono && <a href={waLink(a.telefono)} target='_blank' rel='noopener noreferrer' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 WhatsApp</a>}
                         </div>

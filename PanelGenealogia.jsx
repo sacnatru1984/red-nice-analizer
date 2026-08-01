@@ -353,10 +353,11 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
         {/* Tarjeta de info de la persona seleccionada */}
         {raiz && (() => {
           const rr = getRango(raiz.rango)
-          const directos = (raiz.children || []).length
-          const total = countDescendants(raiz)
+          const directos = (raiz.children || []).filter(c => !pasaFiltro || pasaFiltro(c)).length
+          const total = countDescendantsFiltrado(raiz, pasaFiltro)
           const pgVis = sumarPGVisible(raiz, pasaFiltro)
           return (
+            <>
             <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 16px',borderBottom:'1px solid var(--win-border)',background:'var(--win-surface)'}}>
               <div style={{width:52,height:52,borderRadius:'50%',background:rr.bg,border:`2px solid ${rr.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 0 0 3px rgba(37,99,235,.18)'}}>
                 {RANGO_IMG[rr.id]
@@ -377,11 +378,11 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
                 </div>
                 <div style={{textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{directos}</div>
-                  <div style={{color:'var(--win-muted)'}}>Directos</div>
+                  <div style={{color:'var(--win-muted)'}}>Directos{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
                 </div>
                 <div style={{textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700,color:'var(--win-accent)'}}>{total}</div>
-                  <div style={{color:'var(--win-muted)'}}>Total ramificación</div>
+                  <div style={{color:'var(--win-muted)'}}>Total ramificación{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
                 </div>
                 <button onClick={()=>exportTreeReport(raiz, pasaFiltro, {pg: pgVis.pg})} title="Descargar el árbol visible como imagen" style={{display:'flex',alignItems:'center',gap:7,padding:'9px 16px',borderRadius:9,background:'var(--win-accent)',border:'none',color:'#fff',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(37,99,235,.35)',whiteSpace:'nowrap'}}>
                   <div style={{width:15,height:15}}><Icons.Download/></div>
@@ -389,6 +390,12 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
                 </button>
               </div>
             </div>
+            {filtroRangos.size < RANGOS_FILTRO_GEN.length && (
+              <div style={{padding:'6px 16px',background:'var(--win-surface2)',borderBottom:'1px solid var(--win-border)',fontSize:10.5,color:'var(--win-muted)'}}>
+                * Cuenta solo los rangos marcados en "Filtrar rangos" — no el total real de tu red.
+              </div>
+            )}
+          </>
           )
         })()}
 
@@ -399,8 +406,9 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
           const walkNivel = (n, d) => {
             if (d > 0) {
               const rangoId = getRango(n.rango).id
-              if (!nivelStats[d]) nivelStats[d] = { personas: 0, pp: 0, pg: 0, mxn: 0 }
+              if (!nivelStats[d]) nivelStats[d] = { personas: 0, activos: 0, pp: 0, pg: 0, mxn: 0 }
               nivelStats[d].personas++
+              if (((n.pp || 0) + (n.pg || 0)) > 0) nivelStats[d].activos++
               nivelStats[d].pp += (n.pp || 0)
               nivelStats[d].pg += (n.pg || 0)
               nivelStats[d].mxn += (n.pp || 0) * valorPuntoDe(rangoId)
@@ -429,6 +437,30 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C47F17', boxShadow: '0 0 6px #C47F17' }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Puntos y valor por nivel</span>
                 <span style={{ fontSize: 10, color: 'var(--win-muted)', marginLeft: 4 }}>· TC: ${tcVal.toFixed(2)} MXN/USD</span>
+              </div>
+
+              {/* % de actividad por nivel — la señal más importante de duplicación sana */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                {niveles.map(d => {
+                  const s = nivelStats[d]
+                  const pct = s.personas > 0 ? Math.round(s.activos / s.personas * 100) : 0
+                  const color = pct >= 50 ? 'var(--win-green)' : pct >= 25 ? 'var(--win-gold)' : 'var(--win-red)'
+                  return (
+                    <div key={d} style={{ flex: '1 1 110px', minWidth: 100, background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--win-muted)' }}>NIVEL {d}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+                      </div>
+                      <div style={{ height: 5, background: 'var(--win-border)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
+                        <div style={{ width: pct + '%', height: '100%', background: color }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--win-muted)' }}>{s.activos} de {s.personas} activos</div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginBottom: 10, lineHeight: 1.4 }}>
+                Los valores en MXN/USD de esta tabla son un <b style={{ color: 'var(--win-text)' }}>estimado de referencia</b> (PP × valor de punto según el rango de cada persona) — no es un cálculo oficial de reembolso de NICE.
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
@@ -529,6 +561,12 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
 function countDescendants(nodo) {
   if (!nodo.children?.length) return 0
   return nodo.children.reduce((acc,c)=>acc+1+countDescendants(c),0)
+}
+
+// Igual que countDescendants pero solo cuenta ramas que pasan el filtro de rangos
+function countDescendantsFiltrado(nodo, pasaFiltro) {
+  const hijos = (nodo.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
+  return hijos.reduce((acc,c)=>acc+1+countDescendantsFiltrado(c, pasaFiltro),0)
 }
 
 // Suma los PG de la rama visible según el filtro de rangos (incluye la raíz)
