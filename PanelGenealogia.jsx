@@ -51,7 +51,7 @@ function ArbolSparkline({ data, color }) {
   )
 }
 
-function ArbolTarjeta({ nodo, hasChildren, expanded, onToggle, onSelect, onGenealogia, isMobile }) {
+function ArbolTarjeta({ nodo, onSelect, onGenealogia, isMobile }) {
   const r = getRango(nodo.rango)
   const activo = (nodo.pp + nodo.pg) > 0
   const esOro = r.id.includes('ORO')||r.id==='PLATINO'||r.id.includes('DIAMANTE')
@@ -87,13 +87,6 @@ function ArbolTarjeta({ nodo, hasChildren, expanded, onToggle, onSelect, onGenea
           {nodo.pg>0 && <span><b style={{color:'#7C3AED'}}>{nodo.pg}</b> PG</span>}
         </div>
       </div>
-      {hasChildren && (
-        <button onClick={e=>{e.stopPropagation(); onToggle()}}
-          style={{width:'100%',padding:'5px 0',background:'var(--win-surface2)',border:'none',borderTop:'1px solid var(--win-border)',color:'var(--win-muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:10,fontWeight:600}}>
-          <span>{nodo.children.length}</span>
-          <div style={{width:12,height:12,transform:expanded?'rotate(180deg)':'none',transition:'transform .15s'}}><Icons.ChevDown/></div>
-        </button>
-      )}
     </div>
   )
 }
@@ -103,10 +96,19 @@ function ArbolRama({ nodo, depth, onSelect, onGenealogia, isMobile }) {
   const hasChildren = (nodo.children||[]).length > 0
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-      <ArbolTarjeta nodo={nodo} hasChildren={hasChildren} expanded={expanded} onToggle={()=>setExpanded(e=>!e)} onSelect={onSelect} onGenealogia={onGenealogia} isMobile={isMobile}/>
+      <ArbolTarjeta nodo={nodo} onSelect={onSelect} onGenealogia={onGenealogia} isMobile={isMobile}/>
+      {hasChildren && (
+        <div style={{position:'relative',width:2,height:26,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}>
+          <button
+            onClick={()=>setExpanded(e=>!e)}
+            title={expanded ? 'Contraer rama' : `Expandir rama (${nodo.children.length})`}
+            style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:26,height:26,borderRadius:'50%',border:'1px solid var(--win-border)',background:'var(--win-surface)',color:'var(--win-accent)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',boxShadow:'0 2px 6px rgba(0,0,0,.3)',padding:0,zIndex:2}}>
+            <div style={{width:13,height:13,transform:expanded?'rotate(180deg)':'none',transition:'transform .15s'}}><Icons.ChevDown/></div>
+          </button>
+        </div>
+      )}
       {hasChildren && expanded && (
         <>
-          <div style={{width:2,height:18,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
           <div style={{position:'relative',display:'flex',gap:isMobile?16:24}}>
             {nodo.children.length>1 && (
               <div style={{position:'absolute',top:0,left:isMobile?70:82,right:isMobile?70:82,height:2,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
