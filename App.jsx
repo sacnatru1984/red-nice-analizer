@@ -64,11 +64,22 @@ function getRango(rangoStr) {
   return RANGOS[0]
 }
 
+// Después de Oro hay 2 escaleras independientes (ver plan de carrera NICE):
+// esfuerzo personal (Oro Experto → Platino) y esfuerzo con equipo (Oro Ejecutivo → Doble Diamante).
+// Si el afiliado ya está en una de las dos, se le sigue esa misma escalera.
+// Desde "Oro" a secas, el equipo es el camino por defecto (comportamiento previo).
+const ORDEN_DESC = ['EIN', 'COBRE', 'BRONCE', 'PLATA', 'ORO']
+const ORDEN_PERSONAL = ['ORO_EXPERTO', 'ORO_PREMIER', 'ORO_ELITE', 'PLATINO']
+const ORDEN_EQUIPO = ['ORO_EJECUTIVO', 'ORO_SENIOR', 'ORO_MASTER', 'DIAMANTE', 'DIAMANTE_MASTER', 'DOBLE_DIAMANTE']
 function getSiguienteRango(rangoId) {
-  const orden = ['EIN','COBRE','BRONCE','PLATA','ORO','ORO_EJECUTIVO','ORO_SENIOR','ORO_MASTER','DIAMANTE','DIAMANTE_MASTER','DOBLE_DIAMANTE']
-  const idx = orden.indexOf(rangoId)
-  if (idx < 0 || idx >= orden.length - 1) return null
-  return RANGOS.find(r => r.id === orden[idx + 1])
+  if (rangoId === 'ORO') return RANGOS.find(r => r.id === 'ORO_EJECUTIVO')
+  const idxP = ORDEN_PERSONAL.indexOf(rangoId)
+  if (idxP >= 0) return idxP < ORDEN_PERSONAL.length - 1 ? RANGOS.find(r => r.id === ORDEN_PERSONAL[idxP + 1]) : null
+  const idxE = ORDEN_EQUIPO.indexOf(rangoId)
+  if (idxE >= 0) return idxE < ORDEN_EQUIPO.length - 1 ? RANGOS.find(r => r.id === ORDEN_EQUIPO[idxE + 1]) : null
+  const idx = ORDEN_DESC.indexOf(rangoId)
+  if (idx < 0 || idx >= ORDEN_DESC.length - 1) return null
+  return RANGOS.find(r => r.id === ORDEN_DESC[idx + 1])
 }
 
 // ¿El afiliado ya cumple por completo un rango de equipo?
@@ -193,35 +204,76 @@ function analizarFrontales(afiliado, afiliados, tc, umbral) {
   return { frontales, orosActivos, orosInactivos, candidatos, ORO_REQ }
 }
 
+const RECOMPENSA_PERSONAL = {
+  ORO_EXPERTO: 'Cupón de $2,000 en producto',
+  ORO_PREMIER: 'Cupón de $5,000 en producto',
+  ORO_ELITE: 'Cupón de $7,500 en producto',
+  PLATINO: 'Cupón de $20,000 en producto o $10,000 en efectivo',
+}
+
+// Plan de acción: siempre con UN objetivo claro (paso 1, numérico y verificable)
+// y como máximo 2 pasos más de apoyo — solo cuando hay algo específico que decir
+// (datos reales de la red o la recompensa), nunca relleno genérico.
 function getPlanAccion(afiliado, siguiente, afiliados, tc, umbral) {
   if (!siguiente) return []
   const pp = afiliado.pp || 0
   const pg = afiliado.pg || 0
 
-  if (siguiente.id === 'COBRE') return [
-    { num: 1, color: '#DC2626', title: `Alcanzar 700 PP/PG este mes`, desc: `Tienes ${pp + pg} de 700 puntos combinados. Faltan ${Math.max(0, 700 - (pp + pg))} puntos para calificar a Cobre (30%).` },
-    { num: 2, color: '#EA580C', title: 'Hacer pedidos personales constantes', desc: 'Cada pieza que compras suma PP. Mantén pedidos regulares durante el mes para no quedarte sin puntos al final del período.' },
-    { num: 3, color: '#16A34A', title: 'Invitar a nuevos empresarios', desc: 'Los PNE (puntos de nuevos empresarios en sus primeros 15 días) también cuentan para tu calificación.' },
-  ]
+  // Rangos por descuento (Cobre/Bronce/Plata): un solo objetivo de puntos combinados
+  if (siguiente.tipo === 'desc' && siguiente.id !== 'ORO') {
+    const req = siguiente.id === 'COBRE' ? 700 : siguiente.id === 'BRONCE' ? 1000 : 2000
+    const falta = Math.max(0, req - (pp + pg))
+    const directos = (afiliados || []).filter(a => a.einPresentador === afiliado.ein)
+    const activos = directos.filter(a => ((a.pp || 0) + (a.pg || 0)) > 0).length
+    return [
+      {
+        num: 1, color: '#DC2626',
+        title: falta > 0 ? `Objetivo: ${req.toLocaleString()} PP/PG combinados · vas ${(pp + pg).toLocaleString()}/${req.toLocaleString()}` : `Ya cumples ${req.toLocaleString()} PP/PG combinados`,
+        desc: falta > 0 ? `Te faltan ${falta.toLocaleString()} puntos para calificar a ${siguiente.label} (${siguiente.pct}%).` : `Sostenlo hasta el cierre del período para calificar a ${siguiente.label} (${siguiente.pct}%).`
+      },
+      {
+        num: 2, color: '#16A34A', title: 'Cómo cerrar la brecha',
+        desc: directos.length > 0
+          ? `Tienes ${directos.length} persona${directos.length > 1 ? 's' : ''} en tu línea directa, ${activos} activa${activos !== 1 ? 's' : ''} este mes. Haz tu pedido y empuja a que el resto haga el suyo — sus puntos suman como PG.`
+          : `Haz un pedido propio que cierre la diferencia, e invita a tu primer afiliado — sus puntos también sumarán como PG.`
+      },
+    ]
+  }
 
-  if (siguiente.id === 'BRONCE') return [
-    { num: 1, color: '#DC2626', title: `Alcanzar 1,000 PP/PG este mes`, desc: `Tienes ${pp + pg} de 1,000 puntos combinados. Faltan ${Math.max(0, 1000 - (pp + pg))} puntos para Bronce (35%).` },
-    { num: 2, color: '#EA580C', title: 'Activar afiliados de tu línea descendente', desc: 'Sus puntos suman como PG mientras estén en rango Empresario a Plata (25%-40%). Apóyalos a hacer pedidos.' },
-    { num: 3, color: '#16A34A', title: 'Mantener pedidos propios arriba de 500 PP', desc: 'Tener PP propios sólidos asegura que tu rango no dependa solo de tu línea descendente.' },
-  ]
+  // Oro (45%): un solo camino recomendado (el más rápido), la alternativa de equipo como nota breve
+  if (siguiente.id === 'ORO') {
+    const falta = Math.max(0, 3000 - (pp + pg))
+    return [
+      {
+        num: 1, color: '#DC2626',
+        title: falta > 0 ? `Objetivo: 3,000 PP/PG combinados · vas ${(pp + pg).toLocaleString()}/3,000` : 'Ya alcanzaste los 3,000 PP/PG combinados',
+        desc: falta > 0 ? `Te faltan ${falta.toLocaleString()} puntos. Es el camino más directo a Oro (45%), en 1 o 2 períodos consecutivos.` : 'Sostenlo el período que falte (si lo hiciste en 2 meses) para calificar a Oro (45%).'
+      },
+      {
+        num: 2, color: '#16A34A', title: 'Si no llegas sola/o, súmate en equipo',
+        desc: 'Con 1,000 PP propios + 3 líneas activas generando 1,000 PG cada una (o 2 líneas con 500 PG en 2 períodos), también calificas a Oro.'
+      },
+    ]
+  }
 
-  if (siguiente.id === 'PLATA') return [
-    { num: 1, color: '#DC2626', title: `Alcanzar 2,000 PP/PG combinados`, desc: `Tienes ${pp + pg} de 2,000. Faltan ${Math.max(0, 2000 - (pp + pg))} puntos para Plata (40%).` },
-    { num: 2, color: '#EA580C', title: 'Desarrollar 2-3 líneas activas', desc: 'Tener varias personas en tu línea descendente haciendo pedidos distribuye el esfuerzo y acumula PG más rápido.' },
-    { num: 3, color: '#16A34A', title: 'Ayudar a tus Empresarios a calificar Cobre', desc: 'Cuando alguien en tu red sube de rango, ambos se benefician. Un equipo activo es más estable que depender solo de tus PP.' },
-  ]
+  // Rangos por esfuerzo personal (Oro Experto/Premier/Elite, Platino): meta de PP × 3 períodos
+  if (siguiente.tipo === 'personal') {
+    const req = siguiente.ppReq
+    const falta = Math.max(0, req - pp)
+    return [
+      {
+        num: 1, color: '#DC2626',
+        title: falta > 0 ? `Objetivo: ${req.toLocaleString()} PP este mes · vas ${pp.toLocaleString()}/${req.toLocaleString()}` : `Ya llegaste a ${req.toLocaleString()} PP este mes`,
+        desc: `Debes sostener ${req.toLocaleString()} PP durante 3 períodos consecutivos para calificar a ${siguiente.label}.`
+      },
+      {
+        num: 2, color: '#16A34A', title: 'Recompensa al calificar',
+        desc: `${RECOMPENSA_PERSONAL[siguiente.id] || ''} al completar los 3 períodos consecutivos.`
+      },
+    ]
+  }
 
-  if (siguiente.id === 'ORO') return [
-    { num: 1, color: '#DC2626', title: 'Opción rápida: 3,000 PP combinados en 1-2 meses', desc: `Tienes ${pp + pg} puntos. Alcanzar 3,000 PP combinados en 1 o 2 meses consecutivos es el camino más directo a Oro (45%).` },
-    { num: 2, color: '#EA580C', title: 'Opción equipo: 1,000 PP + 3 líneas con 1,000 PG c/u', desc: 'Si tienes 3 líneas activas generando PG, puedes calificar a Oro con menos PP personales. Coordina pedidos simultáneos.' },
-    { num: 3, color: '#16A34A', title: 'Opción 2 meses: 4,000 PP y PG en 2 meses consecutivos', desc: 'También puedes acumular 4,000 PP y PG combinados en dos meses seguidos. Planea tus pedidos mes a mes.' },
-  ]
-
+  // Rangos por esfuerzo con equipo (Oro Ejecutivo → Doble Diamante): frontales Oro activos
   if (siguiente.tipo === 'equipo') {
     const { orosActivos, orosInactivos, candidatos } = analizarFrontales(afiliado, afiliados, tc, umbral)
     const tiene = orosActivos.length
@@ -238,62 +290,43 @@ function getPlanAccion(afiliado, siguiente, afiliados, tc, umbral) {
       DIAMANTE_MASTER: '3% del 4° y 5° Nivel Oro',
       DOBLE_DIAMANTE: 'Cheque de $100,000 pesos',
     }[siguiente.id]
-    const pasos = []
-    const U = umbral || UMBRAL_DESC_USD
-    const detalleActivos = orosActivos.slice(0, 3).map(a => { const g = frontalGenera(a, tc, umbral); return `${a.nombre.split(' ').slice(0, 2).join(' ')} (Desc. Red ~$${Math.round(g.usd).toLocaleString()} USD)` }).join(', ') + (orosActivos.length > 3 ? ` y ${orosActivos.length - 3} más` : '')
-    pasos.push({
+    const detalleActivos = orosActivos.slice(0, 3).map(a => a.nombre.split(' ').slice(0, 2).join(' ')).join(', ') + (orosActivos.length > 3 ? ` y ${orosActivos.length - 3} más` : '')
+    const pasos = [{
       num: 1, color: '#DC2626',
-      title: faltan > 0 ? `Desarrolla ${faltan} frontal${faltan > 1 ? 'es' : ''} Oro más · vas ${tiene}/${req}` : `Mantén activos tus ${req} frontal${req > 1 ? 'es' : ''} Oro · ${tiene}/${req}`,
+      title: faltan > 0 ? `Objetivo: ${faltan} frontal${faltan > 1 ? 'es' : ''} Oro más · vas ${tiene}/${req}` : `Mantén tus ${req} frontal${req > 1 ? 'es' : ''} Oro activos · ${tiene}/${req}`,
       desc: faltan > 0
         ? (top
-          ? `Tu mejor candidato en gen.1 es ${top.a.nombre} (${getRango(top.a.rango).label}, ${top.pts.toLocaleString()} pts). Le faltan ${top.falta.toLocaleString()} pts para llegar a Oro (3,000 combinados) y contar como tu frontal Oro.`
-          : `Necesitas ${req} frontal${req > 1 ? 'es' : ''} Oro activo${req > 1 ? 's' : ''} en tu gen.1 (rango Oro y con movimiento este mes). Aún no hay candidatos con actividad — invita y activa nuevas líneas directas.`)
-        : `${detalleActivos} ya ${orosActivos.length > 1 ? 'son Oro activos' : 'es Oro activo'} en tu gen.1. Mantén su actividad cada mes para conservar ${siguiente.label}.`
-    })
-    const proximo = faltan > 0 ? segundo : top
+          ? `Tu mejor candidato es ${top.a.nombre} (${getRango(top.a.rango).label}, ${top.pts.toLocaleString()} pts) — le faltan ${top.falta.toLocaleString()} pts para ser Oro y contar como tu frontal.`
+          : `Necesitas ${req} frontal${req > 1 ? 'es' : ''} Oro activo${req > 1 ? 's' : ''} en tu gen.1. Invita y activa nuevas líneas directas.`)
+        : `${detalleActivos} ${orosActivos.length > 1 ? 'ya son Oro activos' : 'ya es Oro activo'}. Recompensa al llegar a ${siguiente.label}: ${recompensa}.`
+    }]
     if (orosInactivos.length > 0) {
       pasos.push({
         num: 2, color: '#EA580C',
         title: `Reactiva ${orosInactivos.length} frontal${orosInactivos.length > 1 ? 'es' : ''} Oro sin movimiento`,
-        desc: `${orosInactivos.slice(0, 2).map(a => a.nombre.split(' ').slice(0, 2).join(' ')).join(', ')}${orosInactivos.length > 2 ? ` y ${orosInactivos.length - 2} más` : ''} ${orosInactivos.length > 1 ? 'son Oro' : 'es Oro'} pero este mes no ${orosInactivos.length > 1 ? 'registran' : 'registra'} PP/PG, así que no ${orosInactivos.length > 1 ? 'cuentan' : 'cuenta'} como frontal Oro. Ayúdalos a reactivar su actividad.`
+        desc: `${orosInactivos.slice(0, 2).map(a => a.nombre.split(' ').slice(0, 2).join(' ')).join(', ')}${orosInactivos.length > 2 ? ` y ${orosInactivos.length - 2} más` : ''} ${orosInactivos.length > 1 ? 'son Oro' : 'es Oro'} pero no ${orosInactivos.length > 1 ? 'registran' : 'registra'} PP/PG este mes, así que no ${orosInactivos.length > 1 ? 'cuentan' : 'cuenta'} como frontal Oro.`
       })
-    } else if (proximo) {
+    } else if (faltan > 0 && segundo) {
       pasos.push({
         num: 2, color: '#EA580C',
-        title: faltan > 0 ? `Tu 2° candidato: ${proximo.a.nombre}` : `Empuja a tu próximo Oro: ${proximo.a.nombre}`,
-        desc: `${getRango(proximo.a.rango).label}, ${proximo.pts.toLocaleString()} pts — le faltan ${proximo.falta.toLocaleString()} pts para Oro. ${faltan > 0 ? 'Trabaja 2 líneas en paralelo para no depender de una sola.' : `Apoyarlo te acerca a ${getSiguienteRango(siguiente.id)?.label || 'tu siguiente rango'}.`}`
-      })
-    } else {
-      pasos.push({
-        num: 2, color: '#EA580C',
-        title: 'Mantén activos a tus frontales Oro',
-        desc: 'Cada frontal Oro debe mantener su actividad (PP/PG) cada mes para seguir contando. Acompaña el crecimiento del volumen de su red — eso también sube su Desc. por Red.'
+        title: `Tu 2° candidato: ${segundo.a.nombre}`,
+        desc: `${getRango(segundo.a.rango).label}, ${segundo.pts.toLocaleString()} pts — le faltan ${segundo.falta.toLocaleString()} pts para Oro. Trabaja 2 líneas en paralelo para no depender de una sola.`
       })
     }
     if (necesitaPropio) {
-      const propio = (afiliado.pp || 0) + (afiliado.pg || 0)
+      const propio = pp + pg
       pasos.push({
-        num: 3, color: '#16A34A',
+        num: pasos.length + 1, color: '#16A34A',
         title: `Genera 2,000 PP/PG propios · vas ${propio.toLocaleString()}/2,000`,
         desc: propio >= 2000
           ? `Ya cumples tu volumen personal. Recompensa al subir a ${siguiente.label}: ${recompensa}.`
-          : `Te faltan ${(2000 - propio).toLocaleString()} pts propios, además de los ${req} frontales Oro. Recompensa al subir: ${recompensa}.`
-      })
-    } else {
-      pasos.push({
-        num: 3, color: '#16A34A',
-        title: `Recompensa al alcanzar ${siguiente.label}`,
-        desc: `${recompensa}. Mientras más PP acumule tu red en los niveles Oro, mayores serán tus Descuentos por Red.`
+          : `Además de los frontales, te faltan ${(2000 - propio).toLocaleString()} pts propios. Recompensa al subir: ${recompensa}.`
       })
     }
     return pasos
   }
 
-  return [
-    { num: 1, color: '#2563EB', title: 'Continúa creciendo tu red', desc: 'Sigue desarrollando más frontales Oro y manteniendo tu volumen de PP/PG cada mes.' },
-    { num: 2, color: '#16A34A', title: 'Apoya a tu línea descendente', desc: 'Tu éxito está ligado al de tu equipo. Mantén comunicación constante y apóyalos a subir de rango.' },
-    { num: 3, color: '#C47F17', title: 'Consulta tu cuenta en niceonline.com', desc: 'Para información actualizada sobre tus Descuentos por Red y estado de calificación.' },
-  ]
+  return []
 }
 
 // ── Parser de Excel ──
