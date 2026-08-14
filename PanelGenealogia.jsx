@@ -534,34 +534,36 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
           const pgVis = sumarPGVisible(raiz, pasaFiltro)
           return (
             <>
-            <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 16px',borderBottom:'1px solid var(--win-border)',background:'var(--win-surface)'}}>
-              <div style={{width:52,height:52,borderRadius:'50%',background:rr.bg,border:`2px solid ${rr.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 0 0 3px rgba(37,99,235,.18)'}}>
-                {RANGO_IMG[rr.id]
-                  ? <img src={RANGO_IMG[rr.id]} alt={rr.label} style={{width:44,height:44,objectFit:'contain'}}/>
-                  : <span style={{fontSize:14,fontWeight:700,color:rr.color}}>{getInitials(raiz.nombre)}</span>}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>{raiz.nombre}</div>
-                <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
-                  <span style={{background:rr.bg,color:rr.color,padding:'2px 8px',borderRadius:10,fontSize:10,fontWeight:700}}>{rr.label}</span>
-                  <span style={{fontSize:10,color:'var(--win-muted)'}}>EIN {raiz.ein}</span>
+            <div style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'center',gap:isMobile?12:14,padding:'12px 16px',borderBottom:'1px solid var(--win-border)',background:'var(--win-surface)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:14,minWidth:0}}>
+                <div style={{width:52,height:52,borderRadius:'50%',background:rr.bg,border:`2px solid ${rr.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 0 0 3px rgba(37,99,235,.18)'}}>
+                  {RANGO_IMG[rr.id]
+                    ? <img src={RANGO_IMG[rr.id]} alt={rr.label} style={{width:44,height:44,objectFit:'contain'}}/>
+                    : <span style={{fontSize:14,fontWeight:700,color:rr.color}}>{getInitials(raiz.nombre)}</span>}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>{raiz.nombre}</div>
+                  <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+                    <span style={{background:rr.bg,color:rr.color,padding:'2px 8px',borderRadius:10,fontSize:10,fontWeight:700}}>{rr.label}</span>
+                    <span style={{fontSize:10,color:'var(--win-muted)'}}>EIN {raiz.ein}</span>
+                  </div>
                 </div>
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:14,fontSize:11}}>
-                <div style={{textAlign:'center',padding:'8px 16px',borderRadius:12,background:'linear-gradient(135deg, rgba(124,58,237,.14), rgba(124,58,237,.05))',border:'1.5px solid rgba(124,58,237,.4)',boxShadow:'0 0 0 3px rgba(124,58,237,.07)'}}>
-                  <div style={{fontSize:24,fontWeight:800,color:'#7C3AED',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-.01em'}}>{pgVis.pg.toLocaleString()}</div>
-                  <div style={{color:'#7C3AED',fontWeight:700,letterSpacing:'.04em',fontSize:10,marginTop:3}}>PG EN EL ÁRBOL</div>
+              <div style={{display:'flex',alignItems:'center',gap:isMobile?10:14,fontSize:11,flexWrap:'wrap',marginLeft:isMobile?0:'auto',justifyContent:isMobile?'space-between':'flex-start'}}>
+                <div style={{textAlign:'center',padding:isMobile?'6px 12px':'8px 16px',borderRadius:12,background:'linear-gradient(135deg, rgba(124,58,237,.14), rgba(124,58,237,.05))',border:'1.5px solid rgba(124,58,237,.4)',boxShadow:'0 0 0 3px rgba(124,58,237,.07)'}}>
+                  <div style={{fontSize:isMobile?18:24,fontWeight:800,color:'#7C3AED',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-.01em'}}>{pgVis.pg.toLocaleString()}</div>
+                  <div style={{color:'#7C3AED',fontWeight:700,letterSpacing:'.04em',fontSize:10,marginTop:3,whiteSpace:'nowrap'}}>PG EN EL ÁRBOL</div>
                 </div>
                 <div style={{textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{directos}</div>
-                  <div style={{color:'var(--win-muted)'}}>Directos{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
+                  <div style={{color:'var(--win-muted)',whiteSpace:'nowrap'}}>Directos{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
                 </div>
                 <div style={{textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700,color:'var(--win-accent)'}}>{total}</div>
-                  <div style={{color:'var(--win-muted)'}}>Total ramificación{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
+                  <div style={{color:'var(--win-muted)',whiteSpace:'nowrap'}}>Total ramificación{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
                 </div>
-                <button onClick={()=>exportTreeReport(raiz, pasaFiltro, {pg: pgVis.pg})} title="Descargar el árbol visible como imagen" style={{display:'flex',alignItems:'center',gap:7,padding:'9px 16px',borderRadius:9,background:'var(--win-accent)',border:'none',color:'#fff',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(37,99,235,.35)',whiteSpace:'nowrap'}}>
-                  <div style={{width:15,height:15}}><Icons.Download/></div>
+                <button onClick={()=>exportTreeReport(raiz, pasaFiltro, {pg: pgVis.pg})} title="Descargar el árbol visible como imagen" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:isMobile?'9px 12px':'9px 16px',borderRadius:9,background:'var(--win-accent)',border:'none',color:'#fff',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(37,99,235,.35)',whiteSpace:'nowrap',width:isMobile?'100%':'auto'}}>
+                  <div style={{width:15,height:15,flexShrink:0}}><Icons.Download/></div>
                   Descargar Árbol
                 </button>
               </div>
