@@ -2,6 +2,16 @@ const { useState, useRef, useCallback, useEffect, useMemo } = React
 let getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S
 
 // ── Panel Árbol: tarjetas visuales con brillo por rango + panel de detalle ──
+function fmtFechaArbol(v) {
+  if (v == null || v === '') return '—'
+  if (v instanceof Date) return isNaN(v.getTime()) ? '—' : v.toLocaleDateString('es-MX')
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000))
+    return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('es-MX')
+  }
+  return String(v)
+}
+
 function contarDescendientesFlat(ein, afiliados) {
   const directos = (afiliados||[]).filter(a=>a.einPresentador===ein)
   return directos.reduce((acc,d)=>acc+1+contarDescendientesFlat(d.ein, afiliados), 0)
@@ -121,7 +131,7 @@ function ArbolDetalle({ nodo, afiliados, periodos, onClose, onGenealogia }) {
   const directos = (afiliados||[]).filter(a=>a.einPresentador===nodo.ein).length
   const total = contarDescendientesFlat(nodo.ein, afiliados||[])
   const historial = historialPP(nodo.ein, periodos)
-  const fecha = nodo.fechaRegistro || nodo.fechaContrato || ''
+  const fecha = fmtFechaArbol(nodo.fechaRegistro || nodo.fechaContrato)
 
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(10,14,24,.55)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
@@ -162,7 +172,7 @@ function ArbolDetalle({ nodo, afiliados, periodos, onClose, onGenealogia }) {
             { label:'N° de afiliado', value:nodo.ein },
             { label:'Teléfono', value:nodo.telefono || '—' },
             { label:'Ubicación', value:[nodo.ciudad,nodo.estado].filter(Boolean).join(', ') || '—' },
-            { label:'Afiliado desde', value:fecha || '—' },
+            { label:'Afiliado desde', value:fecha },
             { label:'Presentador', value:nodo.presentador || '—' },
           ].map((row,i,arr)=>(
             <div key={row.label} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 2px',borderBottom:i<arr.length-1?'1px solid var(--win-border)':'none'}}>
