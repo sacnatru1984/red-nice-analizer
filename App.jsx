@@ -2565,7 +2565,7 @@ function App() {
         {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios')&&tab!=='reportes'&&(
           <>
             {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc}/>}
-            {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia}/>:<PanelCargando/>)}
+            {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc}/>:<PanelCargando/>)}
             {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} volBase={volBase} setVolBase={setVolBase} umbralUSD={umbralUSD} setUmbralUSD={setUmbralUSD}/>:<PanelCargando/>)}
             {tab==='rangos'&&<PanelRangos afiliados={afiliadosCalc}/>}

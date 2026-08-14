@@ -1,51 +1,205 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
 let getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S
 
-function TreeNode({ nodo, depth=0, onGenealogia }) {
-  const isMobile = useIsMobile()
-  const [open, setOpen] = useState(depth<2)
+// ── Panel Árbol: tarjetas visuales con brillo por rango + panel de detalle ──
+function contarDescendientesFlat(ein, afiliados) {
+  const directos = (afiliados||[]).filter(a=>a.einPresentador===ein)
+  return directos.reduce((acc,d)=>acc+1+contarDescendientesFlat(d.ein, afiliados), 0)
+}
+
+function historialPP(ein, periodos) {
+  if (!periodos || periodos.length < 2) return []
+  const ordenados = [...periodos].sort((a,b)=>(a.año-b.año)||(a.mes-b.mes))
+  return ordenados.slice(-6).map(p=>{
+    const a = (p.afiliados||[]).find(x=>x.ein===ein)
+    return { m: p.label || p.labelLargo || '', pts: a ? (a.pp||0) : 0 }
+  })
+}
+
+function ArbolSparkline({ data, color }) {
+  const w = 280, h = 70, pad = 6
+  const values = data.map(d=>d.pts)
+  const max = Math.max(...values), min = Math.min(...values)
+  const range = (max - min) || 1
+  const step = (w - pad*2) / Math.max(data.length - 1, 1)
+  const points = data.map((d,i)=>({ x: pad + i*step, y: pad + (h-pad*2)*(1-(d.pts-min)/range), ...d }))
+  const linePath = points.map((p,i)=>`${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ')
+  const areaPath = `${linePath} L ${points[points.length-1].x} ${h-pad} L ${points[0].x} ${h-pad} Z`
+  const gradId = `arbol-spark-${color.replace('#','')}`
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{display:'block'}}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.35}/>
+          <stop offset="100%" stopColor={color} stopOpacity={0}/>
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradId})`}/>
+      <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"/>
+      {points.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={i===points.length-1?3:2} fill={color}/>)}
+    </svg>
+  )
+}
+
+function ArbolTarjeta({ nodo, hasChildren, expanded, onToggle, onSelect, onGenealogia, isMobile }) {
   const r = getRango(nodo.rango)
-  const hasKids = nodo.children?.length > 0
+  const activo = (nodo.pp + nodo.pg) > 0
   const esOro = r.id.includes('ORO')||r.id==='PLATINO'||r.id.includes('DIAMANTE')
   return (
-    <div style={{marginBottom:3}}>
-      <div onClick={()=>hasKids&&setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',borderRadius:7,border:`1px solid ${esOro?r.color+'55':'var(--win-border)'}`,background:esOro?r.bg:'var(--win-surface)',cursor:hasKids?'pointer':'default',transition:'.1s'}}>
-        <div style={{width:16,height:16,color:'var(--win-muted)',flexShrink:0}}>
-          {hasKids ? (open ? <Icons.ChevDown/> : <Icons.ChevRight/>) : null}
-        </div>
-        <div style={{width:32,height:32,borderRadius:'50%',background:r.bg,border:'1px solid '+r.color+'44',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[r.id]?<img src={RANGO_IMG[r.id]} alt={r.label} style={{width:28,height:28,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:r.color}}>{getInitials(nodo.nombre)}</span>}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,fontWeight:700,color:esOro?'#1A2540':'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{nodo.nombre}</div>
-          <div style={{fontSize:10,color:esOro?'#5A6A87':'var(--win-muted)',marginTop:1}}>EIN {nodo.ein} · {nodo.ciudad||nodo.estado||''}</div>
-        </div>
+    <div
+      onClick={()=>onSelect(nodo)}
+      role="button" tabIndex={0} onKeyDown={e=>e.key==='Enter'&&onSelect(nodo)}
+      style={{
+        width: isMobile?148:172, borderRadius:12, background:'var(--win-surface)',
+        border:`1px solid ${esOro?r.color+'55':'var(--win-border)'}`,
+        boxShadow: esOro ? `0 0 0 1px ${r.color}33, 0 6px 18px -6px ${r.color}55` : '0 1px 3px rgba(0,0,0,.08)',
+        opacity: activo?1:0.6, cursor:'pointer', overflow:'hidden', flexShrink:0, transition:'transform .12s ease'
+      }}
+      onMouseDown={e=>e.currentTarget.style.transform='scale(0.97)'}
+      onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}
+      onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}
+    >
+      <div style={{height:4,background:r.color}}/>
+      <div style={{padding:'12px 10px 8px',position:'relative'}}>
         {onGenealogia && (
-          <button
-            title="Ver genealogía desde este afiliado"
-            onClick={e=>{e.stopPropagation(); onGenealogia(nodo.ein)}}
-            style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?34:30,height:isMobile?34:30,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
-            <div style={{width:14,height:14}}><Icons.GitBranch/></div>
+          <button title="Ver genealogía desde este afiliado" onClick={e=>{e.stopPropagation(); onGenealogia(nodo.ein)}}
+            style={{position:'absolute',top:8,right:8,width:22,height:22,border:'none',borderRadius:6,background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>
+            <div style={{width:12,height:12}}><Icons.GitBranch/></div>
           </button>
         )}
-        {!isMobile && <RankBadge rangoStr={nodo.rango}/>}
-        <div style={{textAlign:'right',flexShrink:0,minWidth:isMobile?40:52}}>
-          <div style={{fontSize:12,fontWeight:700,color:'var(--win-gold)'}}>{nodo.pp} PP</div>
-          {nodo.pg>0 && <div style={{fontSize:10,color:'#7C3AED'}}>{nodo.pg} PG</div>}
+        <div style={{width:40,height:40,borderRadius:'50%',margin:'0 auto 8px',background:r.bg,border:`1px solid ${r.color}44`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:esOro?`0 0 10px ${r.color}55`:'none',overflow:'hidden'}}>
+          {RANGO_IMG[r.id] ? <img src={RANGO_IMG[r.id]} alt={r.label} style={{width:34,height:34,objectFit:'contain'}}/> : <span style={{fontSize:12,fontWeight:700,color:r.color}}>{getInitials(nodo.nombre)}</span>}
         </div>
-        {hasKids && !isMobile && <div style={{fontSize:10,color:'var(--win-muted)',flexShrink:0,minWidth:16,textAlign:'right'}}>{nodo.children.length}</div>}
+        <div style={{fontSize:12,fontWeight:700,color:'var(--win-title)',textAlign:'center',lineHeight:1.25,marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{nodo.nombre.split(' ').slice(0,2).join(' ')}</div>
+        <div style={{fontSize:10,color:r.color,textAlign:'center',fontWeight:700,marginBottom:6}}>{r.label}</div>
+        <div style={{display:'flex',justifyContent:'center',gap:8,fontSize:10,color:'var(--win-muted)'}}>
+          <span><b style={{color:'var(--win-gold)'}}>{nodo.pp}</b> PP</span>
+          {nodo.pg>0 && <span><b style={{color:'#7C3AED'}}>{nodo.pg}</b> PG</span>}
+        </div>
       </div>
-      {open && hasKids && (
-        <div style={{marginLeft:isMobile?14:26,borderLeft:'2px solid var(--win-border)',paddingLeft:isMobile?8:12,paddingTop:2}}>
-          {nodo.children.map(c=><TreeNode key={c.ein} nodo={c} depth={depth+1} onGenealogia={onGenealogia}/>)}
-        </div>
+      {hasChildren && (
+        <button onClick={e=>{e.stopPropagation(); onToggle()}}
+          style={{width:'100%',padding:'5px 0',background:'var(--win-surface2)',border:'none',borderTop:'1px solid var(--win-border)',color:'var(--win-muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:10,fontWeight:600}}>
+          <span>{nodo.children.length}</span>
+          <div style={{width:12,height:12,transform:expanded?'rotate(180deg)':'none',transition:'transform .15s'}}><Icons.ChevDown/></div>
+        </button>
       )}
     </div>
   )
 }
 
-function PanelArbol({ afiliados, onGenealogia }) {
+function ArbolRama({ nodo, depth, onSelect, onGenealogia, isMobile }) {
+  const [expanded, setExpanded] = useState(depth < 2)
+  const hasChildren = (nodo.children||[]).length > 0
+  return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+      <ArbolTarjeta nodo={nodo} hasChildren={hasChildren} expanded={expanded} onToggle={()=>setExpanded(e=>!e)} onSelect={onSelect} onGenealogia={onGenealogia} isMobile={isMobile}/>
+      {hasChildren && expanded && (
+        <>
+          <div style={{width:2,height:18,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
+          <div style={{position:'relative',display:'flex',gap:isMobile?16:24}}>
+            {nodo.children.length>1 && (
+              <div style={{position:'absolute',top:0,left:isMobile?70:82,right:isMobile?70:82,height:2,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
+            )}
+            {nodo.children.map(c=>(
+              <div key={c.ein} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                <div style={{width:2,height:18,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
+                <ArbolRama nodo={c} depth={depth+1} onSelect={onSelect} onGenealogia={onGenealogia} isMobile={isMobile}/>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ArbolDetalle({ nodo, afiliados, periodos, onClose, onGenealogia }) {
+  if (!nodo) return null
+  const r = getRango(nodo.rango)
+  const activo = (nodo.pp + nodo.pg) > 0
+  const directos = (afiliados||[]).filter(a=>a.einPresentador===nodo.ein).length
+  const total = contarDescendientesFlat(nodo.ein, afiliados||[])
+  const historial = historialPP(nodo.ein, periodos)
+  const fecha = nodo.fechaRegistro || nodo.fechaContrato || ''
+
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(10,14,24,.55)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:440,background:'var(--win-surface)',borderTopLeftRadius:18,borderTopRightRadius:18,border:'1px solid var(--win-border)',borderBottom:'none',padding:'16px 20px 26px',maxHeight:'86vh',overflowY:'auto'}}>
+        <div style={{display:'flex',justifyContent:'flex-end'}}>
+          <button onClick={onClose} style={{background:'var(--win-surface2)',border:'none',borderRadius:'50%',width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--win-muted)',cursor:'pointer',padding:0}}>
+            <div style={{width:12,height:12}}><Icons.X/></div>
+          </button>
+        </div>
+
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',marginTop:-4,marginBottom:16}}>
+          <div style={{width:56,height:56,borderRadius:'50%',background:r.bg,border:`2px solid ${r.color}`,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:8,overflow:'hidden'}}>
+            {RANGO_IMG[r.id] ? <img src={RANGO_IMG[r.id]} alt={r.label} style={{width:48,height:48,objectFit:'contain'}}/> : <span style={{fontSize:16,fontWeight:700,color:r.color}}>{getInitials(nodo.nombre)}</span>}
+          </div>
+          <div style={{fontSize:16,fontWeight:700,color:'var(--win-title)',textAlign:'center'}}>{nodo.nombre}</div>
+          <div style={{display:'flex',gap:6,marginTop:6,alignItems:'center'}}>
+            <RankBadge rangoStr={nodo.rango}/>
+            <span style={{fontSize:10,padding:'2px 9px',borderRadius:20,background:'var(--win-surface2)',color:activo?'var(--win-green)':'var(--win-muted)',fontWeight:700}}>{activo?'Activo':'Inactivo'}</span>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:8,marginBottom:16}}>
+          {[
+            { label:'PP', value:nodo.pp, color:'var(--win-gold)' },
+            { label:'PG', value:nodo.pg, color:'#7C3AED' },
+            { label:'Directos', value:directos, color:'var(--win-accent)' },
+            { label:'Ramif.', value:total, color:'var(--win-green)' },
+          ].map(x=>(
+            <div key={x.label} style={{flex:1,textAlign:'center',padding:'10px 4px',borderRadius:10,background:'var(--win-surface2)',border:'1px solid var(--win-border)'}}>
+              <div style={{fontSize:16,fontWeight:800,color:x.color,fontVariantNumeric:'tabular-nums'}}>{(x.value||0).toLocaleString()}</div>
+              <div style={{fontSize:9,color:'var(--win-muted)',fontWeight:600,marginTop:2}}>{x.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{display:'flex',flexDirection:'column'}}>
+          {[
+            { label:'N° de afiliado', value:nodo.ein },
+            { label:'Teléfono', value:nodo.telefono || '—' },
+            { label:'Ubicación', value:[nodo.ciudad,nodo.estado].filter(Boolean).join(', ') || '—' },
+            { label:'Afiliado desde', value:fecha || '—' },
+            { label:'Presentador', value:nodo.presentador || '—' },
+          ].map((row,i,arr)=>(
+            <div key={row.label} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 2px',borderBottom:i<arr.length-1?'1px solid var(--win-border)':'none'}}>
+              <span style={{fontSize:12,color:'var(--win-muted)'}}>{row.label}</span>
+              <span style={{fontSize:12.5,fontWeight:600,color:'var(--win-title)',textAlign:'right',maxWidth:'60%'}}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {historial.length >= 2 && (
+          <div style={{marginTop:16}}>
+            <div style={{fontSize:11,color:'var(--win-muted)',fontWeight:700,marginBottom:6}}>Evolución de PP · últimos {historial.length} periodos</div>
+            <div style={{background:'var(--win-surface2)',border:'1px solid var(--win-border)',borderRadius:10,padding:'10px 8px 4px'}}>
+              <ArbolSparkline data={historial} color={r.color}/>
+              <div style={{display:'flex',justifyContent:'space-between',padding:'0 4px 4px'}}>
+                {historial.map((d,i)=><span key={i} style={{fontSize:9,color:'var(--win-muted)'}}>{d.m}</span>)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {onGenealogia && (
+          <button onClick={()=>{onGenealogia(nodo.ein); onClose()}} style={{width:'100%',marginTop:18,padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'#fff',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+            <div style={{width:15,height:15}}><Icons.GitBranch/></div>
+            Ver genealogía completa
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PanelArbol({ afiliados, onGenealogia, periodos }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
+  const [seleccionado, setSeleccionado] = useState(null)
   const tree = buildTree(afiliados)
   const filtrados = q ? afiliados.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())||a.ein.includes(q)) : null
   return (
@@ -61,27 +215,37 @@ function PanelArbol({ afiliados, onGenealogia }) {
       <div style={S.card}>
         <div style={S.cardHeader}>
           <span style={S.cardTitle}>{q ? `${filtrados.length} resultados` : 'Árbol de red'}</span>
-          {!q && <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>{afiliados.length} afiliados · clic para expandir · icono <span style={{display:'inline-block',width:11,height:11,verticalAlign:'-2px',color:'var(--win-accent)'}}><Icons.GitBranch/></span> para ver genealogía</span>}
+          {!q && <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>{afiliados.length} afiliados · clic en una tarjeta para ver el detalle</span>}
         </div>
-        <div style={S.cardBody}>
-          {q ? filtrados.map(a=>(
-            <div key={a.ein} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid var(--win-border)'}}>
-              <div style={{width:30,height:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:26,height:26,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}</div>
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nombre}</div><div style={{fontSize:11,color:'var(--win-muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>EIN {a.ein} · Gen. {a.gen} · {a.ciudad}</div></div>
-              {onGenealogia && (
-                <button
-                  title="Ver genealogía desde este afiliado"
-                  onClick={()=>onGenealogia(a.ein)}
-                  style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?34:30,height:isMobile?34:30,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
-                  <div style={{width:15,height:15}}><Icons.GitBranch/></div>
-                </button>
-              )}
-              {!isMobile && <RankBadge rangoStr={a.rango}/>}
-              <div style={{fontWeight:700,color:'var(--win-gold)',fontSize:12,flexShrink:0}}>{a.pp} PP</div>
+        <div style={{...S.cardBody, overflowX:'auto', padding: q ? S.cardBody.padding : '28px 16px'}}>
+          {q ? filtrados.map(a=>{
+            const r = getRango(a.rango)
+            return (
+              <div key={a.ein} onClick={()=>setSeleccionado(a)} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid var(--win-border)',cursor:'pointer'}}>
+                <div style={{width:30,height:30,borderRadius:'50%',background:r.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[r.id]?<img src={RANGO_IMG[r.id]} alt='' style={{width:26,height:26,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:r.color}}>{getInitials(a.nombre)}</span>}</div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nombre}</div><div style={{fontSize:11,color:'var(--win-muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>EIN {a.ein} · Gen. {a.gen} · {a.ciudad}</div></div>
+                {onGenealogia && (
+                  <button
+                    title="Ver genealogía desde este afiliado"
+                    onClick={e=>{e.stopPropagation(); onGenealogia(a.ein)}}
+                    style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?34:30,height:isMobile?34:30,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
+                    <div style={{width:15,height:15}}><Icons.GitBranch/></div>
+                  </button>
+                )}
+                {!isMobile && <RankBadge rangoStr={a.rango}/>}
+                <div style={{fontWeight:700,color:'var(--win-gold)',fontSize:12,flexShrink:0}}>{a.pp} PP</div>
+              </div>
+            )
+          }) : (
+            <div style={{display:'flex',justifyContent:'center'}}>
+              <div style={{display:'flex',flexDirection:'column',gap:28}}>
+                {tree.map(n=><ArbolRama key={n.ein} nodo={n} depth={0} onSelect={setSeleccionado} onGenealogia={onGenealogia} isMobile={isMobile}/>)}
+              </div>
             </div>
-          )) : tree.map(n=><TreeNode key={n.ein} nodo={n} onGenealogia={onGenealogia}/>)}
+          )}
         </div>
       </div>
+      <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onGenealogia={onGenealogia}/>
     </div>
   )
 }
