@@ -645,6 +645,7 @@ function makeHiDPICanvas(W, H) {
   const c = document.createElement('canvas')
   c.width = Math.round(W * EXPORT_SCALE); c.height = Math.round(H * EXPORT_SCALE)
   const ctx = c.getContext('2d')
+  if (!ctx) throw new Error(`No se pudo crear el canvas de ${c.width}x${c.height}px (posible límite de memoria del navegador)`)
   ctx.scale(EXPORT_SCALE, EXPORT_SCALE)
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'
   return { c, ctx }
