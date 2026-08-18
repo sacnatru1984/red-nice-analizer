@@ -191,7 +191,7 @@ const DR_TRAMOS = [
   { min: 500, l1: .01, l2: .01, l3: .01 },
   { min: 0, l1: 0, l2: 0, l3: 0 },
 ]
-function simularChequeDR(self, afiliados) {
+function simularChequeDR(self, afiliados, metaPropios) {
   const byPresentador = {}
   afiliados.forEach(a => { if (a.einPresentador != null) (byPresentador[a.einPresentador] = byPresentador[a.einPresentador] || []).push(a) })
   function personasNivel(ein, n) {
@@ -199,7 +199,8 @@ function simularChequeDR(self, afiliados) {
     for (let i = 1; i < n; i++) actuales = actuales.flatMap(a => byPresentador[a.ein] || [])
     return actuales
   }
-  const propios = (self.pp || 0) + (self.pg || 0)
+  const propiosReales = (self.pp || 0) + (self.pg || 0)
+  const propios = (metaPropios != null && metaPropios >= 0) ? metaPropios : propiosReales
   const califica = esOroPlus(self)
   const tramo = DR_TRAMOS.find(t => propios >= t.min)
   const niveles = [1, 2, 3].map(n => {
@@ -210,7 +211,7 @@ function simularChequeDR(self, afiliados) {
   })
   const totalPuntosDR = niveles.reduce((s, n) => s + n.importePuntos, 0)
   const totalMXN = totalPuntosDR * VALOR_ORO
-  return { propios, califica, tramoMin: tramo.min, niveles, totalMXN }
+  return { propios, propiosReales, califica, tramoMin: tramo.min, niveles, totalMXN }
 }
 
 function computeFrontalesOro(afiliados, tc, volBase, umbral) {
@@ -1392,7 +1393,10 @@ function ChequeModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
   const self = afiliados[0]
   const r = getRango(self.rango)
-  const c = simularChequeDR(self, afiliados)
+  const propiosReales = (self.pp || 0) + (self.pg || 0)
+  const [meta, setMeta] = useState(propiosReales)
+  const esSimulado = meta !== propiosReales
+  const c = simularChequeDR(self, afiliados, meta)
   const hoy = new Date()
   const mesLabel = hoy.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
   const fmtMXN = v => v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 })
@@ -1410,12 +1414,35 @@ function ChequeModal({ afiliados, onClose }) {
         </div>
 
         <div style={{ padding: isMobile ? 16 : 24 }}>
+          {/* Meta editable: simula qué pasaría con otro monto de puntos propios */}
+          <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 12, background: 'var(--win-surface2)', border: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 180 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--win-title)' }}>🎯 Mi meta de puntos para este mes</div>
+              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginTop: 2 }}>Cambia el número y mira cómo se mueve tu cheque. Ahora llevas {propiosReales.toLocaleString()} pts.</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <input
+                type="number" min={0} value={meta}
+                onChange={e => setMeta(Math.max(0, Number(e.target.value) || 0))}
+                style={{ width: 110, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--win-border2)', background: 'var(--win-surface)', color: 'var(--win-text)', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', textAlign: 'right' }}
+              />
+              {esSimulado && (
+                <button onClick={() => setMeta(propiosReales)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--win-border2)', background: 'var(--win-surface)', color: 'var(--win-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                  Restablecer
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Cheque visual */}
           <div style={{ background: 'linear-gradient(135deg,#FDF8ED,#F5EFDC)', border: '2px solid #D4B96A', borderRadius: 14, padding: isMobile ? '18px 16px' : '22px 26px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(212,185,106,.18)' }}/>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
               <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', color: '#8A6D1D' }}>NICE · CHEQUE SIMULADO</div>
-              <div style={{ fontSize: 11, color: '#8A6D1D', textAlign: 'right', textTransform: 'capitalize' }}>{mesLabel}</div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 11, color: '#8A6D1D', textTransform: 'capitalize' }}>{mesLabel}</div>
+                {esSimulado && <div style={{ marginTop: 3, fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', color: '#fff', background: '#B8860B', padding: '2px 8px', borderRadius: 20, display: 'inline-block' }}>CON META</div>}
+              </div>
             </div>
             <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 3 }}>PÁGUESE A LA ORDEN DE</div>
             <div style={{ fontSize: 19, fontWeight: 700, color: '#3A2E0B', marginBottom: 16 }}>{self.nombre}</div>
@@ -1423,7 +1450,7 @@ function ChequeModal({ afiliados, onClose }) {
             <div style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalMXN)}</div>
             <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10.5, fontWeight: 700, color: r.color, background: r.bg, padding: '3px 10px', borderRadius: 20 }}>{r.label}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A6D1D' }}>EIN {self.ein} · {(self.pp||0)+(self.pg||0)} pts propios ({c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'})</span>
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A6D1D' }}>EIN {self.ein} · {c.propios.toLocaleString()} pts propios{esSimulado ? ' (meta)' : ''} ({c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'})</span>
             </div>
           </div>
 
