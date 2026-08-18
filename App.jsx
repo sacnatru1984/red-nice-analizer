@@ -615,22 +615,27 @@ function loadImgReport(src) {
 // Descarga el canvas como PDF (se envía/imprime como documento, sin la
 // recompresión que WhatsApp aplica a las fotos). Si jsPDF no cargó, cae
 // a PNG para no dejar al usuario sin descarga.
+function downloadCanvasPNG(canvas, filename) {
+  canvas.toBlob(blob => {
+    if (!blob) { alert('No se pudo generar la imagen para descargar. Intenta de nuevo.'); return }
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 2000)
+  }, 'image/png')
+}
 function downloadCanvas(canvas, filename) {
   const pdfName = filename.replace(/\.png$/i, '.pdf')
   const JsPDFCtor = typeof window !== 'undefined' && window.jspdf && window.jspdf.jsPDF
-  if (!JsPDFCtor) {
-    canvas.toBlob(blob => {
-      if (!blob) return
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 2000)
-    }, 'image/png')
-    return
+  if (!JsPDFCtor) { downloadCanvasPNG(canvas, filename); return }
+  try {
+    const W = canvas.width / EXPORT_SCALE, H = canvas.height / EXPORT_SCALE
+    const doc = new JsPDFCtor({ orientation: W >= H ? 'landscape' : 'portrait', unit: 'px', format: [W, H], compress: true })
+    doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, W, H)
+    doc.save(pdfName)
+  } catch (e) {
+    console.error('No se pudo generar el PDF, se descarga como PNG:', e)
+    downloadCanvasPNG(canvas, filename)
   }
-  const W = canvas.width / EXPORT_SCALE, H = canvas.height / EXPORT_SCALE
-  const doc = new JsPDFCtor({ orientation: W >= H ? 'landscape' : 'portrait', unit: 'px', format: [W, H], compress: true })
-  doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, W, H)
-  doc.save(pdfName)
 }
 // Canvas en alta resolución (2x) para que las imágenes descargadas se vean nítidas
 // al hacer zoom en WhatsApp o al imprimirlas. El resto del código de dibujo no cambia:
@@ -1298,7 +1303,7 @@ function PanelMiRed({ afiliados }) {
           <div style={{width:15,height:15}}><Icons.Grid/></div>
           Base de datos
         </button>
-        <button onClick={()=>exportNetworkReport(afiliados)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-surface)',border:'1px solid var(--win-border2)',color:'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+        <button onClick={()=>exportNetworkReport(afiliados).catch(e=>{console.error(e); alert('No se pudo generar el reporte para descargar. Intenta de nuevo.')})} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-surface)',border:'1px solid var(--win-border2)',color:'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
           <div style={{width:15,height:15}}><Icons.Download/></div>
           Exportar reporte
         </button>
@@ -1930,9 +1935,13 @@ function CertificadoModal({ afiliados, onClose }) {
   }
   const descargar = async () => {
     if (!sel || !rangoId) return
-    const c = await generarCertificadoCanvas(sel, rangoId, foto, tieneCoemp ? coemp : '')
-    const filename = `Certificado-NICE-${(sel.nombre || '').split(' ')[0]}-${(RANGOS.find(r => r.id === rangoId) || {}).label || ''}.png`.replace(/\s+/g, '-')
-    downloadCanvas(c, filename)
+    try {
+      const c = await generarCertificadoCanvas(sel, rangoId, foto, tieneCoemp ? coemp : '')
+      const filename = `Certificado-NICE-${(sel.nombre || '').split(' ')[0]}-${(RANGOS.find(r => r.id === rangoId) || {}).label || ''}.png`.replace(/\s+/g, '-')
+      downloadCanvas(c, filename)
+    } catch (e) {
+      console.error(e); alert('No se pudo generar el certificado para descargar. Intenta de nuevo.')
+    }
   }
 
   const rSel = rangoId ? RANGOS.find(r => r.id === rangoId) : null

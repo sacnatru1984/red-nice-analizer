@@ -562,7 +562,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
                   <div style={{fontSize:18,fontWeight:700,color:'var(--win-accent)'}}>{total}</div>
                   <div style={{color:'var(--win-muted)',whiteSpace:'nowrap'}}>Total ramificación{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
                 </div>
-                <button onClick={()=>exportTreeReport(raiz, pasaFiltro, {pg: pgVis.pg})} title="Descargar el árbol visible como imagen" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:isMobile?'9px 12px':'9px 16px',borderRadius:9,background:'var(--win-accent)',border:'none',color:'#fff',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(37,99,235,.35)',whiteSpace:'nowrap',width:isMobile?'100%':'auto'}}>
+                <button onClick={()=>exportTreeReport(raiz, pasaFiltro, {pg: pgVis.pg}).catch(e=>{console.error(e); alert('No se pudo generar el árbol para descargar. Si la red es muy grande, intenta descargar desde una persona con menos afiliados debajo.')})} title="Descargar el árbol visible como imagen" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:isMobile?'9px 12px':'9px 16px',borderRadius:9,background:'var(--win-accent)',border:'none',color:'#fff',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(37,99,235,.35)',whiteSpace:'nowrap',width:isMobile?'100%':'auto'}}>
                   <div style={{width:15,height:15,flexShrink:0}}><Icons.Download/></div>
                   Descargar Árbol
                 </button>
