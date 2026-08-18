@@ -620,6 +620,18 @@ function downloadCanvas(canvas, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 2000)
   }, 'image/png')
 }
+// Canvas en alta resolución (2x) para que las imágenes descargadas se vean nítidas
+// al hacer zoom en WhatsApp o al imprimirlas. El resto del código de dibujo no cambia:
+// sigue usando las coordenadas lógicas W/H, ctx.scale() multiplica los píxeles reales.
+const EXPORT_SCALE = 2
+function makeHiDPICanvas(W, H) {
+  const c = document.createElement('canvas')
+  c.width = Math.round(W * EXPORT_SCALE); c.height = Math.round(H * EXPORT_SCALE)
+  const ctx = c.getContext('2d')
+  ctx.scale(EXPORT_SCALE, EXPORT_SCALE)
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'
+  return { c, ctx }
+}
 const REP = { bg:'#0B1A2E', card:'#15263D', cardBorder:'rgba(120,170,230,.16)', text:'#F1F4FA', muted:'#93A6C0', accent:'#3A8FF2', cyan:'#4FD0F5', gold:'#E0A93C', purple:'#A78BFA', green:'#34D399', red:'#F87171' }
 function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 function wrapText(ctx, text, maxWidth) {
@@ -645,8 +657,8 @@ async function exportNetworkReport(afiliados) {
   const profundidad = afiliados.reduce((m,a)=>Math.max(m,a.gen||0),0)
   const conteos = contarPorRango(afiliados)
   const maxN = Math.max(...conteos.map(([,n])=>n),1)
-  const W=1080, H=1500, c=document.createElement('canvas'); c.width=W; c.height=H
-  const ctx=c.getContext('2d')
+  const W=1080, H=1500
+  const { c, ctx } = makeHiDPICanvas(W, H)
   ctx.fillStyle=REP.bg; ctx.fillRect(0,0,W,H)
   // header
   const hH=300
@@ -695,8 +707,8 @@ async function exportAffiliateReport(sel, sig, pct, checks, acciones, pasos) {
   if((acciones||[]).length) H+=70+acciones.length*78+30
   if(planLines.length){ H+=50; planLines.forEach(({lines})=>{ H+=34+lines.length*24+22 }); H+=20 }
   H+=90
-  const c=document.createElement('canvas'); c.width=W; c.height=H
-  const ctx=c.getContext('2d'); ctx.fillStyle=REP.bg; ctx.fillRect(0,0,W,H)
+  const { c, ctx } = makeHiDPICanvas(W, H)
+  ctx.fillStyle=REP.bg; ctx.fillRect(0,0,W,H)
   const img=await loadImgReport(fondoRedSrc())
   if(img){ const ar=img.width/img.height, tr=W/hH; let sw,sh,sx,sy; if(ar>tr){sh=img.height;sw=sh*tr;sx=(img.width-sw)/2;sy=0}else{sw=img.width;sh=sw/tr;sx=0;sy=(img.height-sh)/2}; ctx.drawImage(img,sx,sy,sw,sh,0,0,W,hH) }
   const g=ctx.createLinearGradient(0,0,0,hH); g.addColorStop(0,'rgba(11,26,46,.5)'); g.addColorStop(1,'rgba(11,26,46,.96)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,hH)
@@ -783,7 +795,7 @@ async function exportTreeReport(raiz, pasaFiltro, extra) {
   const PAD = 90, HEADER = 240
   let spacingX = 150
   let treeW = leaves * spacingX
-  const MAXW = 14000
+  const MAXW = 14000 / EXPORT_SCALE // límite en px lógicos: el canvas físico final (×EXPORT_SCALE) se mantiene ≤14000px para no exceder límites de canvas en navegadores móviles
   if (treeW > MAXW) { spacingX = MAXW / leaves; treeW = MAXW }
   const radius = Math.max(12, Math.min(28, spacingX * 0.3))
   const levelH = 165
@@ -797,8 +809,8 @@ async function exportTreeReport(raiz, pasaFiltro, extra) {
   const medals = {}
   await Promise.all(srcs.map(async s => { medals[s] = await loadImgReport(s) }))
 
-  const c = document.createElement('canvas'); c.width = W; c.height = H
-  const ctx = c.getContext('2d'); ctx.fillStyle = REP.bg; ctx.fillRect(0, 0, W, H)
+  const { c, ctx } = makeHiDPICanvas(W, H)
+  ctx.fillStyle = REP.bg; ctx.fillRect(0, 0, W, H)
   ctx.textBaseline = 'alphabetic'
 
   // 4) Header con imagen de red + datos del afiliado raíz
@@ -945,8 +957,7 @@ function drawRibbon(ctx, cx, y, w, h, metal, text, textCol) {
 
 async function generarCertificadoCanvas(afiliado, rangoId, fotoDataUrl, coemp) {
   const W = 1240, H = 900
-  const c = document.createElement('canvas'); c.width = W; c.height = H
-  const ctx = c.getContext('2d')
+  const { c, ctx } = makeHiDPICanvas(W, H)
   const r = RANGOS.find(x => x.id === rangoId) || getRango(afiliado.rango)
   const th = certTheme(r.id)
   const cx = W / 2
