@@ -337,7 +337,6 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
   const tree = buildTree(afiliados)
   const [q, setQ] = useState('')
   const [drop, setDrop] = useState(false)
-  const [tooltip, setTooltip] = useState(null)
   const [seleccionado, setSeleccionado] = useState(null)
   const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
   const [history, setHistory] = useState([]) // pila de EINs anteriores
@@ -703,38 +702,13 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
                 nodo={raiz}
                 pasaFiltro={pasaFiltro}
                 selectedEin={rootEin}
-                onSelect={(n)=>{ setSeleccionado(n); navegarA(n.ein) }}
-                onHover={(n,e)=>setTooltip({a:n,x:e.clientX,y:e.clientY})}
-                onLeave={()=>setTooltip(null)}/>
+                onSelect={(n)=>{ setSeleccionado(n); navegarA(n.ein) }}/>
             </div>
           )}
         </div>
       </div>
 
       <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onGenealogia={(ein)=>navegarA(ein)}/>
-
-      {tooltip && (
-        <div style={{
-          position:'fixed',zIndex:999,
-          left:Math.min(tooltip.x+12,window.innerWidth-240),
-          top:Math.max(tooltip.y-100,12),
-          background:'var(--win-tooltip-bg)',color:'var(--win-tooltip-fg)',
-          borderRadius:8,padding:'10px 14px',
-          fontSize:12,minWidth:200,maxWidth:260,pointerEvents:'none',
-          boxShadow:'0 4px 16px rgba(0,0,0,.3)'
-        }}>
-          <div style={{fontWeight:700,marginBottom:4}}>{tooltip.a.nombre}</div>
-          <div style={{opacity:.8,marginBottom:6,fontSize:11}}>EIN {tooltip.a.ein}</div>
-          <div style={{display:'flex',gap:8,marginBottom:6}}>
-            <span style={{background:getRango(tooltip.a.rango).bg,color:getRango(tooltip.a.rango).color,padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:600}}>{getRango(tooltip.a.rango).label}</span>
-          </div>
-          <div style={{display:'flex',gap:10,fontSize:11,marginBottom:4}}>
-            <span><b>{tooltip.a.pp}</b> PP</span>
-            <span><b>{tooltip.a.pg}</b> PG</span>
-          </div>
-          <div style={{opacity:.7,fontSize:11}}>{[tooltip.a.ciudad,tooltip.a.estado].filter(Boolean).join(', ')||'Sin dirección'}</div>
-        </div>
-      )}
     </div>
   )
 }
