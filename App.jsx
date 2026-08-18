@@ -612,13 +612,25 @@ function fondoRedSrc() {
 function loadImgReport(src) {
   return new Promise(res => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src })
 }
+// Descarga el canvas como PDF (se envía/imprime como documento, sin la
+// recompresión que WhatsApp aplica a las fotos). Si jsPDF no cargó, cae
+// a PNG para no dejar al usuario sin descarga.
 function downloadCanvas(canvas, filename) {
-  canvas.toBlob(blob => {
-    if (!blob) return
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 2000)
-  }, 'image/png')
+  const pdfName = filename.replace(/\.png$/i, '.pdf')
+  const JsPDFCtor = typeof window !== 'undefined' && window.jspdf && window.jspdf.jsPDF
+  if (!JsPDFCtor) {
+    canvas.toBlob(blob => {
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    }, 'image/png')
+    return
+  }
+  const W = canvas.width / EXPORT_SCALE, H = canvas.height / EXPORT_SCALE
+  const doc = new JsPDFCtor({ orientation: W >= H ? 'landscape' : 'portrait', unit: 'px', format: [W, H], compress: true })
+  doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, W, H)
+  doc.save(pdfName)
 }
 // Canvas en alta resolución (2x) para que las imágenes descargadas se vean nítidas
 // al hacer zoom en WhatsApp o al imprimirlas. El resto del código de dibujo no cambia:
@@ -1919,7 +1931,8 @@ function CertificadoModal({ afiliados, onClose }) {
   const descargar = async () => {
     if (!sel || !rangoId) return
     const c = await generarCertificadoCanvas(sel, rangoId, foto, tieneCoemp ? coemp : '')
-    c.toBlob(blob => { if (!blob) return; const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Certificado-NICE-${(sel.nombre || '').split(' ')[0]}-${(RANGOS.find(r => r.id === rangoId) || {}).label || ''}.png`.replace(/\s+/g, '-'); a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000) }, 'image/png')
+    const filename = `Certificado-NICE-${(sel.nombre || '').split(' ')[0]}-${(RANGOS.find(r => r.id === rangoId) || {}).label || ''}.png`.replace(/\s+/g, '-')
+    downloadCanvas(c, filename)
   }
 
   const rSel = rangoId ? RANGOS.find(r => r.id === rangoId) : null
