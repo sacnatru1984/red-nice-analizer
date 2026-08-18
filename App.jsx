@@ -2735,4 +2735,9 @@ function App() {
     </div>
   )
 }
+// Estas funciones se usan desde otros archivos (PanelGenealogia.jsx, PanelPlan.jsx).
+// El runtime expone automáticamente las declaraciones "function" de nivel superior,
+// pero no las "async function" — por eso hay que exponerlas a mano aquí.
+window.exportAffiliateReport = exportAffiliateReport
+window.exportTreeReport = exportTreeReport
 window.App = App

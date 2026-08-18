@@ -342,7 +342,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
   const descargarArbol = async (raiz, pasaFiltro, extra) => {
     setDescargando(true)
     try {
-      await exportTreeReport(raiz, pasaFiltro, extra)
+      await window.exportTreeReport(raiz, pasaFiltro, extra)
     } catch (e) {
       console.error(e)
       alert('No se pudo generar el árbol.\n\nDetalle técnico (compártelo para poder arreglarlo):\n' + (e && (e.stack || e.message) ? (e.stack || e.message) : String(e)))
