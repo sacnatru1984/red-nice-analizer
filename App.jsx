@@ -1378,7 +1378,7 @@ function PanelMiRed({ afiliados }) {
           <div style={{width:15,height:15}}><Icons.Grid/></div>
           Base de datos
         </button>
-        <button onClick={()=>exportNetworkReport(afiliados).catch(e=>{console.error(e); alert('No se pudo generar el reporte para descargar. Intenta de nuevo.')})} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-surface)',border:'1px solid var(--win-border2)',color:'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+        <button onClick={()=>exportNetworkReport(afiliados).catch(e=>{console.error(e); alert('No se pudo generar el reporte.\n\nDetalle técnico:\n' + (e && (e.stack || e.message) ? (e.stack || e.message) : String(e)))})} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-surface)',border:'1px solid var(--win-border2)',color:'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
           <div style={{width:15,height:15}}><Icons.Download/></div>
           Exportar reporte
         </button>
@@ -2015,7 +2015,7 @@ function CertificadoModal({ afiliados, onClose }) {
       const filename = `Certificado-NICE-${(sel.nombre || '').split(' ')[0]}-${(RANGOS.find(r => r.id === rangoId) || {}).label || ''}.png`.replace(/\s+/g, '-')
       downloadCanvas(c, filename)
     } catch (e) {
-      console.error(e); alert('No se pudo generar el certificado para descargar. Intenta de nuevo.')
+      console.error(e); alert('No se pudo generar el certificado.\n\nDetalle técnico:\n' + (e && (e.stack || e.message) ? (e.stack || e.message) : String(e)))
     }
   }
 

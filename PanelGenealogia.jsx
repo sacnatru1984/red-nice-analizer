@@ -345,7 +345,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
       await exportTreeReport(raiz, pasaFiltro, extra)
     } catch (e) {
       console.error(e)
-      alert('No se pudo generar el árbol para descargar. Si la red es muy grande, intenta descargar desde una persona con menos afiliados debajo.')
+      alert('No se pudo generar el árbol.\n\nDetalle técnico (compártelo para poder arreglarlo):\n' + (e && (e.stack || e.message) ? (e.stack || e.message) : String(e)))
     } finally {
       setDescargando(false)
     }
