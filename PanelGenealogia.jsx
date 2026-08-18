@@ -331,13 +331,14 @@ function bucketRangoGen(id) {
   return id
 }
 
-function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
+function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
   const tree = buildTree(afiliados)
   const [q, setQ] = useState('')
   const [drop, setDrop] = useState(false)
   const [tooltip, setTooltip] = useState(null)
+  const [seleccionado, setSeleccionado] = useState(null)
   const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
   const [history, setHistory] = useState([]) // pila de EINs anteriores
   const scrollRef = useRef(null)
@@ -702,13 +703,15 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc }) {
                 nodo={raiz}
                 pasaFiltro={pasaFiltro}
                 selectedEin={rootEin}
-                onSelect={(n)=>navegarA(n.ein)}
+                onSelect={(n)=>setSeleccionado(n)}
                 onHover={(n,e)=>setTooltip({a:n,x:e.clientX,y:e.clientY})}
                 onLeave={()=>setTooltip(null)}/>
             </div>
           )}
         </div>
       </div>
+
+      <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onGenealogia={(ein)=>navegarA(ein)}/>
 
       {tooltip && (
         <div style={{
