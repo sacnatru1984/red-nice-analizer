@@ -337,6 +337,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
   const tree = buildTree(afiliados)
   const [q, setQ] = useState('')
   const [drop, setDrop] = useState(false)
+  const [tooltip, setTooltip] = useState(null)
   const [seleccionado, setSeleccionado] = useState(null)
   const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
   const [history, setHistory] = useState([]) // pila de EINs anteriores
@@ -702,13 +703,31 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
                 nodo={raiz}
                 pasaFiltro={pasaFiltro}
                 selectedEin={rootEin}
-                onSelect={(n)=>{ setSeleccionado(n); navegarA(n.ein) }}/>
+                onSelect={(n)=>{ setSeleccionado(n); navegarA(n.ein) }}
+                onHover={(n,e)=>setTooltip({a:n,x:e.clientX,y:e.clientY})}
+                onLeave={()=>setTooltip(null)}/>
             </div>
           )}
         </div>
       </div>
 
       <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onGenealogia={(ein)=>navegarA(ein)}/>
+
+      {tooltip && (
+        <div style={{
+          position:'fixed',zIndex:999,pointerEvents:'none',
+          left:Math.min(tooltip.x+10,window.innerWidth-150),
+          top:Math.max(tooltip.y-60,8),
+          background:'var(--win-tooltip-bg)',color:'var(--win-tooltip-fg)',
+          borderRadius:6,padding:'6px 10px',
+          fontSize:10,minWidth:110,maxWidth:160,
+          boxShadow:'0 3px 12px rgba(0,0,0,.3)'
+        }}>
+          <div style={{fontWeight:700,fontSize:11,marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{tooltip.a.nombre}</div>
+          <div style={{opacity:.75,marginBottom:2}}>EIN {tooltip.a.ein}</div>
+          <div><b style={{color:'var(--win-gold)'}}>{tooltip.a.pp}</b> PP</div>
+        </div>
+      )}
     </div>
   )
 }
