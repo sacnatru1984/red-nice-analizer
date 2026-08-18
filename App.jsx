@@ -789,10 +789,21 @@ async function exportAffiliateReport(sel, sig, pct, checks, acciones, pasos) {
   downloadCanvas(c,`RedNICE-plan-${sel.nombre.split(' ')[0].toLowerCase()}.png`)
 }
 
-// ── Exportar el árbol genealógico visible (horizontal/landscape) ──
-async function exportTreeReport(raiz, pasaFiltro, extra) {
-  if (!raiz) return
-  // 1) Layout tipo árbol: hojas ocupan slots, padres se centran sobre sus hijos
+// ── Exportar el árbol genealógico visible (horizontal/landscape, multi-página si es grande) ──
+function contarHojasFiltrado(node, pasaFiltro) {
+  const kids = (node.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
+  if (!kids.length) return 1
+  return kids.reduce((s, k) => s + contarHojasFiltrado(k, pasaFiltro), 0)
+}
+function contarNodosFiltrado(node, pasaFiltro) {
+  const kids = (node.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
+  return 1 + kids.reduce((s, k) => s + contarNodosFiltrado(k, pasaFiltro), 0)
+}
+
+// Dibuja UNA página del árbol (una o varias ramas lado a lado) y devuelve su canvas.
+// header.tipo === 'completo' → encabezado grande con foto de red y datos del afiliado raíz (solo 1ª página).
+// header.tipo === 'continuacion' → encabezado angosto indicando de qué raíz original viene y en qué página va.
+async function drawArbolPagina(raicesPagina, pasaFiltro, header) {
   const placed = []
   const byEin = {}
   const counter = { v: 0 }
@@ -805,15 +816,15 @@ async function exportTreeReport(raiz, pasaFiltro, extra) {
     placed.push(rec); byEin[node.ein] = rec
     return gx
   }
-  layout(raiz, 0)
+  raicesPagina.forEach(r => layout(r, 0))
   const leaves = Math.max(1, counter.v)
   const maxDepth = placed.reduce((m, p) => Math.max(m, p.depth), 0)
 
-  // 2) Geometría
-  const PAD = 90, HEADER = 240
+  const PAD = 90
+  const HEADER = header.tipo === 'completo' ? 240 : 110
   let spacingX = 150
   let treeW = leaves * spacingX
-  const MAXW = 14000 / EXPORT_SCALE // límite en px lógicos: el canvas físico final (×EXPORT_SCALE) se mantiene ≤14000px para no exceder límites de canvas en navegadores móviles
+  const MAXW = 14000 / EXPORT_SCALE // límite en px lógicos: el canvas físico final (×EXPORT_SCALE) se mantiene ≤14000px para no exceder límites de canvas/memoria en navegadores móviles
   if (treeW > MAXW) { spacingX = MAXW / leaves; treeW = MAXW }
   const radius = Math.max(12, Math.min(28, spacingX * 0.3))
   const levelH = 165
@@ -822,7 +833,6 @@ async function exportTreeReport(raiz, pasaFiltro, extra) {
   const X = gx => PAD + (gx + 0.5) * spacingX
   const Y = depth => HEADER + 50 + depth * levelH
 
-  // 3) Precargar medallas
   const srcs = [...new Set(placed.map(p => RANGO_IMG[getRango(p.a.rango).id]).filter(Boolean))]
   const medals = {}
   await Promise.all(srcs.map(async s => { medals[s] = await loadImgReport(s) }))
@@ -831,27 +841,37 @@ async function exportTreeReport(raiz, pasaFiltro, extra) {
   ctx.fillStyle = REP.bg; ctx.fillRect(0, 0, W, H)
   ctx.textBaseline = 'alphabetic'
 
-  // 4) Header con imagen de red + datos del afiliado raíz
-  const r = getRango(raiz.rango)
-  const img = await loadImgReport(fondoRedSrc())
-  if (img) { const ar = img.width / img.height, tr = W / HEADER; let sw, sh, sx, sy; if (ar > tr) { sh = img.height; sw = sh * tr; sx = (img.width - sw) / 2; sy = 0 } else { sw = img.width; sh = sw / tr; sx = 0; sy = (img.height - sh) / 2 } ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, HEADER) }
-  const g = ctx.createLinearGradient(0, 0, 0, HEADER); g.addColorStop(0, 'rgba(11,26,46,.55)'); g.addColorStop(1, 'rgba(11,26,46,.94)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, HEADER)
-  ctx.fillStyle = REP.cyan; ctx.font = '600 17px DM Sans, sans-serif'; ctx.fillText('GENEALOGÍA · NICE', PAD, 74)
-  ctx.fillStyle = REP.text; ctx.font = '700 44px DM Sans, sans-serif'; ctx.fillText(raiz.nombre.length > 32 ? raiz.nombre.slice(0, 32) + '…' : raiz.nombre, PAD, 126)
-  ctx.fillStyle = REP.muted; ctx.font = '400 20px DM Sans, sans-serif'; ctx.fillText(`EIN ${raiz.ein} · Gen. ${raiz.gen}${raiz.ciudad ? ` · ${raiz.ciudad}` : ''}`, PAD, 162)
-  ctx.fillStyle = r.color; ctx.font = '700 23px DM Sans, sans-serif'; ctx.fillText(`Rango actual: ${r.label}`, PAD, 200)
-  // chips de resumen (afiliados mostrados + PG)
-  const totalNodos = placed.length
-  const pgTotal = (extra && typeof extra.pg === 'number') ? extra.pg : placed.reduce((s, p) => s + (p.a.pg || 0), 0)
-  ctx.font = '600 18px DM Sans, sans-serif'
-  const chip = (txt, cx, col) => { const w = ctx.measureText(txt).width + 32; ctx.fillStyle = 'rgba(13,30,48,.55)'; ctx.strokeStyle = 'rgba(120,200,255,.3)'; ctx.lineWidth = 1.5; rrect(ctx, cx, 60, w, 36, 18); ctx.fill(); ctx.stroke(); ctx.fillStyle = col; ctx.fillText(txt, cx + 16, 84); return cx + w + 10 }
-  let chx = W - PAD - 360
-  // medalla del rango raíz a la derecha
-  const medalRaiz = RANGO_IMG[r.id] ? medals[RANGO_IMG[r.id]] || await loadImgReport(RANGO_IMG[r.id]) : null
-  if (medalRaiz) { const ms = 130, mcx = W - PAD - ms / 2, mcy = HEADER / 2; const glow = ctx.createRadialGradient(mcx, mcy, 6, mcx, mcy, ms / 2 + 18); glow.addColorStop(0, 'rgba(120,200,255,.22)'); glow.addColorStop(1, 'rgba(120,200,255,0)'); ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(mcx, mcy, ms / 2 + 18, 0, 7); ctx.fill(); ctx.drawImage(medalRaiz, mcx - ms / 2, mcy - ms / 2, ms, ms); chx = W - PAD - ms - 380 }
-  chip(`${totalNodos.toLocaleString()} afiliados en el árbol`, chx, REP.text)
+  if (header.tipo === 'completo') {
+    const raiz = header.raiz
+    const r = getRango(raiz.rango)
+    const img = await loadImgReport(fondoRedSrc())
+    if (img) { const ar = img.width / img.height, tr = W / HEADER; let sw, sh, sx, sy; if (ar > tr) { sh = img.height; sw = sh * tr; sx = (img.width - sw) / 2; sy = 0 } else { sw = img.width; sh = sw / tr; sx = 0; sy = (img.height - sh) / 2 } ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, HEADER) }
+    const g = ctx.createLinearGradient(0, 0, 0, HEADER); g.addColorStop(0, 'rgba(11,26,46,.55)'); g.addColorStop(1, 'rgba(11,26,46,.94)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, HEADER)
+    ctx.fillStyle = REP.cyan; ctx.font = '600 17px DM Sans, sans-serif'; ctx.fillText('GENEALOGÍA · NICE', PAD, 74)
+    ctx.fillStyle = REP.text; ctx.font = '700 44px DM Sans, sans-serif'; ctx.fillText(raiz.nombre.length > 32 ? raiz.nombre.slice(0, 32) + '…' : raiz.nombre, PAD, 126)
+    ctx.fillStyle = REP.muted; ctx.font = '400 20px DM Sans, sans-serif'; ctx.fillText(`EIN ${raiz.ein} · Gen. ${raiz.gen}${raiz.ciudad ? ` · ${raiz.ciudad}` : ''}`, PAD, 162)
+    ctx.fillStyle = r.color; ctx.font = '700 23px DM Sans, sans-serif'; ctx.fillText(`Rango actual: ${r.label}`, PAD, 200)
+    ctx.font = '600 18px DM Sans, sans-serif'
+    const chip = (txt, cx, col) => { const w = ctx.measureText(txt).width + 32; ctx.fillStyle = 'rgba(13,30,48,.55)'; ctx.strokeStyle = 'rgba(120,200,255,.3)'; ctx.lineWidth = 1.5; rrect(ctx, cx, 60, w, 36, 18); ctx.fill(); ctx.stroke(); ctx.fillStyle = col; ctx.fillText(txt, cx + 16, 84); return cx + w + 10 }
+    let chx = W - PAD - 360
+    const medalRaiz = RANGO_IMG[r.id] ? medals[RANGO_IMG[r.id]] || await loadImgReport(RANGO_IMG[r.id]) : null
+    if (medalRaiz) { const ms = 130, mcx = W - PAD - ms / 2, mcy = HEADER / 2; const glow = ctx.createRadialGradient(mcx, mcy, 6, mcx, mcy, ms / 2 + 18); glow.addColorStop(0, 'rgba(120,200,255,.22)'); glow.addColorStop(1, 'rgba(120,200,255,0)'); ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(mcx, mcy, ms / 2 + 18, 0, 7); ctx.fill(); ctx.drawImage(medalRaiz, mcx - ms / 2, mcy - ms / 2, ms, ms); chx = W - PAD - ms - 380 }
+    chip(`${header.totalNodos.toLocaleString()} afiliados en el árbol`, chx, REP.text)
+    if (header.totalPaginas > 1) {
+      ctx.fillStyle = REP.muted; ctx.font = '600 14px DM Sans, sans-serif'; ctx.textAlign = 'right'
+      ctx.fillText(`Red grande — dividida en ${header.totalPaginas} páginas · página 1`, W - PAD, HEADER - 14)
+      ctx.textAlign = 'left'
+    }
+  } else {
+    ctx.fillStyle = REP.card; ctx.fillRect(0, 0, W, HEADER)
+    ctx.fillStyle = REP.cyan; ctx.font = '600 15px DM Sans, sans-serif'; ctx.fillText('GENEALOGÍA · NICE — continuación', PAD, 40)
+    ctx.fillStyle = REP.text; ctx.font = '700 22px DM Sans, sans-serif'
+    ctx.fillText(`${header.raizOriginal.nombre} · página ${header.paginaNum} de ${header.totalPaginas}`, PAD, 74)
+    ctx.fillStyle = REP.muted; ctx.font = '400 14px DM Sans, sans-serif'
+    ctx.fillText(`Continúa la(s) rama(s) de: ${raicesPagina.map(r => r.nombre.split(' ')[0]).join(', ')}`, PAD, 96)
+  }
 
-  // 5) Conectores (cian) — de cada padre a sus hijos visibles
+  // Conectores (cian) — de cada padre a sus hijos visibles
   ctx.strokeStyle = 'rgba(79,208,245,.5)'; ctx.lineWidth = Math.max(1.5, radius * 0.12)
   placed.forEach(p => {
     if (!p.kids.length) return
@@ -863,23 +883,20 @@ async function exportTreeReport(raiz, pasaFiltro, extra) {
       ctx.beginPath(); ctx.moveTo(px, midY); ctx.lineTo(kx, midY); ctx.stroke() })
   })
 
-  // 6) Nodos
+  // Nodos
+  const raizPrincipalEin = header.tipo === 'completo' ? header.raiz.ein : null
   placed.forEach(p => {
     const rr = getRango(p.a.rango)
     const cx = X(p.gx), cy = Y(p.depth)
     const activo = ((p.a.pp || 0) + (p.a.pg || 0)) > 0
     const esOro = rr.id.includes('ORO') || rr.id === 'PLATINO' || rr.id.includes('DIAMANTE')
-    // halo
     if (esOro || activo) { const glow = ctx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius + 10); const gc = esOro ? rr.color : '#4FD0F5'; glow.addColorStop(0, gc + '55'); glow.addColorStop(1, gc + '00'); ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, cy, radius + 10, 0, 7); ctx.fill() }
-    // disco
     ctx.fillStyle = '#16263B'; ctx.beginPath(); ctx.arc(cx, cy, radius, 0, 7); ctx.fill()
-    ctx.lineWidth = 2.5; ctx.strokeStyle = p.a.ein === raiz.ein ? '#4FD0F5' : (activo ? rr.color : '#41506A'); ctx.stroke()
+    ctx.lineWidth = 2.5; ctx.strokeStyle = p.a.ein === raizPrincipalEin ? '#4FD0F5' : (activo ? rr.color : '#41506A'); ctx.stroke()
     const medal = RANGO_IMG[rr.id] ? medals[RANGO_IMG[rr.id]] : null
     if (medal) { const ms = radius * 1.7; ctx.drawImage(medal, cx - ms / 2, cy - ms / 2, ms, ms) }
     else { ctx.fillStyle = rr.color; ctx.font = `700 ${Math.round(radius * 0.7)}px DM Sans, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(getInitials(p.a.nombre), cx, cy + radius * 0.25); ctx.textAlign = 'left' }
-    // punto de actividad
     ctx.fillStyle = activo ? '#34D399' : '#41506A'; ctx.beginPath(); ctx.arc(cx + radius * 0.72, cy + radius * 0.72, radius * 0.22, 0, 7); ctx.fill()
-    // etiquetas
     ctx.textAlign = 'center'
     ctx.fillStyle = rr.color; ctx.font = `700 ${Math.max(10, Math.round(radius * 0.42))}px DM Sans, sans-serif`; ctx.fillText(rr.label, cx, cy + radius + 18)
     ctx.fillStyle = REP.text; ctx.font = `600 ${Math.max(10, Math.round(radius * 0.44))}px DM Sans, sans-serif`
@@ -889,7 +906,64 @@ async function exportTreeReport(raiz, pasaFiltro, extra) {
   })
 
   ctx.fillStyle = REP.muted; ctx.font = '400 17px DM Sans, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Generado con RedNICE · genealogía NICE', W / 2, H - 34); ctx.textAlign = 'left'
-  downloadCanvas(c, `RedNICE-arbol-${raiz.nombre.split(' ')[0].toLowerCase()}.png`)
+  return { c, W, H }
+}
+
+async function exportTreeReport(raiz, pasaFiltro, extra) {
+  if (!raiz) return
+  const SAFE_LEAVES = 22 // hojas por página: mantiene cada canvas dentro de límites seguros de memoria/GPU en celulares
+  const hijosRaiz = (raiz.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
+  const hojasTotales = contarHojasFiltrado(raiz, pasaFiltro)
+  const totalNodos = contarNodosFiltrado(raiz, pasaFiltro)
+
+  let gruposRamas = null
+  if (hojasTotales > SAFE_LEAVES && hijosRaiz.length > 0) {
+    gruposRamas = []
+    let bucket = [], hojasBucket = 0
+    for (const hijo of hijosRaiz) {
+      const hj = contarHojasFiltrado(hijo, pasaFiltro)
+      if (bucket.length && (hojasBucket + hj) > SAFE_LEAVES) { gruposRamas.push(bucket); bucket = []; hojasBucket = 0 }
+      bucket.push(hijo); hojasBucket += hj
+    }
+    if (bucket.length) gruposRamas.push(bucket)
+  }
+
+  const paginas = []
+  if (!gruposRamas) {
+    paginas.push({ raices: [raiz], header: { tipo: 'completo', raiz, totalNodos, totalPaginas: 1 } })
+  } else {
+    const totalPaginas = gruposRamas.length
+    paginas.push({ raices: [{ ...raiz, children: gruposRamas[0] }], header: { tipo: 'completo', raiz, totalNodos, totalPaginas } })
+    for (let i = 1; i < gruposRamas.length; i++) {
+      paginas.push({ raices: gruposRamas[i], header: { tipo: 'continuacion', raizOriginal: raiz, paginaNum: i + 1, totalPaginas } })
+    }
+  }
+
+  const canvases = []
+  for (const pg of paginas) canvases.push(await drawArbolPagina(pg.raices, pasaFiltro, pg.header))
+
+  const filenameBase = `RedNICE-arbol-${raiz.nombre.split(' ')[0].toLowerCase()}`
+  if (canvases.length === 1) { downloadCanvas(canvases[0].c, `${filenameBase}.png`); return }
+
+  // Varias páginas: se arma un solo PDF con una página por imagen.
+  // Si jsPDF no cargó o falla, se descarga cada página como PNG por separado (nunca se queda sin nada).
+  const JsPDFCtor = typeof window !== 'undefined' && window.jspdf && window.jspdf.jsPDF
+  const descargarPorSeparado = () => canvases.forEach((pg, i) => downloadCanvasPNG(pg.c, `${filenameBase}-pagina-${i + 1}-de-${canvases.length}.png`))
+  if (!JsPDFCtor) { descargarPorSeparado(); return }
+  try {
+    const first = canvases[0]
+    const doc = new JsPDFCtor({ orientation: first.W >= first.H ? 'landscape' : 'portrait', unit: 'px', format: [first.W, first.H], compress: true })
+    doc.addImage(first.c.toDataURL('image/png'), 'PNG', 0, 0, first.W, first.H)
+    for (let i = 1; i < canvases.length; i++) {
+      const pg = canvases[i]
+      doc.addPage([pg.W, pg.H], pg.W >= pg.H ? 'landscape' : 'portrait')
+      doc.addImage(pg.c.toDataURL('image/png'), 'PNG', 0, 0, pg.W, pg.H)
+    }
+    doc.save(`${filenameBase}.pdf`)
+  } catch (e) {
+    console.error('No se pudo generar el PDF multi-página, se descarga cada página como PNG:', e)
+    descargarPorSeparado()
+  }
 }
 
 // ════════════ CERTIFICADOS NICE ════════════
