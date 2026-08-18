@@ -180,6 +180,39 @@ function frontalGenera(a, tc, umbral) {
   return { mxn, usd, tc: t, genera: frontalOroCalifica(a), sobreUmbral: usd >= u }
 }
 
+// ── Simulador de "Cheque del mes" (Descuento por Red — tabla oficial NICE) ──
+// Requiere rango Oro+ propio. El % depende de tus PROPIOS PP+PG del periodo,
+// y se aplica sobre los PP+PG de tus descendientes Oro+ en Generación 1, 2 y 3
+// (un no-Oro no genera DR directo — su volumen se compone hacia arriba hasta el próximo Oro).
+const DR_TRAMOS = [
+  { min: 2000, l1: .05, l2: .04, l3: .04 },
+  { min: 1500, l1: .03, l2: .03, l3: .03 },
+  { min: 1000, l1: .02, l2: .02, l3: .02 },
+  { min: 500, l1: .01, l2: .01, l3: .01 },
+  { min: 0, l1: 0, l2: 0, l3: 0 },
+]
+function simularChequeDR(self, afiliados) {
+  const byPresentador = {}
+  afiliados.forEach(a => { if (a.einPresentador != null) (byPresentador[a.einPresentador] = byPresentador[a.einPresentador] || []).push(a) })
+  function personasNivel(ein, n) {
+    let actuales = byPresentador[ein] || []
+    for (let i = 1; i < n; i++) actuales = actuales.flatMap(a => byPresentador[a.ein] || [])
+    return actuales
+  }
+  const propios = (self.pp || 0) + (self.pg || 0)
+  const califica = esOroPlus(self)
+  const tramo = DR_TRAMOS.find(t => propios >= t.min)
+  const niveles = [1, 2, 3].map(n => {
+    const oroDelNivel = personasNivel(self.ein, n).filter(esOroPlus)
+    const puntos = oroDelNivel.reduce((s, a) => s + (a.pp || 0) + (a.pg || 0), 0)
+    const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
+    return { nivel: n, personasOro: oroDelNivel.length, puntos, pct, importePuntos: puntos * pct }
+  })
+  const totalPuntosDR = niveles.reduce((s, n) => s + n.importePuntos, 0)
+  const totalMXN = totalPuntosDR * VALOR_ORO
+  return { propios, califica, tramoMin: tramo.min, niveles, totalMXN }
+}
+
 function computeFrontalesOro(afiliados, tc, volBase, umbral) {
   enrichDescRed(afiliados, volBase)
   const childrenOf = {}
@@ -1355,8 +1388,88 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdo
   )
 }
 
+function ChequeModal({ afiliados, onClose }) {
+  const isMobile = useIsMobile()
+  const self = afiliados[0]
+  const r = getRango(self.rango)
+  const c = simularChequeDR(self, afiliados)
+  const hoy = new Date()
+  const mesLabel = hoy.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
+  const fmtMXN = v => v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 })
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,28,.62)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 12 : 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.45)', width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--win-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, fontSize: 18 }}>💵</div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>Simulación de tu cheque</div>
+            <div style={{ fontSize: 11.5, color: 'var(--win-muted)', textTransform: 'capitalize' }}>{mesLabel} · Descuento por Red</div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--win-border)', background: 'var(--win-surface2)', color: 'var(--win-muted)', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit', flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ padding: isMobile ? 16 : 24 }}>
+          {/* Cheque visual */}
+          <div style={{ background: 'linear-gradient(135deg,#FDF8ED,#F5EFDC)', border: '2px solid #D4B96A', borderRadius: 14, padding: isMobile ? '18px 16px' : '22px 26px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(212,185,106,.18)' }}/>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', color: '#8A6D1D' }}>NICE · CHEQUE SIMULADO</div>
+              <div style={{ fontSize: 11, color: '#8A6D1D', textAlign: 'right', textTransform: 'capitalize' }}>{mesLabel}</div>
+            </div>
+            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 3 }}>PÁGUESE A LA ORDEN DE</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: '#3A2E0B', marginBottom: 16 }}>{self.nombre}</div>
+            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 4 }}>IMPORTE ESTIMADO</div>
+            <div style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalMXN)}</div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: r.color, background: r.bg, padding: '3px 10px', borderRadius: 20 }}>{r.label}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A6D1D' }}>EIN {self.ein} · {(self.pp||0)+(self.pg||0)} pts propios ({c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'})</span>
+            </div>
+          </div>
+
+          {!c.califica && (
+            <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--win-red-l)', color: 'var(--win-red)', fontSize: 12, fontWeight: 600 }}>
+              Tu rango actual ({r.label}) todavía no es Oro+, así que el Descuento por Red no aplica todavía. Esta simulación muestra $0.
+            </div>
+          )}
+
+          {/* Desglose por nivel */}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)', marginBottom: 8 }}>Desglose por generación</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--win-surface2)' }}>
+                  {['Nivel', 'Oro+', 'Puntos', '%', 'Importe'].map(h => (
+                    <th key={h} style={{ padding: '7px 10px', textAlign: h==='Nivel'||h==='Oro+'?'center':'right', fontSize: 10, fontWeight: 700, letterSpacing: '.05em', color: 'var(--win-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--win-border)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {c.niveles.map(n => (
+                  <tr key={n.nivel} style={{ borderBottom: '1px solid var(--win-border)' }}>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--win-title)' }}>Nivel {n.nivel}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--win-text)' }}>{n.personasOro}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-gold)', fontWeight: 600 }}>{n.puntos.toLocaleString()}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-muted)' }}>{(n.pct*100).toFixed(0)}%</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)' }}>{fmtMXN(n.importePuntos*VALOR_ORO)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: 16, fontSize: 11, color: 'var(--win-muted)', lineHeight: 1.6 }}>
+            <strong>Cálculo aproximado</strong> — solo cuenta a los descendientes con rango Oro o superior en Generación 1, 2 y 3 (un no-Oro no genera Descuento por Red directo). El % depende de tus propios PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel). No es tu pago oficial de NICE — solo una estimación para planear.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PanelMiRed({ afiliados }) {
   const [showDB, setShowDB] = useState(false)
+  const [showCheque, setShowCheque] = useState(false)
   const total = afiliados.length
   const activos = afiliados.filter(a => (a.pp||0)+(a.pg||0)>0).length
   const totalPP = afiliados.reduce((s,a) => s+(a.pp||0), 0)
@@ -1373,6 +1486,7 @@ function PanelMiRed({ afiliados }) {
   return (
     <div>
       {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
+      {showCheque && <ChequeModal afiliados={afiliados} onClose={()=>setShowCheque(false)}/>}
       <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:12}}>
         <button onClick={()=>setShowDB(true)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-accent)',border:'1px solid var(--win-accent)',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
           <div style={{width:15,height:15}}><Icons.Grid/></div>
@@ -1383,6 +1497,13 @@ function PanelMiRed({ afiliados }) {
           Exportar reporte
         </button>
       </div>
+      <button onClick={()=>setShowCheque(true)} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,width:'100%',padding:'18px 20px',marginBottom:16,borderRadius:14,border:'none',background:'linear-gradient(135deg,#D4AF37,#B8860B)',color:'#fff',cursor:'pointer',fontFamily:'inherit',boxShadow:'0 8px 24px rgba(184,134,11,.35)'}}>
+        <span style={{fontSize:26}}>💵</span>
+        <span style={{textAlign:'left'}}>
+          <span style={{display:'block',fontSize:16,fontWeight:800}}>Simula tu cheque de este mes</span>
+          <span style={{display:'block',fontSize:11.5,opacity:.9,fontWeight:500}}>Descuento por Red · Generación 1 a 3</span>
+        </span>
+      </button>
       {/* Hero: total · líder · rango */}
       {self && (
         <div className="rn-hero">
