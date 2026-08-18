@@ -703,7 +703,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
                 nodo={raiz}
                 pasaFiltro={pasaFiltro}
                 selectedEin={rootEin}
-                onSelect={(n)=>setSeleccionado(n)}
+                onSelect={(n)=>{ setSeleccionado(n); navegarA(n.ein) }}
                 onHover={(n,e)=>setTooltip({a:n,x:e.clientX,y:e.clientY})}
                 onLeave={()=>setTooltip(null)}/>
             </div>
