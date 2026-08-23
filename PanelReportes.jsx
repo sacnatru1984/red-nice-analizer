@@ -506,15 +506,16 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
                             </div>
                           </>
                         ) : <div style={{fontSize:11,color:'var(--win-muted)',marginBottom:8}}>Carga más periodos para ver tendencia.</div>}
-                        <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(ordenados.length,6)},1fr)`,gap:5}}>
-                          {ordenados.slice(-6).map(p => {
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(64px,1fr))',gap:8}}>
+                          {ordenados.map(p => {
                             const af = p.afiliados.find(x=>x.ein===a.ein)
                             const pp = af?.pp||0, pg = af?.pg||0
                             const activo = pp+pg > 0
                             return (
-                              <div key={p.label} style={{textAlign:'center',padding:'5px 3px',borderRadius:6,background:activo?'var(--win-accent-l)':'var(--win-surface)',border:`1px solid ${activo?'var(--win-accent)40':'var(--win-border)'}`}}>
-                                <div style={{fontSize:12,fontWeight:700,color:activo?'var(--win-accent)':'var(--win-muted)',fontVariantNumeric:'tabular-nums'}}>{pp.toLocaleString()}</div>
-                                <div style={{fontSize:8,color:'var(--win-muted)',lineHeight:1.2}}>{p.label.slice(0,6)}<br/>PP</div>
+                              <div key={p.label} style={{textAlign:'center',padding:'8px 4px',borderRadius:8,background:activo?'var(--win-accent-l)':'var(--win-surface)',border:`1px solid ${activo?'var(--win-accent)40':'var(--win-border)'}`}}>
+                                <div style={{fontSize:13,fontWeight:700,color:activo?'var(--win-accent)':'var(--win-muted)',fontVariantNumeric:'tabular-nums'}}>{pp.toLocaleString()}</div>
+                                <div style={{fontSize:9,fontWeight:600,color:'var(--win-text)',marginTop:3}}>{p.label.slice(0,6)}</div>
+                                <div style={{fontSize:8,color:'var(--win-muted)',marginTop:1}}>PP</div>
                               </div>
                             )
                           })}
