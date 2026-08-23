@@ -91,18 +91,28 @@ function cumpleRangoEquipo(afiliado, rango) {
   }
   return true
 }
-// Rango objetivo real: el siguiente rango que el afiliado AÚN NO cumple.
-// Para rangos de equipo, salta los que ya satisface (evita "tienes 3 de 1").
+// Rango objetivo real: SIEMPRE el siguiente escalón oficial, uno a la vez.
+// El ascenso ocurre paso a paso conforme NICE actualiza el rango oficial del
+// afiliado — no se saltan rangos aunque ya cumpla numéricamente varios adelante
+// (eso se muestra aparte como "potencial", ver getPotencialEquipo).
 function getSiguienteRangoObjetivo(afiliado) {
   const r = getRango(afiliado.rango)
+  return getSiguienteRango(r.id)
+}
+// Potencial de equipo: el rango de equipo MÁS ALTO que el afiliado ya cumple
+// numéricamente con sus frontales Oro y puntos actuales, aunque su rango oficial
+// todavía no haya avanzado hasta ahí. Es una observación informativa, no la meta.
+function getPotencialEquipo(afiliado) {
+  const r = getRango(afiliado.rango)
   let sig = getSiguienteRango(r.id)
+  let potencial = null
   let guard = 0
   while (sig && sig.tipo === 'equipo' && cumpleRangoEquipo(afiliado, sig) && guard < 12) {
-    const next = getSiguienteRango(sig.id)
-    if (!next) break
-    sig = next; guard++
+    potencial = sig
+    sig = getSiguienteRango(sig.id)
+    guard++
   }
-  return sig
+  return potencial
 }
 
 function getProgresoPct(afiliado, siguiente) {
@@ -2910,4 +2920,5 @@ function App() {
 // pero no las "async function" — por eso hay que exponerlas a mano aquí.
 window.exportAffiliateReport = exportAffiliateReport
 window.exportTreeReport = exportTreeReport
+window.getPotencialEquipo = getPotencialEquipo
 window.App = App

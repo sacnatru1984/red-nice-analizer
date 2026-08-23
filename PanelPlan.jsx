@@ -1,8 +1,8 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
-let getRango, getSiguienteRangoObjetivo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport
+let getRango, getSiguienteRangoObjetivo, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport
 
 function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
-  ;({ getRango, getSiguienteRangoObjetivo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport } = window)
+  ;({ getRango, getSiguienteRangoObjetivo, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
@@ -32,6 +32,8 @@ function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
   const sig = sel ? getSiguienteRangoObjetivo(sel) : null
   const pct = sel && sig ? getProgresoPct(sel, sig) : 0
   const pasos = sel ? getPlanAccion(sel, sig, afiliados, tc, umbralUSD) : []
+  const potencial = sel ? getPotencialEquipo(sel) : null
+  const tienePotencialExtra = potencial && (!sig || potencial.id !== sig.id)
 
   const getReqText = () => {
     if (!sig) return ''
@@ -163,6 +165,14 @@ function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
                         </div>
                       ))}
                     </div>
+                    {tienePotencialExtra && (
+                      <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)40', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: 15, lineHeight: 1 }}>🚀</span>
+                        <div style={{ fontSize: 12, color: 'var(--win-title)', lineHeight: 1.5 }}>
+                          <b>Potencial: {potencial.label}.</b> Con {pos.suyos} frontales Oro activos, {esUnoMismo ? 'ya cumples' : `${nombreCorto} ya cumple`} los requisitos de equipo para llegar hasta ahí — en cuanto NICE actualice {pos.suyo} rango oficial paso a paso, ese sería {esUnoMismo ? 'tu' : 'su'} siguiente nivel real.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
@@ -282,7 +292,10 @@ function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
                       </button>
                     ) : (
                       <div style={{ padding: '0 16px' }}>
-                        <div style={{ padding: '8px 0', fontSize: 11, fontWeight: 600, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>⚪ Sin movimiento este mes ({sinMovimiento.length})</div>
+                        <button onClick={() => setVerTodosInactivos(false)} style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>⚪ Sin movimiento este mes ({sinMovimiento.length})</span>
+                          <span style={{ fontSize: 11, color: 'var(--win-accent)', fontWeight: 600 }}>ocultar</span>
+                        </button>
                         {sinMovimiento.map((a, i) => (
                           <div key={a.ein} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: i < sinMovimiento.length - 1 ? '1px solid var(--win-border)' : 'none' }}>
                             <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--win-text)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</span>
