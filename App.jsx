@@ -1521,10 +1521,6 @@ function PanelMiRed({ afiliados }) {
           <div style={{width:15,height:15}}><Icons.Grid/></div>
           Base de datos
         </button>
-        <button onClick={()=>exportNetworkReport(afiliados).catch(e=>{console.error(e); alert('No se pudo generar el reporte.\n\nDetalle técnico:\n' + (e && (e.stack || e.message) ? (e.stack || e.message) : String(e)))})} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-surface)',border:'1px solid var(--win-border2)',color:'var(--win-text)',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          <div style={{width:15,height:15}}><Icons.Download/></div>
-          Exportar reporte
-        </button>
       </div>
       <button onClick={()=>setShowCheque(true)} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,width:'100%',padding:'18px 20px',marginBottom:16,borderRadius:14,border:'none',background:'linear-gradient(135deg,#D4AF37,#B8860B)',color:'#fff',cursor:'pointer',fontFamily:'inherit',boxShadow:'0 8px 24px rgba(184,134,11,.35)'}}>
         <span style={{fontSize:26}}>💵</span>
