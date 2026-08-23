@@ -1715,7 +1715,7 @@ function PanelMiRed({ afiliados }) {
             {(isMobile?['Afiliado','Rango','PP','PG']:['Afiliado','Rango','PP','PG','Ciudad']).map(h=><th key={h} style={{padding:isMobile?'7px 8px':'7px 14px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h}</th>)}
           </tr></thead>
           <tbody>
-            {[...afiliados].sort((a,b)=>(b.pp+b.pg)-(a.pp+a.pg)).slice(0,10).map((a,i)=>(
+            {[...afiliados].sort((a,b)=>(b.pp||0)-(a.pp||0)).slice(0,10).map((a,i)=>(
               <tr key={a.ein} style={{borderBottom:'1px solid var(--win-border)',background:i%2===0?'transparent':'var(--win-surface2)'}}>
                 <td style={{padding:isMobile?'8px 8px':'9px 14px',overflow:'hidden'}}>
                   <div style={{display:'flex',alignItems:'center',gap:isMobile?6:8,minWidth:0}}>
