@@ -1890,20 +1890,42 @@ function valorOrdenCol(a, key) {
   return (a[key] ?? '').toString().toLowerCase()
 }
 
+// Filtro por rango de selección múltiple (mismos buckets que en Genealogía).
+const RANGO_FILTRO_OPCIONES = [
+  { id: 'ORO_EJECUTIVO', label: 'Oro Ejecutivo' },
+  { id: 'ORO', label: 'Oro' },
+  { id: 'PLATA', label: 'Plata' },
+  { id: 'BRONCE', label: 'Bronce' },
+  { id: 'COBRE', label: 'Cobre' },
+  { id: 'EIN', label: 'Empresario' },
+]
+function bucketRangoFiltro(id) {
+  if (['ORO_MASTER', 'ORO_SENIOR', 'ORO_EJECUTIVO', 'PLATINO', 'DIAMANTE', 'DIAMANTE_MASTER', 'DOBLE_DIAMANTE'].includes(id)) return 'ORO_EJECUTIVO'
+  if (['ORO', 'ORO_EXPERTO', 'ORO_PREMIER', 'ORO_ELITE'].includes(id)) return 'ORO'
+  return id
+}
+
 function BaseDatosModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [exportando, setExportando] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState('desc')
+  const [rangosSel, setRangosSel] = useState(() => new Set(RANGO_FILTRO_OPCIONES.map(o => o.id)))
+  const [showFiltro, setShowFiltro] = useState(false)
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('desc') }
   }
+  const toggleRango = (id) => setRangosSel(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
 
-  const filtrados = q.trim()
-    ? afiliados.filter(a => (a.nombre || '').toLowerCase().includes(q.toLowerCase()) || (a.ein || '').toLowerCase().includes(q.toLowerCase()))
-    : afiliados
+  const filtrados = afiliados
+    .filter(a => rangosSel.has(bucketRangoFiltro(getRango(a.rango).id)))
+    .filter(a => !q.trim() || (a.nombre || '').toLowerCase().includes(q.toLowerCase()) || (a.ein || '').toLowerCase().includes(q.toLowerCase()))
   const ordenados = sortKey
     ? [...filtrados].sort((a, b) => {
         const va = valorOrdenCol(a, sortKey), vb = valorOrdenCol(b, sortKey)
@@ -1926,6 +1948,26 @@ function BaseDatosModal({ afiliados, onClose }) {
           <div style={{ flex: 1, minWidth: 180 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>Base de datos de la red</div>
             <div style={{ fontSize: 11.5, color: 'var(--win-muted)' }}>{filtrados.length} de {afiliados.length} afiliados</div>
+          </div>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button onClick={() => setShowFiltro(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 8, background: rangosSel.size < RANGO_FILTRO_OPCIONES.length ? 'var(--win-accent-l)' : 'var(--win-surface2)', border: '1px solid var(--win-border2)', color: rangosSel.size < RANGO_FILTRO_OPCIONES.length ? 'var(--win-accent)' : 'var(--win-text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              <div style={{ width: 14, height: 14 }}><Icons.Sliders/></div>
+              Filtrar por rango{rangosSel.size < RANGO_FILTRO_OPCIONES.length ? ` (${rangosSel.size})` : ''}
+            </button>
+            {showFiltro && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 12px 32px rgba(0,0,0,.18)', padding: 10, minWidth: 190 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--win-border)' }}>
+                  <button onClick={() => setRangosSel(new Set(RANGO_FILTRO_OPCIONES.map(o => o.id)))} style={{ fontSize: 11, fontWeight: 600, color: 'var(--win-accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Todos</button>
+                  <button onClick={() => setRangosSel(new Set())} style={{ fontSize: 11, fontWeight: 600, color: 'var(--win-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Ninguno</button>
+                </div>
+                {RANGO_FILTRO_OPCIONES.map(o => (
+                  <label key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', cursor: 'pointer', fontSize: 12.5, color: 'var(--win-text)' }}>
+                    <input type="checkbox" checked={rangosSel.has(o.id)} onChange={() => toggleRango(o.id)} style={{ accentColor: 'var(--win-accent)' }}/>
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o EIN…" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--win-border2)', background: 'var(--win-surface2)', fontSize: 12.5, fontFamily: 'inherit', color: 'var(--win-text)', outline: 'none', width: isMobile ? '100%' : 220, boxSizing: 'border-box' }}/>
           <button onClick={descargar} disabled={exportando} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 8, background: 'var(--win-accent)', border: '1px solid var(--win-accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: exportando ? 'default' : 'pointer', fontFamily: 'inherit', opacity: exportando ? .7 : 1, flexShrink: 0 }}>
