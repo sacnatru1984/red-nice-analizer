@@ -1536,7 +1536,7 @@ function ChequeModal({ afiliados, onClose }) {
   )
 }
 
-function PanelMiRed({ afiliados }) {
+function PanelMiRed({ afiliados, tc }) {
   const isMobile = useIsMobile()
   const [showDB, setShowDB] = useState(false)
   const [showCheque, setShowCheque] = useState(false)
@@ -1659,6 +1659,114 @@ function PanelMiRed({ afiliados }) {
           </div>
         </div>
       </div>
+
+      {/* ── Puntos y valor por nivel (mismo formato que en Genealogía) ── */}
+      {(() => {
+        const tcVal = tc || 18.0
+        const nivelStats = {}
+        afiliados.forEach(a => {
+          const d = a.gen || 0
+          if (d === 0) return
+          const rangoId = getRango(a.rango).id
+          if (!nivelStats[d]) nivelStats[d] = { personas: 0, activos: 0, pp: 0, pg: 0, mxn: 0 }
+          nivelStats[d].personas++
+          if (((a.pp || 0) + (a.pg || 0)) > 0) nivelStats[d].activos++
+          nivelStats[d].pp += (a.pp || 0)
+          nivelStats[d].pg += (a.pg || 0)
+          nivelStats[d].mxn += (a.pp || 0) * valorPuntoDe(rangoId)
+        })
+        const niveles = Object.keys(nivelStats).map(Number).sort((a, b) => a - b)
+        if (!niveles.length) return null
+        const tot = niveles.reduce((acc, d) => {
+          acc.personas += nivelStats[d].personas
+          acc.pp += nivelStats[d].pp
+          acc.pg += nivelStats[d].pg
+          acc.mxn += nivelStats[d].mxn
+          return acc
+        }, { personas: 0, pp: 0, pg: 0, mxn: 0 })
+        const fMXN = v => '$' + Math.round(v).toLocaleString('es-MX')
+        const fUSD = v => 'USD $' + Math.round(v / tcVal).toLocaleString('en-US')
+        const TH = ({ children, right }) => (
+          <th style={{ padding: '5px 10px', textAlign: right ? 'right' : 'left', color: 'var(--win-muted)', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', whiteSpace: 'nowrap', background: 'var(--win-surface2)', borderBottom: '2px solid var(--win-border)' }}>{children}</th>
+        )
+        return (
+          <div style={{ ...S.card, marginBottom: 16 }}>
+            <div style={S.cardHeader}>
+              <span style={S.cardTitle}>Puntos y valor por nivel</span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--win-muted)' }}>TC: ${tcVal.toFixed(2)} MXN/USD</span>
+            </div>
+            <div style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                {niveles.map(d => {
+                  const s = nivelStats[d]
+                  const pct = s.personas > 0 ? Math.round(s.activos / s.personas * 100) : 0
+                  const color = pct >= 50 ? 'var(--win-green)' : pct >= 25 ? 'var(--win-gold)' : 'var(--win-red)'
+                  return (
+                    <div key={d} style={{ flex: '1 1 110px', minWidth: 100, background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--win-muted)' }}>NIVEL {d}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+                      </div>
+                      <div style={{ height: 5, background: 'var(--win-border)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
+                        <div style={{ width: pct + '%', height: '100%', background: color }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--win-muted)' }}>{s.activos} de {s.personas} activos</div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginBottom: 10, lineHeight: 1.4 }}>
+                Los valores en MXN/USD de esta tabla son un <b style={{ color: 'var(--win-text)' }}>estimado de referencia</b> (PP × valor de punto según el rango de cada persona) — no es un cálculo oficial de reembolso de NICE.
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
+                  <thead>
+                    <tr>
+                      <TH>Nivel</TH>
+                      <TH right>Personas</TH>
+                      <TH right>PP</TH>
+                      <TH right>PG</TH>
+                      <TH right>Valor MXN</TH>
+                      <TH right>Valor USD</TH>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {niveles.map((d, i) => {
+                      const s = nivelStats[d]
+                      return (
+                        <tr key={d} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}>
+                          <td style={{ padding: '7px 10px', fontWeight: 700, color: 'var(--win-title)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--win-border)' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                              <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--win-accent-l)', color: 'var(--win-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{d}</span>
+                              Nivel {d}
+                            </span>
+                          </td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-text)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.personas}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: 'var(--win-gold)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.pp.toLocaleString()}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#7C3AED', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.pg.toLocaleString()}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#16A34A', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{fMXN(s.mxn)}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-accent)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{fUSD(s.mxn)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: 'var(--win-surface2)', borderTop: '2px solid var(--win-border)' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 800, color: 'var(--win-title)', fontSize: 12 }}>Total</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-title)', fontVariantNumeric: 'tabular-nums' }}>{tot.personas}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: 'var(--win-gold)', fontVariantNumeric: 'tabular-nums' }}>{tot.pp.toLocaleString()}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#7C3AED', fontVariantNumeric: 'tabular-nums' }}>{tot.pg.toLocaleString()}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#16A34A', fontVariantNumeric: 'tabular-nums' }}>{fMXN(tot.mxn)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)', fontVariantNumeric: 'tabular-nums' }}>{fUSD(tot.mxn)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="rn-twocol">
         <div style={S.card}>
           <div style={S.cardHeader}>
@@ -3035,7 +3143,7 @@ function App() {
         )}
         {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios')&&tab!=='reportes'&&(
           <>
-            {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc}/>}
+            {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc} tc={tc}/>}
             {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia} onPlanAccion={irAPlan} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc} periodos={periodos} onPlanAccion={irAPlan}/>:<PanelCargando/>)}
             {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} umbralUSD={umbralUSD} preselectEin={planEin} periodos={periodos}/>:<PanelCargando/>)}
