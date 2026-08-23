@@ -2856,8 +2856,11 @@ function App() {
               </div>
               <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
                 <button onClick={()=>fileRef.current.click()} className="rn-glass-btn">
-                  <div style={{width:18,height:18}}><Icons.Upload/></div>
-                  Seleccionar archivo Excel de la Sección de Afiliados del portal NICE
+                  <div style={{width:18,height:18,flexShrink:0}}><Icons.Upload/></div>
+                  <span style={{display:'flex',flexDirection:'column',alignItems:'flex-start',textAlign:'left',lineHeight:1.35}}>
+                    <span style={{fontSize:15,fontWeight:700}}>Seleccionar Archivo Excel</span>
+                    <span style={{fontSize:11.5,fontWeight:500,opacity:.85,marginTop:2}}>de la sección de afiliados del portal NICE</span>
+                  </span>
                 </button>
                 {/* Botón de datos de ejemplo oculto a propósito (no borrado) — cargarDemo() sigue disponible más abajo. */}
               </div>
