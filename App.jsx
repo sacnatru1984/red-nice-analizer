@@ -2859,9 +2859,7 @@ function App() {
                   <div style={{width:18,height:18}}><Icons.Upload/></div>
                   Seleccionar archivo Excel
                 </button>
-                <button onClick={cargarDemo} disabled={demoLoading} className="rn-ghost-btn" style={{opacity:demoLoading?0.6:1,marginTop:2}}>
-                  {demoLoading ? 'Cargando ejemplo…' : 'o explora la app con datos de ejemplo'}
-                </button>
+                {/* Botón de datos de ejemplo oculto a propósito (no borrado) — cargarDemo() sigue disponible más abajo. */}
               </div>
               <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginTop:34}}>
                 {['Árbol de afiliados','Genealogía visual','Plan de carrera','Reportes para tu equipo'].map(f=>(
