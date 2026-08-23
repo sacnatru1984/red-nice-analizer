@@ -182,8 +182,8 @@ function frontalGenera(a, tc, umbral) {
 
 // ── Simulador de "Cheque del mes" (Descuento por Red — tabla oficial NICE) ──
 // Requiere rango Oro+ propio. El % depende de tus PROPIOS PP+PG del periodo,
-// y se aplica sobre los PP+PG de tus descendientes Oro+ en Generación 1, 2 y 3
-// (un no-Oro no genera DR directo — su volumen se compone hacia arriba hasta el próximo Oro).
+// y se aplica sobre el PP+PG combinado de TODOS tus descendientes en Generación
+// 1, 2 y 3 (sin importar su rango — confirmado por Isaac, no solo los Oro+).
 const DR_TRAMOS = [
   { min: 2000, l1: .05, l2: .04, l3: .04 },
   { min: 1500, l1: .03, l2: .03, l3: .03 },
@@ -204,10 +204,10 @@ function simularChequeDR(self, afiliados, metaPropios) {
   const califica = esOroPlus(self)
   const tramo = DR_TRAMOS.find(t => propios >= t.min)
   const niveles = [1, 2, 3].map(n => {
-    const oroDelNivel = personasNivel(self.ein, n).filter(esOroPlus)
-    const puntos = oroDelNivel.reduce((s, a) => s + (a.pp || 0) + (a.pg || 0), 0)
+    const delNivel = personasNivel(self.ein, n)
+    const puntos = delNivel.reduce((s, a) => s + (a.pp || 0) + (a.pg || 0), 0)
     const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    return { nivel: n, personasOro: oroDelNivel.length, puntos, pct, importePuntos: puntos * pct }
+    return { nivel: n, personas: delNivel.length, puntos, pct, importePuntos: puntos * pct }
   })
   const totalPuntosDR = niveles.reduce((s, n) => s + n.importePuntos, 0)
   const totalMXN = totalPuntosDR * VALOR_ORO
@@ -1475,8 +1475,8 @@ function ChequeModal({ afiliados, onClose }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--win-surface2)' }}>
-                  {['Nivel', 'Oro+', 'Puntos', '%', 'Importe'].map(h => (
-                    <th key={h} style={{ padding: '7px 10px', textAlign: h==='Nivel'||h==='Oro+'?'center':'right', fontSize: 10, fontWeight: 700, letterSpacing: '.05em', color: 'var(--win-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--win-border)' }}>{h}</th>
+                  {['Nivel', 'Personas', 'Puntos', '%', 'Importe'].map(h => (
+                    <th key={h} style={{ padding: '7px 10px', textAlign: h==='Nivel'||h==='Personas'?'center':'right', fontSize: 10, fontWeight: 700, letterSpacing: '.05em', color: 'var(--win-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--win-border)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1484,7 +1484,7 @@ function ChequeModal({ afiliados, onClose }) {
                 {c.niveles.map(n => (
                   <tr key={n.nivel} style={{ borderBottom: '1px solid var(--win-border)' }}>
                     <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--win-title)' }}>Nivel {n.nivel}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--win-text)' }}>{n.personasOro}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--win-text)' }}>{n.personas}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-gold)', fontWeight: 600 }}>{n.puntos.toLocaleString()}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-muted)' }}>{(n.pct*100).toFixed(0)}%</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)' }}>{fmtMXN(n.importePuntos*VALOR_ORO)}</td>
@@ -1495,7 +1495,7 @@ function ChequeModal({ afiliados, onClose }) {
           </div>
 
           <div style={{ marginTop: 16, fontSize: 11, color: 'var(--win-muted)', lineHeight: 1.6 }}>
-            <strong>Cálculo aproximado</strong> — solo cuenta a los descendientes con rango Oro o superior en Generación 1, 2 y 3 (un no-Oro no genera Descuento por Red directo). El % depende de tus propios PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel). No es tu pago oficial de NICE — solo una estimación para planear.
+            <strong>Cálculo aproximado</strong> — cuenta el PP+PG combinado de TODOS tus descendientes en Generación 1, 2 y 3, sin importar su rango. El % depende de tus propios PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel). No es tu pago oficial de NICE — solo una estimación para planear.
           </div>
         </div>
       </div>
