@@ -27,7 +27,7 @@
   <script src="./rango-medals.js"></script>
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; height: 100%; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow-x: hidden; }
     body { font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
     :root {
@@ -189,7 +189,7 @@
     .rn-taskbar { min-width: 0; }
     .rn-actions { flex-shrink: 0; }
     .rn-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-    .rn-body { padding: 20px 24px; }
+    .rn-body { padding: 20px 24px; overflow-x: hidden; }
 
     /* Asegurar que el shell quede sobre la capa atmosférica */
     .rn-taskbar, .rn-body { position: relative; z-index: 1; }

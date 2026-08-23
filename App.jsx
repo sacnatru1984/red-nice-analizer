@@ -632,9 +632,10 @@ const S = {
   cardTitle: { fontSize:13, fontWeight:600, color:'var(--win-title)' },
 }
 
-function RankBadge({ rangoStr }) {
+function RankBadge({ rangoStr, maxWidth }) {
   const r = getRango(rangoStr)
-  return <span style={{ background:r.bg, color:r.color, padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:600, display:'inline-block', whiteSpace:'nowrap' }}>{r.label}</span>
+  const overflowStyle = maxWidth ? { maxWidth, overflow:'hidden', textOverflow:'ellipsis' } : null
+  return <span style={{ background:r.bg, color:r.color, padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:600, display:'inline-block', whiteSpace:'nowrap', verticalAlign:'middle', ...overflowStyle }}>{r.label}</span>
 }
 
 // ── Exportar reportes como imagen PNG ──
@@ -1495,6 +1496,7 @@ function ChequeModal({ afiliados, onClose }) {
 }
 
 function PanelMiRed({ afiliados }) {
+  const isMobile = useIsMobile()
   const [showDB, setShowDB] = useState(false)
   const [showCheque, setShowCheque] = useState(false)
   const total = afiliados.length
@@ -1664,23 +1666,30 @@ function PanelMiRed({ afiliados }) {
       </div>
       <div style={S.card}>
         <div style={S.cardHeader}><span style={S.cardTitle}>Top 10 afiliados por PP este mes</span></div>
-        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,tableLayout:'fixed'}}>
+          <colgroup>
+            <col style={{width:'auto'}}/>
+            <col style={{width:isMobile?86:110}}/>
+            <col style={{width:isMobile?34:60}}/>
+            <col style={{width:isMobile?34:60}}/>
+            {!isMobile && <col style={{width:120}}/>}
+          </colgroup>
           <thead><tr style={{borderBottom:'1px solid var(--win-border)',background:'var(--win-surface2)'}}>
-            {['Afiliado','Rango','PP','PG','Ciudad'].map(h=><th key={h} style={{padding:'7px 14px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)'}}>{h}</th>)}
+            {(isMobile?['Afiliado','Rango','PP','PG']:['Afiliado','Rango','PP','PG','Ciudad']).map(h=><th key={h} style={{padding:isMobile?'7px 8px':'7px 14px',textAlign:'left',fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h}</th>)}
           </tr></thead>
           <tbody>
             {[...afiliados].sort((a,b)=>(b.pp+b.pg)-(a.pp+a.pg)).slice(0,10).map((a,i)=>(
               <tr key={a.ein} style={{borderBottom:'1px solid var(--win-border)',background:i%2===0?'transparent':'var(--win-surface2)'}}>
-                <td style={{padding:'9px 14px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:30,height:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:26,height:26,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}</div>
-                    <span style={{fontWeight:600,color:'var(--win-title)'}}>{a.nombre}</span>
+                <td style={{padding:isMobile?'8px 8px':'9px 14px',overflow:'hidden'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:isMobile?6:8,minWidth:0}}>
+                    <div style={{width:isMobile?24:30,height:isMobile?24:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:isMobile?20:26,height:isMobile?20:26,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}</div>
+                    <span style={{fontWeight:600,color:'var(--win-title)',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isMobile?a.nombre.split(' ').slice(0,2).join(' '):a.nombre}</span>
                   </div>
                 </td>
-                <td style={{padding:'9px 14px'}}><RankBadge rangoStr={a.rango}/></td>
-                <td style={{padding:'9px 14px',fontWeight:700,color:'var(--win-gold)'}}>{a.pp}</td>
-                <td style={{padding:'9px 14px',fontWeight:600,color:'#7C3AED'}}>{a.pg}</td>
-                <td style={{padding:'9px 14px',color:'var(--win-muted)',fontSize:11}}>{a.ciudad}</td>
+                <td style={{padding:isMobile?'8px 8px':'9px 14px',overflow:'hidden'}}><RankBadge rangoStr={a.rango} maxWidth={isMobile?70:undefined}/></td>
+                <td style={{padding:isMobile?'8px 8px':'9px 14px',fontWeight:700,color:'var(--win-gold)'}}>{a.pp}</td>
+                <td style={{padding:isMobile?'8px 8px':'9px 14px',fontWeight:600,color:'#7C3AED'}}>{a.pg}</td>
+                {!isMobile && <td style={{padding:'9px 14px',color:'var(--win-muted)',fontSize:11,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.ciudad}</td>}
               </tr>
             ))}
           </tbody>
