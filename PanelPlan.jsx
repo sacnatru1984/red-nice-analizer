@@ -1,7 +1,7 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
 let getRango, getSiguienteRangoObjetivo, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport
 
-function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
+function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   ;({ getRango, getSiguienteRangoObjetivo, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
@@ -35,6 +35,23 @@ function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
   const potencial = sel ? getPotencialEquipo(sel) : null
   const tienePotencialExtra = potencial && (!sig || potencial.id !== sig.id)
 
+  // Riesgo de EIN inactivo: la regla NICE exige mínimo 1,000 PP en 12 meses o se
+  // pierde la red, los descuentos y el rango. Solo se puede evaluar con los
+  // periodos que Isaac ya subió (no siempre serán 12 meses completos).
+  const ultimos12 = (sel && periodos && periodos.length > 1)
+    ? [...periodos].sort((a, b) => a.año * 12 + a.mes - (b.año * 12 + b.mes)).slice(-12).map(p => {
+        const af = p.afiliados.find(x => x.ein === sel.ein)
+        return { label: p.label, pts: (af?.pp || 0) + (af?.pg || 0) }
+      })
+    : []
+  const rachaInactiva = (() => {
+    let n = 0
+    for (let i = ultimos12.length - 1; i >= 0; i--) { if (ultimos12[i].pts === 0) n++; else break }
+    return n
+  })()
+  const totalUlt12 = ultimos12.reduce((s, p) => s + p.pts, 0)
+  const enRiesgoEIN = ultimos12.length >= 2 && (rachaInactiva >= 2 || (ultimos12.length >= 12 && totalUlt12 < 1000))
+
   const getReqText = () => {
     if (!sig) return ''
     if (sig.tipo === 'personal') return sel.pp + ' de ' + sig.ppReq.toLocaleString() + ' PP × 3 meses consecutivos'
@@ -45,20 +62,20 @@ function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
 
   const getChecks = () => {
     if (!sig) return []
-    const checks = [{ ok: (sel.pp + sel.pg) > 0, txt: 'Tiene actividad este período (PP o PG > 0)', sub: sel.pp.toLocaleString() + ' PP + ' + sel.pg.toLocaleString() + ' PG = ' + (sel.pp + sel.pg).toLocaleString() + ' puntos combinados' }]
+    const propioPts = sel.pp + sel.pg
+    const checks = [
+      { ok: propioPts > 0, txt: 'Tiene actividad este período (PP o PG > 0)', sub: sel.pp.toLocaleString() + ' PP + ' + sel.pg.toLocaleString() + ' PG = ' + propioPts.toLocaleString() + ' puntos combinados' },
+      { ok: propioPts >= 2000, txt: 'Meta mínima: 2,000 PP/PG combinados', sub: 'Tiene ' + propioPts.toLocaleString() + ' de 2,000' + (propioPts < 2000 ? ' · le faltan ' + (2000 - propioPts).toLocaleString() : ' · completo') + ' — desbloquea el mejor % de Descuento por Red y es la base para llegar a Diamante+' },
+    ]
     if (sig.tipo === 'desc') {
       const req = sig.id === 'COBRE' ? 700 : sig.id === 'BRONCE' ? 1000 : sig.id === 'PLATA' ? 2000 : 3000
-      checks.push({ ok: (sel.pp + sel.pg) >= req, txt: 'Alcanzar ' + req.toLocaleString() + ' PP/PG combinados', sub: 'Tiene ' + (sel.pp + sel.pg).toLocaleString() + ' de ' + req.toLocaleString() + ' puntos' })
+      checks.push({ ok: propioPts >= req, txt: 'Alcanzar ' + req.toLocaleString() + ' PP/PG combinados', sub: 'Tiene ' + propioPts.toLocaleString() + ' de ' + req.toLocaleString() + ' puntos' })
     }
     if (sig.tipo === 'personal') checks.push({ ok: sel.pp >= sig.ppReq, txt: 'Alcanzar ' + sig.ppReq.toLocaleString() + ' PP × 3 meses consecutivos', sub: 'Este mes: ' + sel.pp + ' PP de ' + sig.ppReq.toLocaleString() + ' requeridos' })
     if (sig.tipo === 'equipo') {
       const tieneF = sel.frontalesOro || 0
       const faltanF = Math.max(0, sig.frontalesOro - tieneF)
       checks.push({ ok: tieneF >= sig.frontalesOro, txt: sig.frontalesOro + ' frontal' + (sig.frontalesOro > 1 ? 'es' : '') + ' Oro activo' + (sig.frontalesOro > 1 ? 's' : '') + ' en tu gen.1', sub: 'Tienes ' + tieneF + ' de ' + sig.frontalesOro + ' frontal' + (sig.frontalesOro > 1 ? 'es' : '') + ' Oro (rango Oro+ y con movimiento este mes)' + (faltanF > 0 ? ' · te ' + (faltanF > 1 ? 'faltan ' : 'falta ') + faltanF : ' · completo') })
-      if (['DIAMANTE','DIAMANTE_MASTER','DOBLE_DIAMANTE'].includes(sig.id)) {
-        const propioPts = sel.pp + sel.pg
-        checks.push({ ok: propioPts >= 2000, txt: 'Generar 2,000 PP/PG propios combinados', sub: 'Tienes ' + propioPts.toLocaleString() + ' de 2,000' + (propioPts < 2000 ? ' · te faltan ' + (2000 - propioPts).toLocaleString() : ' · completo') })
-      }
     }
     return checks
   }
@@ -133,6 +150,15 @@ function PanelPlan({ afiliados, tc, umbralUSD, setUmbralUSD, preselectEin }) {
                 Descargar
               </button>
             </div>
+
+            {enRiesgoEIN && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 17, lineHeight: 1 }}>⚠️</span>
+                <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5 }}>
+                  <b>Riesgo de perder rango y red.</b> {esUnoMismo ? 'Llevas' : `${nombreCorto} lleva`} {rachaInactiva} periodo{rachaInactiva > 1 ? 's' : ''} cargado{rachaInactiva > 1 ? 's' : ''} seguido{rachaInactiva > 1 ? 's' : ''} sin actividad (PP+PG = 0) — de los últimos {ultimos12.length} periodos que subiste, suma {totalUlt12.toLocaleString()} PP. La regla NICE exige mínimo 1,000 PP en 12 meses o se pierden la red, los descuentos y el rango.
+                </div>
+              </div>
+            )}
 
             {/* ── Meta y progreso (fusiona stats + barra + checklist) ── */}
             <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 12, overflow: 'hidden' }}>

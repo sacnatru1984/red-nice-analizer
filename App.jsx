@@ -2904,7 +2904,7 @@ function App() {
             {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc}/>}
             {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia} onPlanAccion={irAPlan} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc} periodos={periodos} onPlanAccion={irAPlan}/>:<PanelCargando/>)}
-            {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} volBase={volBase} setVolBase={setVolBase} umbralUSD={umbralUSD} setUmbralUSD={setUmbralUSD} preselectEin={planEin}/>:<PanelCargando/>)}
+            {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} umbralUSD={umbralUSD} preselectEin={planEin} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='rangos'&&<PanelRangos afiliados={afiliadosCalc}/>}
             {tab==='anuncios'&&<PanelAnuncios/>}
             {tab==='archivos'&&<PanelArchivos archivos={archivos} onCargar={onCargar} duplicados={duplicados}/>}
