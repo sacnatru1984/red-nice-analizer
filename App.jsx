@@ -1909,13 +1909,19 @@ function BaseDatosModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [exportando, setExportando] = useState(false)
-  const [sortKey, setSortKey] = useState(null)
-  const [sortDir, setSortDir] = useState('desc')
+  // Orden compuesto: lista de columnas en prioridad (la 1a es el orden principal,
+  // la 2a desempata dentro de la 1a, etc.). Cada clic en un encabezado cicla
+  // desc → asc → (se quita del orden); clic en una columna nueva la agrega al final.
+  const [sortCols, setSortCols] = useState([])
   const [rangosSel, setRangosSel] = useState(() => new Set(RANGO_FILTRO_OPCIONES.map(o => o.id)))
   const [showFiltro, setShowFiltro] = useState(false)
   const toggleSort = (key) => {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('desc') }
+    setSortCols(prev => {
+      const idx = prev.findIndex(c => c.key === key)
+      if (idx < 0) return [...prev, { key, dir: 'desc' }]
+      if (prev[idx].dir === 'desc') return prev.map((c, i) => i === idx ? { key, dir: 'asc' } : c)
+      return prev.filter(c => c.key !== key)
+    })
   }
   const toggleRango = (id) => setRangosSel(prev => {
     const next = new Set(prev)
@@ -1926,11 +1932,13 @@ function BaseDatosModal({ afiliados, onClose }) {
   const filtrados = afiliados
     .filter(a => rangosSel.has(bucketRangoFiltro(getRango(a.rango).id)))
     .filter(a => !q.trim() || (a.nombre || '').toLowerCase().includes(q.toLowerCase()) || (a.ein || '').toLowerCase().includes(q.toLowerCase()))
-  const ordenados = sortKey
+  const ordenados = sortCols.length
     ? [...filtrados].sort((a, b) => {
-        const va = valorOrdenCol(a, sortKey), vb = valorOrdenCol(b, sortKey)
-        if (va < vb) return sortDir === 'asc' ? -1 : 1
-        if (va > vb) return sortDir === 'asc' ? 1 : -1
+        for (const { key, dir } of sortCols) {
+          const va = valorOrdenCol(a, key), vb = valorOrdenCol(b, key)
+          if (va < vb) return dir === 'asc' ? -1 : 1
+          if (va > vb) return dir === 'asc' ? 1 : -1
+        }
         return 0
       })
     : filtrados
@@ -1969,6 +1977,12 @@ function BaseDatosModal({ afiliados, onClose }) {
               </div>
             )}
           </div>
+          {sortCols.length > 0 && (
+            <button onClick={() => setSortCols([])} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, background: 'var(--win-surface2)', border: '1px solid var(--win-border2)', color: 'var(--win-muted)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <div style={{ width: 13, height: 13 }}><Icons.X/></div>
+              Limpiar orden
+            </button>
+          )}
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o EIN…" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--win-border2)', background: 'var(--win-surface2)', fontSize: 12.5, fontFamily: 'inherit', color: 'var(--win-text)', outline: 'none', width: isMobile ? '100%' : 220, boxSizing: 'border-box' }}/>
           <button onClick={descargar} disabled={exportando} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 8, background: 'var(--win-accent)', border: '1px solid var(--win-accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: exportando ? 'default' : 'pointer', fontFamily: 'inherit', opacity: exportando ? .7 : 1, flexShrink: 0 }}>
             <div style={{ width: 14, height: 14 }}><Icons.Download/></div>
@@ -1980,11 +1994,16 @@ function BaseDatosModal({ afiliados, onClose }) {
           <table style={{ width: '100%', minWidth: 1300, borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, background: 'var(--win-surface2)', zIndex: 1 }}>
-                {BASE_DATOS_COLS.map(c => (
-                  <th key={c.key} onClick={() => toggleSort(c.key)} style={{ padding: '10px 12px', textAlign: c.align || 'left', fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: sortKey === c.key ? 'var(--win-accent)' : 'var(--win-muted)', borderBottom: '1px solid var(--win-border)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
-                    {c.label} <span style={{ fontSize: 9, opacity: sortKey === c.key ? 1 : .35 }}>{sortKey === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
-                  </th>
-                ))}
+                {BASE_DATOS_COLS.map(c => {
+                  const idx = sortCols.findIndex(s => s.key === c.key)
+                  const activo = idx >= 0
+                  return (
+                    <th key={c.key} onClick={() => toggleSort(c.key)} style={{ padding: '10px 12px', textAlign: c.align || 'left', fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: activo ? 'var(--win-accent)' : 'var(--win-muted)', borderBottom: '1px solid var(--win-border)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                      {c.label} <span style={{ fontSize: 9, opacity: activo ? 1 : .35 }}>{activo ? (sortCols[idx].dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                      {activo && sortCols.length > 1 && <sup style={{ fontSize: 8.5, marginLeft: 2, fontWeight: 800 }}>{idx + 1}</sup>}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
