@@ -729,7 +729,7 @@ function wrapText(ctx, text, maxWidth) {
 }
 
 async function exportNetworkReport(afiliados) {
-  const self = afiliados[0]
+  const self = afiliados.find(a => a.gen === 0) || afiliados[0]
   const total = afiliados.length
   const activos = afiliados.filter(a => (a.pp||0)+(a.pg||0)>0).length
   const totalPP = afiliados.reduce((s,a)=>s+(a.pp||0),0)
@@ -1420,7 +1420,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdo
 
 function ChequeModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
-  const self = afiliados[0]
+  const self = afiliados.find(a => a.gen === 0) || afiliados[0]
   const r = getRango(self.rango)
   const propiosReales = (self.pp || 0) + (self.pg || 0)
   const [meta, setMeta] = useState(propiosReales)
@@ -1547,7 +1547,7 @@ function PanelMiRed({ afiliados, tc }) {
   const conteos = contarPorRango(afiliados)
   const maxN = Math.max(...conteos.map(([,n])=>n), 1)
   const RCOLS = {'Oro Ejecutivo':'#C47F17','Oro Senior':'#C47F17','Oro Master':'#C47F17','Oro':'#C47F17','Oro Experto':'#C47F17','Oro Premier':'#C47F17','Oro Elite':'#C47F17','Platino':'#7C3AED','Diamante':'#7C3AED','Diamante Master':'#7C3AED','Doble Diamante SL':'#7C3AED','Plata':'#1D4ED8','Bronce':'#EA580C','Cobre':'#B45309','Empresario':'#6B7280','Sin Descuento':'#9CA3AF'}
-  const self = afiliados[0]
+  const self = afiliados.find(a => a.gen === 0) || afiliados[0]
   const rSelf = self ? getRango(self.rango) : null
   const lideres = [...afiliados].filter(a=>a.ein!==self?.ein).sort((a,b)=>(b.pg||0)-(a.pg||0)).slice(0,5)
   const enRiesgo = afiliados.filter(a=>((a.pp||0)+(a.pg||0))===0)
@@ -3027,7 +3027,7 @@ function App() {
   // Las pestañas 'arbol' y 'semana' se ocultan a propósito (no se borran) — 'arbol' sigue en
   // PanelGenealogia.jsx y 'semana' en PanelSemana.jsx, por si se reactivan más adelante.
   const curTab = TABS.find(t=>t.id===tab)||TABS[0]
-  const self = afiliadosCalc[0]
+  const self = afiliadosCalc.find(a=>a.gen===0) || afiliadosCalc[0]
 
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--win-bg)'}}>
