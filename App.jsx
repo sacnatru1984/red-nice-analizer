@@ -1553,6 +1553,21 @@ function PanelMiRed({ afiliados }) {
   const enRiesgo = afiliados.filter(a=>((a.pp||0)+(a.pg||0))===0)
   const frontalesLider = self ? afiliados.filter(a=>a.einPresentador===self.ein) : []
   const profundidad = afiliados.reduce((m,a)=>Math.max(m,a.gen||0),0)
+  // Cadena ascendente (red): de quién depende cada afiliado, subiendo hasta la raíz.
+  const byEin = {}
+  afiliados.forEach(a => { byEin[a.ein] = a })
+  const cadenaAscendente = (a, maxNiveles = 2) => {
+    const chain = []
+    let actual = a
+    let guard = 0
+    while (actual && actual.einPresentador && byEin[actual.einPresentador] && guard < maxNiveles) {
+      const up = byEin[actual.einPresentador]
+      chain.push(up.nombre.split(' ').slice(0, 2).join(' '))
+      actual = up
+      guard++
+    }
+    return chain
+  }
   return (
     <div>
       {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
@@ -1720,7 +1735,10 @@ function PanelMiRed({ afiliados }) {
                 <td style={{padding:isMobile?'8px 8px':'9px 14px',overflow:'hidden'}}>
                   <div style={{display:'flex',alignItems:'center',gap:isMobile?6:8,minWidth:0}}>
                     <div style={{width:isMobile?24:30,height:isMobile?24:30,borderRadius:'50%',background:getRango(a.rango).bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[getRango(a.rango).id]?<img src={RANGO_IMG[getRango(a.rango).id]} alt='' style={{width:isMobile?20:26,height:isMobile?20:26,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:getRango(a.rango).color}}>{getInitials(a.nombre)}</span>}</div>
-                    <span style={{fontWeight:600,color:'var(--win-title)',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isMobile?a.nombre.split(' ').slice(0,2).join(' '):a.nombre}</span>
+                    <div style={{minWidth:0,overflow:'hidden'}}>
+                      <div style={{fontWeight:600,color:'var(--win-title)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isMobile?a.nombre.split(' ').slice(0,2).join(' '):a.nombre}</div>
+                      <div style={{fontSize:10,color:'var(--win-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{[a.nombre.split(' ').slice(0,2).join(' '), ...cadenaAscendente(a)].join(' / ')}</div>
+                    </div>
                   </div>
                 </td>
                 <td style={{padding:isMobile?'8px 8px':'9px 14px',overflow:'hidden'}}><RankBadge rangoStr={a.rango} maxWidth={isMobile?70:undefined}/></td>
