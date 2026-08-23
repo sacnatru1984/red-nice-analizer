@@ -126,7 +126,7 @@ function ArbolRama({ nodo, depth, onSelect, onGenealogia, isMobile }) {
   )
 }
 
-function ArbolDetalle({ nodo, afiliados, periodos, onClose, onGenealogia }) {
+function ArbolDetalle({ nodo, afiliados, periodos, onClose, onPlanAccion }) {
   if (!nodo) return null
   const r = getRango(nodo.rango)
   const activo = (nodo.pp + nodo.pg) > 0
@@ -196,10 +196,10 @@ function ArbolDetalle({ nodo, afiliados, periodos, onClose, onGenealogia }) {
           </div>
         )}
 
-        {onGenealogia && (
-          <button onClick={()=>{onGenealogia(nodo.ein); onClose()}} style={{width:'100%',marginTop:18,padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'#fff',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-            <div style={{width:15,height:15}}><Icons.GitBranch/></div>
-            Ver genealogía completa
+        {onPlanAccion && (
+          <button onClick={()=>{onPlanAccion(nodo.ein); onClose()}} style={{width:'100%',marginTop:18,padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'#fff',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+            <div style={{width:15,height:15}}><Icons.Plan/></div>
+            Plan de Acción
           </button>
         )}
       </div>
@@ -207,7 +207,7 @@ function ArbolDetalle({ nodo, afiliados, periodos, onClose, onGenealogia }) {
   )
 }
 
-function PanelArbol({ afiliados, onGenealogia, periodos }) {
+function PanelArbol({ afiliados, onGenealogia, onPlanAccion, periodos }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
@@ -257,7 +257,7 @@ function PanelArbol({ afiliados, onGenealogia, periodos }) {
           )}
         </div>
       </div>
-      <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onGenealogia={onGenealogia}/>
+      <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onPlanAccion={onPlanAccion}/>
     </div>
   )
 }
@@ -331,7 +331,7 @@ function bucketRangoGen(id) {
   return id
 }
 
-function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
+function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPlanAccion }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
   const tree = buildTree(afiliados)
@@ -744,7 +744,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos }) {
         </div>
       </div>
 
-      <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onGenealogia={(ein)=>navegarA(ein)}/>
+      <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onPlanAccion={onPlanAccion}/>
 
       {tooltip && (
         <div style={{

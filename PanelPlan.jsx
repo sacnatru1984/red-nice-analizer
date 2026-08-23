@@ -11,7 +11,7 @@ function useExternal(name) {
   return v
 }
 
-function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD }) {
+function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD, preselectEin }) {
   ;({ getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, frontalGenera, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport } = window)
   const PanelGenealogia = useExternal('PanelGenealogia')
   const isMobile = useIsMobile()
@@ -26,11 +26,16 @@ function PanelPlan({ afiliados, tc, volBase, setVolBase, umbralUSD, setUmbralUSD
   const limpiar = () => { setSel(null); setQ(''); setDrop(false) }
   const hasData = afiliados.length > 0
   useEffect(() => {
-    if (hasData && !sel) {
+    if (!hasData) return
+    if (preselectEin) {
+      const p = afiliados.find(a => a.ein === preselectEin)
+      if (p) { elegir(p); return }
+    }
+    if (!sel) {
       const yo = afiliados.find(a => a.gen === 0) || afiliados[0]
       if (yo) { setSel(yo); setQ(yo.nombre) }
     }
-  }, [hasData])
+  }, [hasData, preselectEin])
 
   const esUnoMismo = !!(sel && sel.gen === 0)
   const nombreCorto = sel ? sel.nombre.split(' ').slice(0, 2).join(' ') : ''
