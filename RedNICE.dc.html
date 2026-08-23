@@ -209,6 +209,58 @@
     @media (max-width: 480px) {
       .rn-stats-grid { grid-template-columns: 1fr; }
     }
+
+    /* Slider arrastrable de "meta de puntos" (cheque simulado) */
+    .rn-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 20px;
+      background: transparent;
+      cursor: pointer;
+      margin: 0;
+    }
+    .rn-slider::-webkit-slider-runnable-track {
+      height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(to right, var(--win-gold) 0%, var(--win-gold) calc(var(--rn-slider-pct, 0%)), var(--win-surface) calc(var(--rn-slider-pct, 0%)), var(--win-surface) 100%);
+      border: 1px solid var(--win-border);
+    }
+    .rn-slider::-moz-range-track {
+      height: 10px;
+      border-radius: 5px;
+      background: var(--win-surface);
+      border: 1px solid var(--win-border);
+    }
+    .rn-slider::-moz-range-progress {
+      height: 10px;
+      border-radius: 5px 0 0 5px;
+      background: var(--win-gold);
+    }
+    .rn-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #fff;
+      border: 3px solid var(--win-gold);
+      box-shadow: 0 2px 6px rgba(0,0,0,.35);
+      margin-top: -6px;
+      cursor: grab;
+    }
+    .rn-slider::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #fff;
+      border: 3px solid var(--win-gold);
+      box-shadow: 0 2px 6px rgba(0,0,0,.35);
+      cursor: grab;
+    }
+    .rn-slider:active::-webkit-slider-thumb { cursor: grabbing; }
+    .rn-slider.rn-slider-full::-webkit-slider-thumb { border-color: var(--win-green); }
+    .rn-slider.rn-slider-full::-moz-range-thumb { border-color: var(--win-green); }
+    .rn-slider.rn-slider-full::-moz-range-progress { background: var(--win-green); }
   </style>
 </helmet>
 <div style="width:100vw;height:100vh;overflow:hidden">
