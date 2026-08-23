@@ -1461,6 +1461,16 @@ function ChequeModal({ afiliados, onClose }) {
                 </button>
               )}
             </div>
+            <div style={{ width: '100%' }}>
+              <div style={{ height: 10, background: 'var(--win-surface)', borderRadius: 5, overflow: 'hidden', border: '1px solid var(--win-border)' }}>
+                <div style={{ width: Math.min(100, (meta / 2000) * 100) + '%', height: '100%', background: meta >= 2000 ? 'var(--win-green)' : 'var(--win-gold)', borderRadius: 4, transition: '.3s ease' }}/>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10.5, color: 'var(--win-muted)' }}>
+                <span>0</span>
+                <span style={{ fontWeight: 700, color: meta >= 2000 ? 'var(--win-green)' : 'var(--win-text)' }}>{meta.toLocaleString()} de 2,000 pts</span>
+                <span>2,000</span>
+              </div>
+            </div>
           </div>
 
           {/* Cheque visual */}
