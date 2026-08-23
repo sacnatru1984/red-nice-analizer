@@ -392,17 +392,25 @@ const HEADER_MAP = {
 
 function buildHeaderIndex(headerRow) {
   const idx = {}
-  headerRow.forEach((cell, i) => {
-    const n = norm(cell)
-    if (!n) return
-    for (const [key, synonyms] of Object.entries(HEADER_MAP)) {
-      if (idx[key] != null) continue
-      if (synonyms.some(syn => n === syn || n.includes(syn))) {
-        idx[key] = i
-        break
-      }
+  const normed = headerRow.map(norm)
+  const used = new Set()
+  const entries = Object.entries(HEADER_MAP)
+  // Pasada 1: solo coincidencias exactas (evita que "Rango venta" se confunda con "Rango"
+  // si el orden de columnas cambia entre exportaciones de NICE).
+  for (const [key, synonyms] of entries) {
+    for (let i = 0; i < normed.length; i++) {
+      if (used.has(i) || !normed[i]) continue
+      if (synonyms.includes(normed[i])) { idx[key] = i; used.add(i); break }
     }
-  })
+  }
+  // Pasada 2: coincidencias parciales para las claves que quedaron sin columna.
+  for (const [key, synonyms] of entries) {
+    if (idx[key] != null) continue
+    for (let i = 0; i < normed.length; i++) {
+      if (used.has(i) || !normed[i]) continue
+      if (synonyms.some(syn => normed[i].includes(syn))) { idx[key] = i; used.add(i); break }
+    }
+  }
   return idx
 }
 
