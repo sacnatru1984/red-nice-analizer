@@ -1874,18 +1874,48 @@ async function exportBaseDatosExcel(afiliados) {
   setTimeout(() => URL.revokeObjectURL(url), 4000)
 }
 
+// Orden jerárquico de rangos (de menor a mayor) para poder ordenar las columnas
+// "Rango" / "Rango venta" por jerarquía real, no alfabéticamente.
+const RANGO_ORDEN = RANGOS.map(r => r.id)
+function valorOrdenCol(a, key) {
+  if (key === 'rango' || key === 'rangoVenta') return RANGO_ORDEN.indexOf(getRango(a[key]).id)
+  if (key === 'gen' || key === 'pp' || key === 'pg' || key === 'pnd') return Number(a[key]) || 0
+  if (key === 'fechaContrato' || key === 'fechaRegistro') {
+    const v = a[key]
+    if (v instanceof Date) return v.getTime()
+    if (typeof v === 'number') return v
+    const d = new Date(v)
+    return isNaN(d.getTime()) ? 0 : d.getTime()
+  }
+  return (a[key] ?? '').toString().toLowerCase()
+}
+
 function BaseDatosModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [exportando, setExportando] = useState(false)
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('desc')
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
 
   const filtrados = q.trim()
     ? afiliados.filter(a => (a.nombre || '').toLowerCase().includes(q.toLowerCase()) || (a.ein || '').toLowerCase().includes(q.toLowerCase()))
     : afiliados
+  const ordenados = sortKey
+    ? [...filtrados].sort((a, b) => {
+        const va = valorOrdenCol(a, sortKey), vb = valorOrdenCol(b, sortKey)
+        if (va < vb) return sortDir === 'asc' ? -1 : 1
+        if (va > vb) return sortDir === 'asc' ? 1 : -1
+        return 0
+      })
+    : filtrados
 
   const descargar = async () => {
     setExportando(true)
-    try { await exportBaseDatosExcel(filtrados) } finally { setExportando(false) }
+    try { await exportBaseDatosExcel(ordenados) } finally { setExportando(false) }
   }
 
   return (
@@ -1909,12 +1939,14 @@ function BaseDatosModal({ afiliados, onClose }) {
             <thead>
               <tr style={{ position: 'sticky', top: 0, background: 'var(--win-surface2)', zIndex: 1 }}>
                 {BASE_DATOS_COLS.map(c => (
-                  <th key={c.key} style={{ padding: '10px 12px', textAlign: c.align || 'left', fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--win-muted)', borderBottom: '1px solid var(--win-border)', whiteSpace: 'nowrap' }}>{c.label}</th>
+                  <th key={c.key} onClick={() => toggleSort(c.key)} style={{ padding: '10px 12px', textAlign: c.align || 'left', fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: sortKey === c.key ? 'var(--win-accent)' : 'var(--win-muted)', borderBottom: '1px solid var(--win-border)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                    {c.label} <span style={{ fontSize: 9, opacity: sortKey === c.key ? 1 : .35 }}>{sortKey === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((a, i) => {
+              {ordenados.map((a, i) => {
                 const r = getRango(a.rango)
                 return (
                   <tr key={a.ein || i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}>
