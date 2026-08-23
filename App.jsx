@@ -115,6 +115,16 @@ function getPotencialEquipo(afiliado) {
   return potencial
 }
 
+// Meta de Ventas: escalera de esfuerzo personal (Oro Experto → Platino, ver
+// plan de carrera NICE), basada en el campo "Rango venta" del Excel — es un
+// eje independiente del rango de equipo/red que se muestra como "Meta".
+function getSiguienteRangoVenta(afiliado) {
+  const rv = getRango(afiliado.rangoVenta)
+  const idx = ORDEN_PERSONAL.indexOf(rv.id)
+  if (idx < 0) return RANGOS.find(r => r.id === 'ORO_EXPERTO')
+  return idx < ORDEN_PERSONAL.length - 1 ? RANGOS.find(r => r.id === ORDEN_PERSONAL[idx + 1]) : null
+}
+
 function getProgresoPct(afiliado, siguiente) {
   if (!siguiente) return 100
   const pp = afiliado.pp || 0
@@ -2921,4 +2931,6 @@ function App() {
 window.exportAffiliateReport = exportAffiliateReport
 window.exportTreeReport = exportTreeReport
 window.getPotencialEquipo = getPotencialEquipo
+window.getSiguienteRangoVenta = getSiguienteRangoVenta
+window.esOroPlus = esOroPlus
 window.App = App

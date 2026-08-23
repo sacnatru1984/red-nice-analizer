@@ -1,8 +1,8 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
-let getRango, getSiguienteRangoObjetivo, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport
+let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus
 
 function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
-  ;({ getRango, getSiguienteRangoObjetivo, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport } = window)
+  ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
@@ -34,6 +34,16 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   const pasos = sel ? getPlanAccion(sel, sig, afiliados, tc, umbralUSD) : []
   const potencial = sel ? getPotencialEquipo(sel) : null
   const tienePotencialExtra = potencial && (!sig || potencial.id !== sig.id)
+
+  // Meta de Ventas: escalera de esfuerzo personal (independiente del rango de equipo),
+  // solo aplica una vez que el afiliado ya es Oro+ (así lo define el plan de carrera).
+  const sigVenta = sel && esOroPlus(sel) ? getSiguienteRangoVenta(sel) : null
+  const pctVenta = sel && sigVenta ? getProgresoPct(sel, sigVenta) : 0
+  const rVenta = sel ? getRango(sel.rangoVenta) : null
+
+  // Frontales Oro directos: para que Isaac (o quien esté viendo el plan) sepa
+  // exactamente con quién trabajar y cuál es el siguiente reto de cada uno.
+  const frontalesOroDirectos = sel ? afiliados.filter(a => a.einPresentador === sel.ein && esOroPlus(a)) : []
 
   // Riesgo de EIN inactivo: la regla NICE exige mínimo 1,000 PP en 12 meses o se
   // pierde la red, los descuentos y el rango. Solo se puede evaluar con los
@@ -209,6 +219,24 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
               )}
             </div>
 
+            {/* ── Meta de Ventas (esfuerzo personal, independiente del rango de equipo) ── */}
+            {sigVenta && (
+              <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--win-title)' }}>{esUnoMismo ? 'Tu meta de ventas' : `Meta de ventas de ${nombreCorto}`}: {sigVenta.label}</span>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: pctVenta >= 100 ? 'var(--win-green)' : 'var(--win-accent)' }}>{pctVenta}%</span>
+                </div>
+                <div style={{ padding: '14px 16px' }}>
+                  <div style={{ height: 10, background: 'var(--win-surface2)', borderRadius: 5, overflow: 'hidden', border: '1px solid var(--win-border)', marginBottom: 8 }}>
+                    <div style={{ width: pctVenta + '%', height: '100%', background: pctVenta >= 100 ? 'var(--win-green)' : 'var(--win-accent)', borderRadius: 4, transition: '.6s ease' }}/>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--win-muted)' }}>
+                    Rango de ventas actual: <b style={{ color: 'var(--win-text)' }}>{rVenta?.label || 'Sin Descuento'}</b> · {sel.pp.toLocaleString()} de {sigVenta.ppReq.toLocaleString()} PP este mes (se pide sostenerlo 3 meses consecutivos)
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── Plan de acción (único, viene de getPlanAccion) ── */}
             {pasos.length > 0 && (
               <div style={{ borderRadius: 10, overflow: 'hidden', marginBottom: 12, border: '1px solid var(--win-border)', boxShadow: '0 1px 3px rgba(0,0,0,.08)' }}>
@@ -332,6 +360,34 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── Tus Oro activos: con quién trabajar y cuál es su siguiente reto ── */}
+            {frontalesOroDirectos.length > 0 && (
+              <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--win-title)' }}>{pos.el} Oro activos — trabaja con ellos para hacer crecer {pos.suyo} red</span>
+                </div>
+                {frontalesOroDirectos.map((f, i) => {
+                  const fr = getRango(f.rango)
+                  const fSig = getSiguienteRangoObjetivo(f)
+                  const fPct = fSig ? getProgresoPct(f, fSig) : 100
+                  return (
+                    <div key={f.ein} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < frontalesOroDirectos.length - 1 ? '1px solid var(--win-border)' : 'none' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: fr.bg, border: `2px solid ${fr.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                        {RANGO_IMG[fr.id] ? <img src={RANGO_IMG[fr.id]} alt='' style={{ width: 24, height: 24, objectFit: 'contain' }} /> : <span style={{ fontSize: 9, fontWeight: 700, color: fr.color }}>{getInitials(f.nombre)}</span>}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.nombre}</div>
+                        <div style={{ fontSize: 11, color: 'var(--win-muted)', marginTop: 2 }}>
+                          {fr.label} · {fSig ? <>Su siguiente reto: <b style={{ color: 'var(--win-text)' }}>{fSig.label}</b> ({fPct}%)</> : 'Ya tiene el rango más alto'}
+                        </div>
+                      </div>
+                      {f.telefono && <a href={waLink(f.telefono)} target='_blank' rel='noopener noreferrer' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 WhatsApp</a>}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
