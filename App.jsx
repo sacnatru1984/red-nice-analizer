@@ -2757,8 +2757,9 @@ function App() {
     })
   }
 
-  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'semana',l:'Mi Semana',I:Icons.Calendar},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
-  // La pestaña 'arbol' se oculta a propósito (no se borra) — sigue en PanelGenealogia.jsx por si se reactiva.
+  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
+  // Las pestañas 'arbol' y 'semana' se ocultan a propósito (no se borran) — 'arbol' sigue en
+  // PanelGenealogia.jsx y 'semana' en PanelSemana.jsx, por si se reactivan más adelante.
   const curTab = TABS.find(t=>t.id===tab)||TABS[0]
   const self = afiliadosCalc[0]
 
