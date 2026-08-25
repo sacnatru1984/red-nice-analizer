@@ -2387,6 +2387,79 @@ function DescuentosPorRed() {
   )
 }
 
+// Ejemplo gráfico: Generación (profundidad fija) vs. Nivel Oro (se corta y reinicia
+// en cada Oro que aparece en la cadena, sin importar cuántas generaciones abarque).
+function GeneracionVsNivel() {
+  const filas = [
+    { nombre: 'IRLANDA', gen: 'Gen 0', esOro: true, raiz: true },
+    { nombre: 'DIANA', gen: 'Gen 1', esOro: false },
+    { nombre: 'ALEJANDRA', gen: 'Gen 2', esOro: false },
+    { nombre: 'VANESSA', gen: 'Gen 3', esOro: true },
+  ]
+  const Persona = ({ f }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: f.esOro ? 'var(--win-gold-l, #FEF7E6)' : 'var(--win-surface2)', border: `2px solid ${f.esOro ? '#C47F17' : 'var(--win-border2)'}` }}>
+        {RANGO_IMG.ORO && f.esOro ? <img src={RANGO_IMG.ORO} alt="Oro" style={{ width: 24, height: 24, objectFit: 'contain' }}/> : <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--win-muted)' }}>{f.nombre.slice(0,2)}</span>}
+      </div>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--win-title)' }}>{f.nombre}{f.raiz ? ' (raíz)' : ''}</div>
+        <div style={{ fontSize: 11, color: f.esOro ? '#C47F17' : 'var(--win-muted)', fontWeight: f.esOro ? 700 : 500 }}>{f.esOro ? 'Rango Oro' : 'No Oro'}</div>
+      </div>
+    </div>
+  )
+  return (
+    <div style={{ ...S.card, marginBottom: 16 }}>
+      <div style={S.cardHeader}>
+        <div><div style={S.cardTitle}>Generación vs. Nivel Oro</div><div style={{ fontSize: 11, color: 'var(--win-muted)', marginTop: 2 }}>Son dos cosas distintas — este ejemplo lo muestra con una cadena real</div></div>
+      </div>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--win-border)', fontSize: 12, color: 'var(--win-text)', lineHeight: 1.65, background: 'var(--win-surface2)' }}>
+        La <b style={{ color: 'var(--win-title)' }}>Generación</b> es fija: cada persona baja un escalón sin importar su rango. El <b style={{ color: 'var(--win-title)' }}>Nivel Oro</b> depende de dónde están los Oro en el camino — puede abarcar varias generaciones seguidas, y se corta en cuanto aparece el siguiente Oro.
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--win-border)', background: 'var(--win-surface2)' }}>
+              {['Persona', 'Generación', 'Nivel Oro'].map(h => (
+                <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, letterSpacing: '.05em', color: 'var(--win-muted)' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
+              <td style={{ padding: '12px 14px' }}><Persona f={filas[0]}/></td>
+              <td style={{ padding: '12px 14px' }}><span style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)' }}>{filas[0].gen}</span></td>
+              <td style={{ padding: '12px 14px', fontSize: 11.5, color: 'var(--win-muted)' }}>— (raíz, no cuenta nivel)</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
+              <td style={{ padding: '12px 14px' }}><Persona f={filas[1]}/></td>
+              <td style={{ padding: '12px 14px' }}><span style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)' }}>{filas[1].gen}</span></td>
+              <td rowSpan={2} style={{ padding: '12px 14px', background: 'var(--win-accent-l)', borderLeft: '3px solid var(--win-accent)', verticalAlign: 'middle' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--win-accent)' }}>Nivel 1 de IRLANDA</div>
+                <div style={{ fontSize: 11, color: 'var(--win-muted)', marginTop: 3, lineHeight: 1.5 }}>Diana + Alejandra — 2 generaciones distintas, pero ninguna es Oro, así que las dos caen en el mismo nivel.</div>
+              </td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
+              <td style={{ padding: '12px 14px' }}><Persona f={filas[2]}/></td>
+              <td style={{ padding: '12px 14px' }}><span style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)' }}>{filas[2].gen}</span></td>
+            </tr>
+            <tr>
+              <td style={{ padding: '12px 14px' }}><Persona f={filas[3]}/></td>
+              <td style={{ padding: '12px 14px' }}><span style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)' }}>{filas[3].gen}</span></td>
+              <td style={{ padding: '12px 14px', background: '#FEF7E6', borderLeft: '3px solid #C47F17' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#C47F17' }}>Corta aquí — inicia Nivel 1 de VANESSA</div>
+                <div style={{ fontSize: 11, color: 'var(--win-muted)', marginTop: 3, lineHeight: 1.5 }}>Vanessa es Oro, así que ella y toda su red hacia abajo ya no cuentan para el Nivel Oro de Irlanda — arrancan su propia cuenta.</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--win-border)', background: 'var(--win-surface2)', fontSize: 11.5, color: 'var(--win-muted)', lineHeight: 1.6 }}>
+        En resumen: la <b style={{ color: 'var(--win-text)' }}>Generación</b> siempre sube de uno en uno. El <b style={{ color: 'var(--win-text)' }}>Nivel Oro</b> solo cambia cuando aparece un nuevo Oro en la cadena — antes de eso, sin importar cuántas generaciones pasen, todas cuentan como un mismo nivel.
+      </div>
+    </div>
+  )
+}
+
 function CertificadoModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
@@ -2595,6 +2668,7 @@ function PanelRangos({ afiliados = [] }) {
       ))}
       <ReembolsosDiferencial/>
       <DescuentosPorRed/>
+      <GeneracionVsNivel/>
       <FactoresInversion/>
     </div>
   )
