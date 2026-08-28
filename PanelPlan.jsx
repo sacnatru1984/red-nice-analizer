@@ -1,15 +1,17 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
-let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus
+let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro
 
 function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
-  ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus } = window)
+  ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
   const [drop, setDrop] = useState(false)
   const [verTodosInactivos, setVerTodosInactivos] = useState(false)
+  const [lineaExpandida, setLineaExpandida] = useState(null)
+  const [nivelExpandido, setNivelExpandido] = useState(null)
   const res = q.length > 1 ? afiliados.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase()) || a.ein.includes(q)).slice(0, 8) : []
-  const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false); setVerTodosInactivos(false) }
+  const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false); setVerTodosInactivos(false); setLineaExpandida(null); setNivelExpandido(null) }
   const limpiar = () => { setSel(null); setQ(''); setDrop(false) }
   const hasData = afiliados.length > 0
   useEffect(() => {
@@ -40,6 +42,11 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   const sigVenta = sel && esOroPlus(sel) ? getSiguienteRangoVenta(sel) : null
   const pctVenta = sel && sigVenta ? getProgresoPct(sel, sigVenta) : 0
   const rVenta = sel ? getRango(sel.rangoVenta) : null
+
+  // Líneas de Oro: cada frontal Oro directo se analiza por separado (su propio
+  // Nivel 1-3, con su propio % según sus puntos), para ver cuál línea ya llega
+  // a los $200 USD y cuál conviene apoyar primero.
+  const lineasOro = sel && esOroPlus(sel) ? calcularLineasOro(sel, afiliados, tc, umbralUSD) : null
 
   // Frontales Oro directos: para que Isaac (o quien esté viendo el plan) sepa
   // exactamente con quién trabajar y cuál es el siguiente reto de cada uno.
@@ -236,6 +243,157 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                 </div>
               </div>
             )}
+
+            {/* ── Líneas de Oro: cada frontal Oro directo, analizado por separado ── */}
+            {lineasOro && lineasOro.total > 0 && (() => {
+              const fMXN = v => '$' + Math.round(v).toLocaleString('es-MX')
+              const fUSD = v => 'USD $' + v.toFixed(2)
+              // Recomendación: de las líneas que aún no llegan a $200, ¿en cuál
+              // conviene enfocar el apoyo y quién es su pieza clave? (mismo análisis
+              // que se hace a mano para cualquier afiliado — aquí generalizado).
+              const sinCerrar = lineasOro.lineas.filter(l => !l.cumple200)
+              const mejorAportante = (l) => {
+                let top = null
+                for (const n of l.niveles) for (const p of n.detalle) { if (p.valorMXN > 0 && (!top || p.valorMXN > top.valorMXN)) top = p }
+                return top
+              }
+              return (
+                <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 12, overflow: 'hidden' }}>
+                  <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                    <div>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--win-title)' }}>Líneas de Oro — ¿cuáles llegan a $200 USD?</span>
+                      <div style={{ fontSize: 11, color: 'var(--win-muted)', marginTop: 2 }}>Cada frontal Oro cuenta como su propia línea, con su propio Nivel 1-3</div>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20, background: lineasOro.calificando > 0 ? 'var(--win-green-l)' : 'var(--win-red-l)', color: lineasOro.calificando > 0 ? 'var(--win-green)' : 'var(--win-red)', whiteSpace: 'nowrap' }}>
+                      {lineasOro.calificando} de {lineasOro.total} líneas califican
+                    </span>
+                  </div>
+
+                  {lineasOro.lineas.map(linea => {
+                    const abierta = lineaExpandida === linea.frontal.ein
+                    const fr = getRango(linea.frontal.rango)
+                    const pctBarra = Math.min(100, Math.round(linea.usd / (umbralUSD || 200) * 100))
+                    return (
+                      <div key={linea.frontal.ein} style={{ borderBottom: '1px solid var(--win-border)' }}>
+                        <div onClick={() => setLineaExpandida(abierta ? null : linea.frontal.ein)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer' }}>
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: fr.bg, border: `2px solid ${fr.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                            {RANGO_IMG[fr.id] ? <img src={RANGO_IMG[fr.id]} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }}/> : <span style={{ fontSize: 10, fontWeight: 700, color: fr.color }}>{getInitials(linea.frontal.nombre)}</span>}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{linea.frontal.nombre} <span style={{ fontSize: 10, color: 'var(--win-accent)', fontWeight: 600 }}>{abierta ? '▾ ocultar' : '▸ ver detalle'}</span></div>
+                            <div style={{ height: 5, background: 'var(--win-surface2)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--win-border)', marginTop: 5, maxWidth: 220 }}>
+                              <div style={{ width: pctBarra + '%', height: '100%', background: linea.cumple200 ? 'var(--win-green)' : 'var(--win-gold)' }}/>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: linea.cumple200 ? 'var(--win-green)' : 'var(--win-title)' }}>{fUSD(linea.usd)}</div>
+                            <div style={{ fontSize: 10.5, color: linea.cumple200 ? 'var(--win-green)' : 'var(--win-muted)', fontWeight: 600 }}>{linea.cumple200 ? '✓ Califica' : `faltan ${fUSD(Math.max(0, (umbralUSD || 200) - linea.usd))}`}</div>
+                          </div>
+                        </div>
+
+                        {abierta && (
+                          <div style={{ padding: '0 16px 14px' }}>
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 420 }}>
+                                <thead>
+                                  <tr style={{ background: 'var(--win-surface2)' }}>
+                                    {['Nivel', 'Personas', 'Puntos', '%', 'Valor MXN'].map(h => (
+                                      <th key={h} style={{ padding: '6px 10px', textAlign: h === 'Nivel' || h === 'Personas' ? 'left' : 'right', fontSize: 10, fontWeight: 700, letterSpacing: '.05em', color: 'var(--win-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--win-border)' }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {linea.niveles.map(n => {
+                                    const key = linea.frontal.ein + '-' + n.nivel
+                                    const nivelAbierto = nivelExpandido === key
+                                    const expandible = n.personas > 0 || n.fronteraDetalle.length > 0
+                                    return (
+                                      <React.Fragment key={n.nivel}>
+                                        <tr onClick={() => expandible && setNivelExpandido(nivelAbierto ? null : key)} style={{ borderBottom: nivelAbierto ? 'none' : '1px solid var(--win-border)', cursor: expandible ? 'pointer' : 'default' }}>
+                                          <td style={{ padding: '7px 10px', fontWeight: 600, color: 'var(--win-title)' }}>
+                                            Nivel {n.nivel}{expandible && <span style={{ marginLeft: 6, fontSize: 9.5, color: 'var(--win-accent)' }}>{nivelAbierto ? '▾' : '▸ nombres'}</span>}
+                                          </td>
+                                          <td style={{ padding: '7px 10px', color: 'var(--win-text)' }}>{n.personas}</td>
+                                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-gold)', fontWeight: 600 }}>{n.puntos.toLocaleString()}</td>
+                                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-muted)' }}>{(n.pct * 100).toFixed(0)}%</td>
+                                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#16A34A' }}>{fMXN(n.mxn)}</td>
+                                        </tr>
+                                        {nivelAbierto && (
+                                          <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
+                                            <td colSpan={5} style={{ padding: 0, background: 'var(--win-surface2)' }}>
+                                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                                <thead>
+                                                  <tr>
+                                                    {['Nombre', 'Rango', 'PP', 'Valor/pto', 'Aporte MXN'].map(h => (
+                                                      <th key={h} style={{ padding: '4px 8px 4px 22px', textAlign: h === 'Nombre' || h === 'Rango' ? 'left' : 'right', fontSize: 9, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</th>
+                                                    ))}
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {n.detalle.map(p => (
+                                                    <tr key={p.ein}>
+                                                      <td style={{ padding: '4px 8px 4px 22px', color: 'var(--win-title)', fontWeight: 500 }}>{p.nombre}</td>
+                                                      <td style={{ padding: '4px 8px', color: 'var(--win-muted)' }}>{p.rango || '—'}</td>
+                                                      <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--win-text)' }}>{p.pp.toLocaleString()}</td>
+                                                      <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--win-muted)' }}>${p.valorPunto.toFixed(2)}</td>
+                                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: p.valorMXN > 0 ? '#16A34A' : 'var(--win-muted)' }}>{fMXN(p.valorMXN)}</td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                              {n.fronteraDetalle.length > 0 && (
+                                                <div style={{ padding: '8px 8px 8px 22px', borderTop: '1px solid var(--win-border)', background: '#FEF7E6' }}>
+                                                  <div style={{ fontSize: 9.5, fontWeight: 700, color: '#C47F17', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>
+                                                    Ya son Oro — no suman aquí, inician el Nivel {n.nivel + 1}
+                                                  </div>
+                                                  {n.fronteraDetalle.map(p => (
+                                                    <div key={p.ein} style={{ fontSize: 11, color: 'var(--win-text)', padding: '2px 0' }}>{p.nombre} <span style={{ color: 'var(--win-muted)' }}>· {p.rango}</span></div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11 }}>
+                              <span style={{ color: 'var(--win-muted)' }}>Total: <b style={{ color: 'var(--win-title)' }}>{fMXN(linea.totalMXN)}</b></span>
+                              <span style={{ color: 'var(--win-muted)' }}>IVA (16%): <b style={{ color: 'var(--win-title)' }}>-{fMXN(linea.ivaMXN)}</b></span>
+                              <span style={{ color: 'var(--win-muted)' }}>Neto: <b style={{ color: 'var(--win-title)' }}>{fMXN(linea.netoMXN)}</b></span>
+                              <span style={{ color: 'var(--win-muted)' }}>% según {linea.frontal.nombre.split(' ')[0]}: <b style={{ color: 'var(--win-title)' }}>{linea.propios.toLocaleString()} pts propios</b></span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {sinCerrar.length > 0 && (
+                    <div style={{ margin: '2px 16px 14px', padding: '12px 14px', borderRadius: 8, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)40' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-title)', marginBottom: 6 }}>🎯 En qué enfocarte primero</div>
+                      {sinCerrar.slice(0, 2).map((l, i) => {
+                        const mc = mejorAportante(l)
+                        const nombreLinea = l.frontal.nombre.split(' ').slice(0, 2).join(' ')
+                        return (
+                          <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 6 : 0 }}>
+                            <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de $200 (faltan {fUSD(Math.max(0, (umbralUSD || 200) - l.usd))}).
+                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, deja de contar aquí (pasa a cuenta aparte).</>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ padding: '10px 16px', fontSize: 10.5, color: 'var(--win-muted)', lineHeight: 1.5 }}>
+                    Cada línea usa el % (5%/4%/4%) según los <b style={{ color: 'var(--win-text)' }}>puntos propios de ese frontal</b>, no los de {nombreCorto}. 1 línea calificando = Oro Ejecutivo · 2 = Oro Senior · 3 = Oro Master.
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* ── Plan de acción (único, viene de getPlanAccion) ── */}
             {pasos.length > 0 && (

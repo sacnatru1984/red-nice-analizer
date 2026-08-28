@@ -234,6 +234,78 @@ function simularChequeDR(self, afiliados, metaPropios) {
   return { propios, propiosReales, califica, tramoMin: tramo.min, niveles, totalMXN }
 }
 
+// ── Reembolso por Diferencial usando Nivel Oro REAL (no generación fija) ──
+// Nivel 1 = descendientes no-Oro hasta toparse con el primer Oro en cada rama.
+// Nivel 2 = descendientes no-Oro de ESOS Oro (su propio "Nivel 1"), y así
+// sucesivamente — el nivel avanza cada vez que la cadena cruza un Oro, sin
+// importar cuántas generaciones haya abarcado el nivel anterior.
+const IVA = 0.16
+function nivelesOroReales(self, childrenByEin, maxNiveles) {
+  const porNivel = []
+  let frontera = [self]
+  for (let n = 1; n <= maxNiveles && frontera.length; n++) {
+    const gente = []
+    const siguienteFrontera = []
+    for (const raiz of frontera) {
+      const stack = [...(childrenByEin[raiz.ein] || [])]
+      while (stack.length) {
+        const m = stack.pop()
+        if (esOroPlus(m)) { siguienteFrontera.push(m); continue }
+        gente.push(m)
+        for (const c of (childrenByEin[m.ein] || [])) stack.push(c)
+      }
+    }
+    // La "frontera" (Oro encontrados) no suma puntos aquí — son quienes
+    // inician el siguiente nivel. Se guardan para mostrarlos igual, con nota.
+    porNivel.push({ gente, fronteraOro: siguienteFrontera })
+    frontera = siguienteFrontera
+  }
+  return porNivel
+}
+// Calcula si `self` genera los $200 USD de Reembolso por Diferencial, usando
+// Nivel Oro real (hasta Nivel 3) y el % de la tabla oficial de Descuentos por
+// Red según los PP+PG propios de `self`.
+function calcularReembolsoNivelOro(self, afiliados, tc, umbral) {
+  const childrenByEin = {}
+  afiliados.forEach(a => { if (a.einPresentador) (childrenByEin[a.einPresentador] = childrenByEin[a.einPresentador] || []).push(a) })
+  const propios = (self.pp || 0) + (self.pg || 0)
+  const tramo = DR_TRAMOS.find(t => propios >= t.min)
+  const califica = esOroPlus(self)
+  const porNivel = nivelesOroReales(self, childrenByEin, 3)
+  const niveles = [1, 2, 3].map(n => {
+    const { gente, fronteraOro } = porNivel[n - 1] || { gente: [], fronteraOro: [] }
+    const puntos = gente.reduce((s, a) => s + (a.pp || 0), 0)
+    const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
+    const detalle = gente.map(a => {
+      const rangoId = getRango(a.rango).id
+      const valorPunto = valorPuntoDe(rangoId)
+      const valorMXN = (a.pp || 0) * valorPunto * pct
+      return { nombre: a.nombre, ein: a.ein, rango: a.rango, pp: a.pp || 0, valorPunto, valorMXN }
+    }).sort((x, y) => y.valorMXN - x.valorMXN)
+    const fronteraDetalle = fronteraOro.map(a => ({ nombre: a.nombre, ein: a.ein, rango: a.rango }))
+    const valorBruto = gente.reduce((s, a) => s + (a.pp || 0) * valorPuntoDe(getRango(a.rango).id), 0)
+    return { nivel: n, personas: gente.length, puntos, pct, mxn: valorBruto * pct, detalle, fronteraDetalle }
+  })
+  const totalMXN = niveles.reduce((s, n) => s + n.mxn, 0)
+  const ivaMXN = totalMXN * IVA
+  const netoMXN = totalMXN - ivaMXN
+  const t = tc || TC_FALLBACK
+  const usd = netoMXN / t
+  return { niveles, totalMXN, ivaMXN, netoMXN, usd, tc: t, propios, califica, cumple200: usd >= (umbral || UMBRAL_DESC_USD) }
+}
+
+// Analiza cada línea (frontal Oro directo) de `lider` por separado — cada línea
+// usa los PUNTOS PROPIOS de ESE frontal (no los de lider) para su % de nivel.
+// Ordenadas de más a menos fuerte (USD), para saber en cuál enfocar el apoyo.
+function calcularLineasOro(lider, afiliados, tc, umbral) {
+  const frontalesOro = afiliados.filter(a => a.einPresentador === lider.ein && esOroPlus(a))
+  const lineas = frontalesOro
+    .map(f => ({ frontal: f, ...calcularReembolsoNivelOro(f, afiliados, tc, umbral) }))
+    .sort((a, b) => b.usd - a.usd)
+  const calificando = lineas.filter(l => l.cumple200).length
+  return { lineas, calificando, total: lineas.length }
+}
+
 function computeFrontalesOro(afiliados, tc, volBase, umbral) {
   enrichDescRed(afiliados, volBase)
   const childrenOf = {}
@@ -3239,4 +3311,6 @@ window.exportTreeReport = exportTreeReport
 window.getPotencialEquipo = getPotencialEquipo
 window.getSiguienteRangoVenta = getSiguienteRangoVenta
 window.esOroPlus = esOroPlus
+window.calcularReembolsoNivelOro = calcularReembolsoNivelOro
+window.calcularLineasOro = calcularLineasOro
 window.App = App
