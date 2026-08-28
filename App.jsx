@@ -240,19 +240,24 @@ function simularChequeDR(self, afiliados, metaPropios) {
 // sucesivamente — el nivel avanza cada vez que la cadena cruza un Oro, sin
 // importar cuántas generaciones haya abarcado el nivel anterior.
 const IVA = 0.16
+// Cada persona arrastra `piernaRaiz` = el hijo DIRECTO de `self` (Nivel 1,
+// Gen.1) por el que se llegó a ella — así se puede desglosar cualquier nivel
+// por pierna, en vez de una suma plana. Se hereda al bajar de generación y
+// también al cruzar un Oro (esa pierna sigue siendo la misma para self,
+// aunque para el propio Oro cruzado sea "su" Nivel 1 en un cálculo aparte).
 function nivelesOroReales(self, childrenByEin, maxNiveles) {
   const porNivel = []
-  let frontera = [self]
+  let frontera = [{ nodo: self, piernaRaiz: null }]
   for (let n = 1; n <= maxNiveles && frontera.length; n++) {
     const gente = []
     const siguienteFrontera = []
-    for (const raiz of frontera) {
-      const stack = [...(childrenByEin[raiz.ein] || [])]
+    for (const { nodo: raiz, piernaRaiz: heredada } of frontera) {
+      const stack = (childrenByEin[raiz.ein] || []).map(h => ({ nodo: h, piernaRaiz: heredada || h }))
       while (stack.length) {
-        const m = stack.pop()
-        if (esOroPlus(m)) { siguienteFrontera.push(m); continue }
-        gente.push(m)
-        for (const c of (childrenByEin[m.ein] || [])) stack.push(c)
+        const { nodo: m, piernaRaiz } = stack.pop()
+        if (esOroPlus(m)) { siguienteFrontera.push({ nodo: m, piernaRaiz }); continue }
+        gente.push({ nodo: m, piernaRaiz })
+        for (const c of (childrenByEin[m.ein] || [])) stack.push({ nodo: c, piernaRaiz })
       }
     }
     // La "frontera" (Oro encontrados) no suma puntos aquí — son quienes
@@ -274,16 +279,16 @@ function calcularReembolsoNivelOro(self, afiliados, tc, umbral) {
   const porNivel = nivelesOroReales(self, childrenByEin, 3)
   const niveles = [1, 2, 3].map(n => {
     const { gente, fronteraOro } = porNivel[n - 1] || { gente: [], fronteraOro: [] }
-    const puntos = gente.reduce((s, a) => s + (a.pp || 0), 0)
+    const puntos = gente.reduce((s, { nodo: a }) => s + (a.pp || 0), 0)
     const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    const detalle = gente.map(a => {
+    const detalle = gente.map(({ nodo: a, piernaRaiz }) => {
       const rangoId = getRango(a.rango).id
       const valorPunto = valorPuntoDe(rangoId)
       const valorMXN = (a.pp || 0) * valorPunto * pct
-      return { nombre: a.nombre, ein: a.ein, rango: a.rango, pp: a.pp || 0, valorPunto, valorMXN }
+      return { nombre: a.nombre, ein: a.ein, rango: a.rango, pp: a.pp || 0, valorPunto, valorMXN, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }
     }).sort((x, y) => y.valorMXN - x.valorMXN)
-    const fronteraDetalle = fronteraOro.map(a => ({ nombre: a.nombre, ein: a.ein, rango: a.rango }))
-    const valorBruto = gente.reduce((s, a) => s + (a.pp || 0) * valorPuntoDe(getRango(a.rango).id), 0)
+    const fronteraDetalle = fronteraOro.map(({ nodo: a, piernaRaiz }) => ({ nombre: a.nombre, ein: a.ein, rango: a.rango, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }))
+    const valorBruto = gente.reduce((s, { nodo: a }) => s + (a.pp || 0) * valorPuntoDe(getRango(a.rango).id), 0)
     return { nivel: n, personas: gente.length, puntos, pct, mxn: valorBruto * pct, detalle, fronteraDetalle }
   })
   const totalMXN = niveles.reduce((s, n) => s + n.mxn, 0)

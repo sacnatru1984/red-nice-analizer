@@ -336,42 +336,71 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                                           <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-muted)' }}>{(n.pct * 100).toFixed(0)}%</td>
                                           <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#16A34A' }}>{fMXN(n.mxn)}</td>
                                         </tr>
-                                        {nivelAbierto && (
-                                          <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
-                                            <td colSpan={5} style={{ padding: 0, background: 'var(--win-surface2)' }}>
-                                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                                                <thead>
-                                                  <tr>
-                                                    {['Nombre', 'Rango', 'PP', 'Valor/pto', 'Aporte MXN'].map(h => (
-                                                      <th key={h} style={{ padding: '4px 8px 4px 22px', textAlign: h === 'Nombre' || h === 'Rango' ? 'left' : 'right', fontSize: 9, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</th>
-                                                    ))}
-                                                  </tr>
-                                                </thead>
-                                                <tbody>
-                                                  {n.detalle.map(p => (
-                                                    <tr key={p.ein}>
-                                                      <td style={{ padding: '4px 8px 4px 22px', color: 'var(--win-title)', fontWeight: 500 }}>{p.nombre}</td>
-                                                      <td style={{ padding: '4px 8px', color: 'var(--win-muted)' }}>{p.rango || '—'}</td>
-                                                      <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--win-text)' }}>{p.pp.toLocaleString()}</td>
-                                                      <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--win-muted)' }}>${p.valorPunto.toFixed(2)}</td>
-                                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: p.valorMXN > 0 ? '#16A34A' : 'var(--win-muted)' }}>{fMXN(p.valorMXN)}</td>
-                                                    </tr>
-                                                  ))}
-                                                </tbody>
-                                              </table>
-                                              {n.fronteraDetalle.length > 0 && (
-                                                <div style={{ padding: '8px 8px 8px 22px', borderTop: '1px solid var(--win-border)', background: '#FEF7E6' }}>
-                                                  <div style={{ fontSize: 9.5, fontWeight: 700, color: '#C47F17', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>
-                                                    Ya son Oro — no suman aquí, inician el Nivel {n.nivel + 1}
-                                                  </div>
-                                                  {n.fronteraDetalle.map(p => (
-                                                    <div key={p.ein} style={{ fontSize: 11, color: 'var(--win-text)', padding: '2px 0' }}>{p.nombre} <span style={{ color: 'var(--win-muted)' }}>· {p.rango}</span></div>
-                                                  ))}
-                                                </div>
-                                              )}
-                                            </td>
-                                          </tr>
-                                        )}
+                                        {nivelAbierto && (() => {
+                                          // Agrupa el detalle de este nivel por PIERNA (el hijo directo del
+                                          // frontal por el que se llegó a cada persona) — así se ve cuál rama
+                                          // sostiene el nivel, en vez de una lista plana de nombres sumados.
+                                          const porPierna = {}
+                                          n.detalle.forEach(p => {
+                                            const g = (porPierna[p.piernaEin] = porPierna[p.piernaEin] || { pierna: p.pierna, piernaEin: p.piernaEin, personas: [], subtotalMXN: 0 })
+                                            g.personas.push(p); g.subtotalMXN += p.valorMXN
+                                          })
+                                          const fronteraPorPierna = {}
+                                          n.fronteraDetalle.forEach(p => { (fronteraPorPierna[p.piernaEin] = fronteraPorPierna[p.piernaEin] || []).push(p) })
+                                          const piernasEin = [...new Set([...Object.keys(porPierna), ...Object.keys(fronteraPorPierna)])]
+                                            .sort((a, b) => (porPierna[b]?.subtotalMXN || 0) - (porPierna[a]?.subtotalMXN || 0))
+                                          return (
+                                            <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
+                                              <td colSpan={5} style={{ padding: 0, background: 'var(--win-surface2)' }}>
+                                                {piernasEin.map(ein => {
+                                                  const g = porPierna[ein]
+                                                  const oroDeEsta = fronteraPorPierna[ein]
+                                                  const piernaNombre = g ? g.pierna : oroDeEsta[0].pierna
+                                                  return (
+                                                    <div key={ein} style={{ borderBottom: '1px solid var(--win-border)' }}>
+                                                      <div style={{ padding: '6px 10px 6px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--win-surface)' }}>
+                                                        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--win-accent)' }}>Pierna: {piernaNombre}</span>
+                                                        {g && <span style={{ fontSize: 10.5, fontWeight: 600, color: '#16A34A' }}>{fMXN(g.subtotalMXN)}</span>}
+                                                      </div>
+                                                      {g && (
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                                          <thead>
+                                                            <tr>
+                                                              {['Nombre', 'Rango', 'PP', 'Valor/pto', 'Aporte MXN'].map(h => (
+                                                                <th key={h} style={{ padding: '3px 8px 3px 32px', textAlign: h === 'Nombre' || h === 'Rango' ? 'left' : 'right', fontSize: 9, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</th>
+                                                              ))}
+                                                            </tr>
+                                                          </thead>
+                                                          <tbody>
+                                                            {g.personas.map(p => (
+                                                              <tr key={p.ein}>
+                                                                <td style={{ padding: '4px 8px 4px 32px', color: 'var(--win-title)', fontWeight: 500 }}>{p.nombre}</td>
+                                                                <td style={{ padding: '4px 8px', color: 'var(--win-muted)' }}>{p.rango || '—'}</td>
+                                                                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--win-text)' }}>{p.pp.toLocaleString()}</td>
+                                                                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--win-muted)' }}>${p.valorPunto.toFixed(2)}</td>
+                                                                <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: p.valorMXN > 0 ? '#16A34A' : 'var(--win-muted)' }}>{fMXN(p.valorMXN)}</td>
+                                                              </tr>
+                                                            ))}
+                                                          </tbody>
+                                                        </table>
+                                                      )}
+                                                      {oroDeEsta && (
+                                                        <div style={{ padding: '6px 8px 8px 32px', background: '#FEF7E6' }}>
+                                                          <div style={{ fontSize: 9, fontWeight: 700, color: '#C47F17', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>
+                                                            Ya {oroDeEsta.length > 1 ? 'son Oro' : 'es Oro'} en esta pierna — no suma{oroDeEsta.length > 1 ? 'n' : ''} aquí, {oroDeEsta.length > 1 ? 'inician' : 'inicia'} el Nivel {n.nivel + 1}
+                                                          </div>
+                                                          {oroDeEsta.map(p => (
+                                                            <div key={p.ein} style={{ fontSize: 11, color: 'var(--win-text)', padding: '2px 0' }}>{p.nombre} <span style={{ color: 'var(--win-muted)' }}>· {p.rango}</span></div>
+                                                          ))}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )
+                                                })}
+                                              </td>
+                                            </tr>
+                                          )
+                                        })()}
                                       </React.Fragment>
                                     )
                                   })}
