@@ -269,6 +269,24 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                     </span>
                   </div>
 
+                  {sinCerrar.length > 0 && (
+                    <div style={{ margin: '14px 16px', padding: '12px 14px', borderRadius: 8, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)40' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-title)', marginBottom: 6 }}>🎯 En qué enfocarte primero</div>
+                      {sinCerrar.slice(0, 2).map((l, i) => {
+                        const mc = mejorAportante(l)
+                        const nombreLinea = l.frontal.nombre.split(' ').slice(0, 2).join(' ')
+                        return (
+                          <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 6 : 0 }}>
+                            <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de $200 (faltan {fUSD(Math.max(0, (umbralUSD || 200) - l.usd))}).
+                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, deja de contar aquí (pasa a cuenta aparte).</>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Detalle por línea</div>
+
                   {lineasOro.lineas.map(linea => {
                     const abierta = lineaExpandida === linea.frontal.ein
                     const fr = getRango(linea.frontal.rango)
@@ -371,22 +389,6 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                       </div>
                     )
                   })}
-
-                  {sinCerrar.length > 0 && (
-                    <div style={{ margin: '2px 16px 14px', padding: '12px 14px', borderRadius: 8, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)40' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-title)', marginBottom: 6 }}>🎯 En qué enfocarte primero</div>
-                      {sinCerrar.slice(0, 2).map((l, i) => {
-                        const mc = mejorAportante(l)
-                        const nombreLinea = l.frontal.nombre.split(' ').slice(0, 2).join(' ')
-                        return (
-                          <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 6 : 0 }}>
-                            <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de $200 (faltan {fUSD(Math.max(0, (umbralUSD || 200) - l.usd))}).
-                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, deja de contar aquí (pasa a cuenta aparte).</>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
 
                   <div style={{ padding: '10px 16px', fontSize: 10.5, color: 'var(--win-muted)', lineHeight: 1.5 }}>
                     Cada línea usa el % (5%/4%/4%) según los <b style={{ color: 'var(--win-text)' }}>puntos propios de ese frontal</b>, no los de {nombreCorto}. 1 línea calificando = Oro Ejecutivo · 2 = Oro Senior · 3 = Oro Master.
