@@ -1683,10 +1683,61 @@ function PanelMiRed({ afiliados, tc }) {
     }
     return chain
   }
+  // Prioridades de hoy: lo mas urgente de TODA la red (no solo los directos de
+  // self), acotado a pocos items — ataca el problema #1 del negocio (falta de
+  // seguimiento) sin convertirse en una lista de 200 personas.
+  const waLink = tel => `https://wa.me/52${tel.toString().replace(/\D/g, '')}`
+  const oroInactivosRed = afiliados
+    .filter(a => esOroPlus(a) && (a.pp || 0) + (a.pg || 0) === 0)
+    .sort((a, b) => (b.descRedPersonas || 0) - (a.descRedPersonas || 0))
+    .slice(0, 2)
+  const nuevosPorVencerRed = afiliados
+    .map(a => ({ a, dias: diasDesde(a.fechaContrato) }))
+    .filter(x => x.dias !== null && x.dias >= 0 && x.dias <= 15 && (x.a.pp || 0) + (x.a.pg || 0) === 0)
+    .sort((x, y) => y.dias - x.dias)
+    .slice(0, 2)
+  const candidatosOroRed = afiliados
+    .filter(a => !esOroPlus(a) && (a.pp || 0) + (a.pg || 0) > 0)
+    .map(a => ({ a, falta: Math.max(0, 3000 - ((a.pp || 0) + (a.pg || 0))) }))
+    .filter(x => x.falta > 0 && x.falta <= 1000)
+    .sort((x, y) => x.falta - y.falta)
+    .slice(0, 1)
+  const hayPrioridades = oroInactivosRed.length > 0 || nuevosPorVencerRed.length > 0 || candidatosOroRed.length > 0
+  const filaPrioridad = (a, motivo, urgente) => {
+    const rr = getRango(a.rango)
+    return (
+      <div key={a.ein} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--win-border)' }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', background: rr.bg, border: `2px solid ${rr.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+          {RANGO_IMG[rr.id] ? <img src={RANGO_IMG[rr.id]} alt='' style={{ width: 22, height: 22, objectFit: 'contain' }}/> : <span style={{ fontSize: 9, fontWeight: 700, color: rr.color }}>{getInitials(a.nombre)}</span>}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--win-title)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</div>
+          <div style={{ fontSize: 10.5, color: urgente ? '#DC2626' : 'var(--win-muted)', fontWeight: urgente ? 700 : 500 }}>{motivo}</div>
+        </div>
+        {a.telefono && <a href={waLink(a.telefono)} target='_blank' rel='noopener noreferrer' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 WhatsApp</a>}
+      </div>
+    )
+  }
+
   return (
     <div>
       {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
       {showCheque && <ChequeModal afiliados={afiliados} onClose={()=>setShowCheque(false)}/>}
+
+      {hayPrioridades && (
+        <div style={{ ...S.card, marginBottom: 16, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', background: '#FEF2F2' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#991B1B' }}>🔥 Prioridades de hoy</span>
+            <div style={{ fontSize: 11, color: '#991B1B', marginTop: 2, opacity: .85 }}>Lo más urgente de toda tu red — el resto del detalle está en Plan de acción, por persona</div>
+          </div>
+          <div style={{ padding: '4px 16px 2px' }}>
+            {oroInactivosRed.map(a => filaPrioridad(a, `${getRango(a.rango).label} sin movimiento — riesgo de perder rango y red`, true))}
+            {nuevosPorVencerRed.map(({ a, dias }) => filaPrioridad(a, `Día ${dias} de 15 sin activar — se cierra la ventana`, dias >= 12))}
+            {candidatosOroRed.map(({ a, falta }) => filaPrioridad(a, `A ${falta.toLocaleString()} pts de ser Oro`, false))}
+          </div>
+        </div>
+      )}
+
       <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:12}}>
         <button onClick={()=>setShowDB(true)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-accent)',border:'1px solid var(--win-accent)',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
           <div style={{width:15,height:15}}><Icons.Grid/></div>
