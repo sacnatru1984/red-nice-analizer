@@ -1497,10 +1497,19 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdo
 
 function ChequeModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
-  const self = afiliados.find(a => a.gen === 0) || afiliados[0]
+  const raiz = afiliados.find(a => a.gen === 0) || afiliados[0]
+  const [q, setQ] = useState('')
+  const [sel, setSel] = useState(null)
+  const [drop, setDrop] = useState(false)
+  const self = sel || raiz
+  const esUnoMismo = self.ein === raiz.ein
+  const nombreCorto = self.nombre.split(' ').slice(0, 2).join(' ')
+  const res = q.length > 1 ? afiliados.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase()) || a.ein.includes(q)).slice(0, 8) : []
   const r = getRango(self.rango)
   const propiosReales = (self.pp || 0) + (self.pg || 0)
   const [meta, setMeta] = useState(propiosReales)
+  const elegir = (a) => { setSel(a); setQ(''); setDrop(false); setMeta((a.pp || 0) + (a.pg || 0)) }
+  const limpiar = () => { setSel(null); setQ(''); setDrop(false); setMeta((raiz.pp || 0) + (raiz.pg || 0)) }
   const esSimulado = meta !== propiosReales
   const c = simularChequeDR(self, afiliados, meta)
   const hoy = new Date()
@@ -1513,18 +1522,47 @@ function ChequeModal({ afiliados, onClose }) {
         <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--win-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, fontSize: 18 }}>💵</div>
           <div style={{ flex: 1, minWidth: 180 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>Simulación de tu cheque</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>{esUnoMismo ? 'Simulación de tu cheque' : `Simulación del cheque de ${nombreCorto}`}</div>
             <div style={{ fontSize: 11.5, color: 'var(--win-muted)', textTransform: 'capitalize' }}>{mesLabel} · Descuento por Red</div>
           </div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--win-border)', background: 'var(--win-surface2)', color: 'var(--win-muted)', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit', flexShrink: 0 }}>✕</button>
         </div>
 
         <div style={{ padding: isMobile ? 16 : 24 }}>
+          {/* Buscador: simula el cheque de cualquier afiliado, no solo el propio */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: '1px solid var(--win-border)', borderRadius: 8, background: 'var(--win-surface2)' }}>
+                <div style={{ width: 16, height: 16, color: 'var(--win-muted)', flexShrink: 0 }}><Icons.Search/></div>
+                <input
+                  value={q}
+                  onChange={ev => { setQ(ev.target.value); setDrop(true) }}
+                  placeholder={`Buscar afiliado para simular su cheque... (ahora: ${nombreCorto})`}
+                  style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: 'var(--win-text)', fontFamily: 'inherit', outline: 'none' }}
+                />
+                {!esUnoMismo && <button onClick={limpiar} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--win-border2)', background: 'var(--win-surface)', color: 'var(--win-muted)', fontSize: 10.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Volver a {raiz.nombre.split(' ')[0]}</button>}
+              </div>
+              {drop && res.length > 0 && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.10)', zIndex: 50, overflow: 'hidden' }}>
+                  {res.map(a => {
+                    const ar = getRango(a.rango)
+                    return (
+                      <div key={a.ein} onClick={() => elegir(a)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--win-border)' }} onMouseEnter={ev => ev.currentTarget.style.background = 'var(--win-accent-l)'} onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: ar.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>{RANGO_IMG[ar.id] ? <img src={RANGO_IMG[ar.id]} alt='' style={{ width: 22, height: 22, objectFit: 'contain' }}/> : <span style={{ fontSize: 9, fontWeight: 700, color: ar.color }}>{getInitials(a.nombre)}</span>}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--win-title)' }}>{a.nombre}</div><div style={{ fontSize: 10.5, color: 'var(--win-muted)' }}>EIN {a.ein} · {ar.label}</div></div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Meta editable: simula qué pasaría con otro monto de puntos propios */}
           <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 12, background: 'var(--win-surface2)', border: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 180 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--win-title)' }}>🎯 Mi meta de puntos para este mes</div>
-              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginTop: 2 }}>Cambia el número y mira cómo se mueve tu cheque. Ahora llevas {propiosReales.toLocaleString()} pts.</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--win-title)' }}>🎯 {esUnoMismo ? 'Mi meta de puntos para este mes' : `Meta de puntos de ${nombreCorto}`}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginTop: 2 }}>Cambia el número y mira cómo se mueve el cheque. Ahora lleva{esUnoMismo ? 's' : ''} {propiosReales.toLocaleString()} pts.</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <input
@@ -1575,7 +1613,7 @@ function ChequeModal({ afiliados, onClose }) {
 
           {!c.califica && (
             <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--win-red-l)', color: 'var(--win-red)', fontSize: 12, fontWeight: 600 }}>
-              Tu rango actual ({r.label}) todavía no es Oro+, así que el Descuento por Red no aplica todavía. Esta simulación muestra $0.
+              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+, así que el Descuento por Red no aplica todavía. Esta simulación muestra $0.
             </div>
           )}
 
@@ -1605,7 +1643,7 @@ function ChequeModal({ afiliados, onClose }) {
           </div>
 
           <div style={{ marginTop: 16, fontSize: 11, color: 'var(--win-muted)', lineHeight: 1.6 }}>
-            <strong>Cálculo aproximado</strong> — cuenta el PP+PG combinado de TODOS tus descendientes en Generación 1, 2 y 3, sin importar su rango. El % depende de tus propios PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel). No es tu pago oficial de NICE — solo una estimación para planear.
+            <strong>Cálculo aproximado</strong> — cuenta el PP+PG combinado de TODOS {esUnoMismo ? 'tus' : `los`} descendientes {esUnoMismo ? '' : `de ${nombreCorto} `}en Generación 1, 2 y 3, sin importar su rango. El % depende de {esUnoMismo ? 'tus propios' : 'sus propios'} PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel). No es {esUnoMismo ? 'tu' : 'su'} pago oficial de NICE — solo una estimación para planear.
           </div>
         </div>
       </div>
@@ -1658,8 +1696,8 @@ function PanelMiRed({ afiliados, tc }) {
       <button onClick={()=>setShowCheque(true)} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,width:'100%',padding:'18px 20px',marginBottom:16,borderRadius:14,border:'none',background:'linear-gradient(135deg,#D4AF37,#B8860B)',color:'#fff',cursor:'pointer',fontFamily:'inherit',boxShadow:'0 8px 24px rgba(184,134,11,.35)'}}>
         <span style={{fontSize:26}}>💵</span>
         <span style={{textAlign:'left'}}>
-          <span style={{display:'block',fontSize:16,fontWeight:800}}>Simula tu cheque de este mes</span>
-          <span style={{display:'block',fontSize:11.5,opacity:.9,fontWeight:500}}>Descuento por Red · Generación 1 a 3</span>
+          <span style={{display:'block',fontSize:16,fontWeight:800}}>Simula el cheque de este mes</span>
+          <span style={{display:'block',fontSize:11.5,opacity:.9,fontWeight:500}}>Descuento por Red · Busca a cualquier afiliado</span>
         </span>
       </button>
       {/* Hero: total · líder · rango */}
