@@ -10,6 +10,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   const [verTodosInactivos, setVerTodosInactivos] = useState(false)
   const [lineaExpandida, setLineaExpandida] = useState(null)
   const [nivelExpandido, setNivelExpandido] = useState(null)
+  const [simExpandida, setSimExpandida] = useState(null)
   const res = q.length > 1 ? afiliados.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase()) || a.ein.includes(q)).slice(0, 8) : []
   const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false); setVerTodosInactivos(false); setLineaExpandida(null); setNivelExpandido(null) }
   const limpiar = () => { setSel(null); setQ(''); setDrop(false) }
@@ -276,10 +277,56 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                       {sinCerrar.slice(0, 2).map((l, i) => {
                         const mc = mejorAportante(l)
                         const nombreLinea = l.frontal.nombre.split(' ').slice(0, 2).join(' ')
+                        const abiertaSim = simExpandida === l.frontal.ein
+                        // Simulacion: solo Nivel 1 (siempre rinde mas por punto que
+                        // Nivel 2/3, sin importar el rango) — se escala proporcional
+                        // a lo que cada quien ya aporta hoy. No se mezcla con Nivel 2.
+                        const meta = umbralUSD || 200
+                        const nivel1 = l.niveles[0]
+                        const activosNivel1 = nivel1 ? nivel1.detalle.filter(p => p.pp > 0) : []
+                        const factorCrecimiento = l.usd > 0 ? meta / l.usd : null
                         return (
-                          <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 6 : 0 }}>
-                            <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de $200 (faltan {fUSD(Math.max(0, (umbralUSD || 200) - l.usd))}).
+                          <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 10 : 0 }}>
+                            <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de ${meta} (faltan {fUSD(Math.max(0, meta - l.usd))}).
                             {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, sus propios puntos dejan de contar (pasan a cuenta aparte), pero <b>su red sigue sumando</b> en el siguiente nivel.</>}
+                            {' '}
+                            <span onClick={() => setSimExpandida(abiertaSim ? null : l.frontal.ein)} style={{ color: 'var(--win-accent)', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{abiertaSim ? '▾ ocultar simulación' : '▸ ¿cuántos puntos hacen falta?'}</span>
+
+                            {abiertaSim && (
+                              <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 6, background: 'var(--win-surface)', border: '1px solid var(--win-border)' }}>
+                                {!factorCrecimiento ? (
+                                  <div style={{ fontSize: 11, color: 'var(--win-muted)' }}>Esta línea aún no genera nada en Nivel 1 — no hay una base sobre la que escalar, necesita actividad desde cero.</div>
+                                ) : activosNivel1.length === 0 ? (
+                                  <div style={{ fontSize: 11, color: 'var(--win-muted)' }}>Todo lo que aporta hoy viene de Nivel 2 o más — revisa el detalle por línea para esa parte.</div>
+                                ) : (
+                                  <>
+                                    <div style={{ fontSize: 10, color: 'var(--win-muted)', marginBottom: 6 }}>Si Nivel 1 (5%, el más eficiente) crece proporcional a lo que cada quien ya aporta — no incluye Nivel 2, ese vale menos por punto:</div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                      <thead>
+                                        <tr>
+                                          {['Nombre', 'Pts hoy', 'Pts necesarios', 'Extra'].map(h => (
+                                            <th key={h} style={{ padding: '3px 6px', textAlign: h === 'Nombre' ? 'left' : 'right', fontSize: 9, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.04em', borderBottom: '1px solid var(--win-border)' }}>{h}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {activosNivel1.map(p => {
+                                          const objetivo = Math.round(p.pp * factorCrecimiento)
+                                          return (
+                                            <tr key={p.ein}>
+                                              <td style={{ padding: '3px 6px', color: 'var(--win-title)', fontWeight: 500 }}>{p.nombre.split(' ').slice(0, 2).join(' ')}</td>
+                                              <td style={{ padding: '3px 6px', textAlign: 'right', color: 'var(--win-muted)' }}>{p.pp.toLocaleString()}</td>
+                                              <td style={{ padding: '3px 6px', textAlign: 'right', color: 'var(--win-text)', fontWeight: 600 }}>{objetivo.toLocaleString()}</td>
+                                              <td style={{ padding: '3px 6px', textAlign: 'right', color: '#16A34A', fontWeight: 700 }}>+{(objetivo - p.pp).toLocaleString()}</td>
+                                            </tr>
+                                          )
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )
                       })}
