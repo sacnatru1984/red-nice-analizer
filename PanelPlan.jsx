@@ -279,7 +279,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                         return (
                           <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 6 : 0 }}>
                             <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de $200 (faltan {fUSD(Math.max(0, (umbralUSD || 200) - l.usd))}).
-                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, deja de contar aquí (pasa a cuenta aparte).</>}
+                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, sus propios puntos dejan de contar (pasan a cuenta aparte), pero <b>su red sigue sumando</b> en el siguiente nivel.</>}
                           </div>
                         )
                       })}
