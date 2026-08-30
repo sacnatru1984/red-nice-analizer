@@ -1731,7 +1731,7 @@ function PanelMiRed({ afiliados, tc }) {
             <div style={{ fontSize: 11, color: '#991B1B', marginTop: 2, opacity: .85 }}>Lo más urgente de toda tu red — el resto del detalle está en Plan de acción, por persona</div>
           </div>
           <div style={{ padding: '4px 16px 2px' }}>
-            {oroInactivosRed.map(a => filaPrioridad(a, `${getRango(a.rango).label} sin movimiento — riesgo de perder rango y red`, true))}
+            {oroInactivosRed.map(a => filaPrioridad(a, `${getRango(a.rango).label} sin movimiento — si se acumula, arriesga perder la red`, true))}
             {nuevosPorVencerRed.map(({ a, dias }) => filaPrioridad(a, `Día ${dias} de 15 sin activar — se cierra la ventana`, dias >= 12))}
             {candidatosOroRed.map(({ a, falta }) => filaPrioridad(a, `A ${falta.toLocaleString()} pts de ser Oro`, false))}
           </div>

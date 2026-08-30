@@ -52,9 +52,10 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   // exactamente con quién trabajar y cuál es el siguiente reto de cada uno.
   const frontalesOroDirectos = sel ? afiliados.filter(a => a.einPresentador === sel.ein && esOroPlus(a)) : []
 
-  // Riesgo de EIN inactivo: la regla NICE exige mínimo 1,000 PP en 12 meses o se
-  // pierde la red, los descuentos y el rango. Solo se puede evaluar con los
-  // periodos que Isaac ya subió (no siempre serán 12 meses completos).
+  // Riesgo de EIN inactivo: la regla NICE exige mínimo 1,000 PP en 12 meses o
+  // se pierde la red — el rango y el descuento NUNCA bajan una vez alcanzados.
+  // Solo se puede evaluar con los periodos que Isaac ya subió (no siempre
+  // serán 12 meses completos).
   const ultimos12 = (sel && periodos && periodos.length > 1)
     ? [...periodos].sort((a, b) => a.año * 12 + a.mes - (b.año * 12 + b.mes)).slice(-12).map(p => {
         const af = p.afiliados.find(x => x.ein === sel.ein)
@@ -172,7 +173,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
               <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <span style={{ fontSize: 17, lineHeight: 1 }}>⚠️</span>
                 <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5 }}>
-                  <b>Riesgo de perder rango y red.</b> {esUnoMismo ? 'Llevas' : `${nombreCorto} lleva`} {rachaInactiva} periodo{rachaInactiva > 1 ? 's' : ''} cargado{rachaInactiva > 1 ? 's' : ''} seguido{rachaInactiva > 1 ? 's' : ''} sin actividad (PP+PG = 0) — de los últimos {ultimos12.length} periodos que subiste, suma {totalUlt12.toLocaleString()} PP. La regla NICE exige mínimo 1,000 PP en 12 meses o se pierden la red, los descuentos y el rango.
+                  <b>Riesgo de perder la red.</b> {esUnoMismo ? 'Llevas' : `${nombreCorto} lleva`} {rachaInactiva} periodo{rachaInactiva > 1 ? 's' : ''} cargado{rachaInactiva > 1 ? 's' : ''} seguido{rachaInactiva > 1 ? 's' : ''} sin actividad (PP+PG = 0) — de los últimos {ultimos12.length} periodos que subiste, suma {totalUlt12.toLocaleString()} PP. La regla NICE exige mínimo 1,000 PP en 12 meses o se pierde la red (el rango y el descuento ya alcanzados no bajan).
                 </div>
               </div>
             )}
