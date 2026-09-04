@@ -202,8 +202,13 @@ function frontalGenera(a, tc, umbral) {
 
 // ── Simulador de "Cheque del mes" (Descuento por Red — tabla oficial NICE) ──
 // Requiere rango Oro+ propio. El % depende de tus PROPIOS PP+PG del periodo,
-// y se aplica sobre el PP+PG combinado de TODOS tus descendientes en Generación
-// 1, 2 y 3 (sin importar su rango — confirmado por Isaac, no solo los Oro+).
+// y se aplica sobre el PP+PG de cada Oro+ que se encuentra en tu red por
+// "Nivel Oro real" (Nivel 1 = el primer Oro de cada línea; Nivel 2 = el
+// siguiente Oro debajo de ese Oro; Nivel 3 = el siguiente después de ese —
+// se salta a quien no es Oro, no cuenta generación literal).
+// Validado contra el cheque real de Irlanda de agosto 2026 ($6,473.36):
+// generación literal daba $9,775.84 (50% de más); Nivel Oro real + retención
+// dio $6,709.84 (solo 3.6% de diferencia).
 const DR_TRAMOS = [
   { min: 2000, l1: .05, l2: .04, l3: .04 },
   { min: 1500, l1: .03, l2: .03, l3: .03 },
@@ -211,27 +216,38 @@ const DR_TRAMOS = [
   { min: 500, l1: .01, l2: .01, l3: .01 },
   { min: 0, l1: 0, l2: 0, l3: 0 },
 ]
+// Retención fiscal aproximada que NICE descuenta del cheque bruto antes de
+// depositarlo. Validada con un caso real: cheque de $22,000 con retención de
+// $2,300 (10.45%). Puede variar por persona/periodo — es una aproximación.
+const RETENCION_FISCAL = 0.1045
 function simularChequeDR(self, afiliados, metaPropios) {
-  const byPresentador = {}
-  afiliados.forEach(a => { if (a.einPresentador != null) (byPresentador[a.einPresentador] = byPresentador[a.einPresentador] || []).push(a) })
-  function personasNivel(ein, n) {
-    let actuales = byPresentador[ein] || []
-    for (let i = 1; i < n; i++) actuales = actuales.flatMap(a => byPresentador[a.ein] || [])
-    return actuales
-  }
+  const childrenByEin = {}
+  afiliados.forEach(a => { if (a.einPresentador != null) (childrenByEin[a.einPresentador] = childrenByEin[a.einPresentador] || []).push(a) })
   const propiosReales = (self.pp || 0) + (self.pg || 0)
   const propios = (metaPropios != null && metaPropios >= 0) ? metaPropios : propiosReales
   const califica = esOroPlus(self)
   const tramo = DR_TRAMOS.find(t => propios >= t.min)
+  let frontera = [self]
   const niveles = [1, 2, 3].map(n => {
-    const delNivel = personasNivel(self.ein, n)
-    const puntos = delNivel.reduce((s, a) => s + (a.pp || 0) + (a.pg || 0), 0)
+    const encontrados = []
+    const siguienteFrontera = []
+    for (const raiz of frontera) {
+      const stack = [...(childrenByEin[raiz.ein] || [])]
+      while (stack.length) {
+        const m = stack.pop()
+        if (esOroPlus(m)) { encontrados.push(m); siguienteFrontera.push(m); continue }
+        for (const c of (childrenByEin[m.ein] || [])) stack.push(c)
+      }
+    }
+    frontera = siguienteFrontera
+    const puntos = encontrados.reduce((s, a) => s + (a.pp || 0) + (a.pg || 0), 0)
     const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    return { nivel: n, personas: delNivel.length, puntos, pct, importePuntos: puntos * pct }
+    return { nivel: n, personas: encontrados.length, puntos, pct, importePuntos: puntos * pct }
   })
   const totalPuntosDR = niveles.reduce((s, n) => s + n.importePuntos, 0)
-  const totalMXN = totalPuntosDR * VALOR_ORO
-  return { propios, propiosReales, califica, tramoMin: tramo.min, niveles, totalMXN }
+  const totalBrutoMXN = totalPuntosDR * VALOR_ORO
+  const totalMXN = totalBrutoMXN * (1 - RETENCION_FISCAL)
+  return { propios, propiosReales, califica, tramoMin: tramo.min, niveles, totalBrutoMXN, totalMXN }
 }
 
 // ── Reembolso por Diferencial usando Nivel Oro REAL (no generación fija) ──
@@ -1603,8 +1619,9 @@ function ChequeModal({ afiliados, onClose }) {
             </div>
             <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 3 }}>PÁGUESE A LA ORDEN DE</div>
             <div style={{ fontSize: 19, fontWeight: 700, color: '#3A2E0B', marginBottom: 16 }}>{self.nombre}</div>
-            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 4 }}>IMPORTE ESTIMADO</div>
+            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 4 }}>IMPORTE ESTIMADO (NETO)</div>
             <div style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalMXN)}</div>
+            <div style={{ fontSize: 10.5, color: '#8A6D1D', marginTop: 4 }}>Bruto {fmtMXN(c.totalBrutoMXN)} · Retención est. ({(RETENCION_FISCAL * 100).toFixed(1)}%) −{fmtMXN(c.totalBrutoMXN - c.totalMXN)}</div>
             <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10.5, fontWeight: 700, color: r.color, background: r.bg, padding: '3px 10px', borderRadius: 20 }}>{r.label}</span>
               <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A6D1D' }}>EIN {self.ein} · {c.propios.toLocaleString()} pts propios{esSimulado ? ' (meta)' : ''} ({c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'})</span>
@@ -1619,7 +1636,7 @@ function ChequeModal({ afiliados, onClose }) {
 
           {/* Desglose por nivel */}
           <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)', marginBottom: 8 }}>Desglose por generación</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)', marginBottom: 8 }}>Desglose por Nivel Oro</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--win-surface2)' }}>
@@ -1643,7 +1660,7 @@ function ChequeModal({ afiliados, onClose }) {
           </div>
 
           <div style={{ marginTop: 16, fontSize: 11, color: 'var(--win-muted)', lineHeight: 1.6 }}>
-            <strong>Cálculo aproximado</strong> — cuenta el PP+PG combinado de TODOS {esUnoMismo ? 'tus' : `los`} descendientes {esUnoMismo ? '' : `de ${nombreCorto} `}en Generación 1, 2 y 3, sin importar su rango. El % depende de {esUnoMismo ? 'tus propios' : 'sus propios'} PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel). No es {esUnoMismo ? 'tu' : 'su'} pago oficial de NICE — solo una estimación para planear.
+            <strong>Cálculo aproximado</strong> — Nivel 1 es el primer Oro+ que encuentra en cada línea de {esUnoMismo ? 'tu' : `la de ${nombreCorto}`} red, Nivel 2 el siguiente Oro+ debajo de ese, y Nivel 3 el siguiente después de ese (salta a quien no es Oro, no cuenta generación literal). Usa el PP+PG propio de cada Oro+ encontrado. El % depende de {esUnoMismo ? 'tus propios' : 'sus propios'} PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel), y se descuenta una retención fiscal estimada del {(RETENCION_FISCAL * 100).toFixed(1)}%. No es {esUnoMismo ? 'tu' : 'su'} pago oficial de NICE — solo una estimación para planear.
           </div>
         </div>
       </div>
