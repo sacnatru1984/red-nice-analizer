@@ -1,6 +1,7 @@
 import { chromium } from 'playwright'
 import { createServer } from 'http'
 import { randomBytes } from 'crypto'
+import { extraerRedCompleta, filasAWorkbookBuffer, cerrarModalesIniciales } from './extraer-afiliados.js'
 
 const PORT = process.env.PORT || 3000
 
@@ -15,7 +16,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000)
 
-async function ejecutarSync(jobId, { email, password, usuario }) {
+async function ejecutarSync(jobId, { email, password, usuario, periodo }) {
   const job = jobs.get(jobId)
   let browser
 
@@ -29,50 +30,25 @@ async function ejecutarSync(jobId, { email, password, usuario }) {
       `https://backoffice.niceonline.com/${usuario}/Account/Login`,
       { waitUntil: 'networkidle', timeout: 30000 }
     )
-    await page.fill('input[name="UserName"], #UserName, input[type="text"]', email)
-    await page.fill('input[name="Password"], #Password, input[type="password"]', password)
-    await page.click('button[type="submit"], input[type="submit"], .btn-primary, .btn-login')
+    await cerrarModalesIniciales(page)
+    await page.fill('#LoginName', email)
+    await page.fill('#LoginPassword', password)
+    await page.click('#loginButton')
     await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 })
       .catch(() => {})
 
-    job.progreso = 'Cargando lista de afiliados...'
-    await page.goto(
-      `https://backoffice.niceonline.com/${usuario}/BackOffice/Affiliates`,
-      { waitUntil: 'networkidle', timeout: 30000 }
-    )
-    await page.waitForTimeout(3000)
+    job.progreso = 'Leyendo tabla de afiliados...'
+    // Nunca clicar el botón "Excel" de esta página: crashea la sesión de Playwright
+    // (confirmado en septiembre 2026). Leemos la tabla renderizada directamente.
+    const filas = await extraerRedCompleta(page, { usuario, periodo: periodo || null })
 
-    job.progreso = 'Descargando Excel...'
-    const selectores = [
-      'text=EXCEL', 'text=Excel',
-      'button:has-text("EXCEL")', 'button:has-text("Excel")',
-      'a:has-text("EXCEL")', 'a:has-text("Excel")',
-      '.export-excel', '#btnExcel', '#exportExcel',
-      '[href*="excel"]', '[href*="Export"]',
-    ]
-
-    let excelBuffer = null
-    for (const sel of selectores) {
-      const btn = page.locator(sel).first()
-      const visible = await btn.isVisible().catch(() => false)
-      if (visible) {
-        const dlPromise = page.waitForEvent('download', { timeout: 30000 })
-        await btn.click()
-        const dl = await dlPromise
-        const stream = await dl.createReadStream()
-        const chunks = []
-        for await (const chunk of stream) chunks.push(chunk)
-        excelBuffer = Buffer.concat(chunks)
-        break
-      }
-    }
-
-    if (!excelBuffer) {
+    if (filas.length === 0) {
       job.status = 'error'
-      job.error = 'No se encontró el botón de exportar Excel. Verifica tus credenciales y que tengas acceso a afiliados.'
+      job.error = 'No se leyó ninguna fila de la tabla de afiliados. Verifica tus credenciales y que tengas acceso a afiliados.'
     } else {
+      job.progreso = `Generando Excel (${filas.length} afiliados)...`
+      job.excel = await filasAWorkbookBuffer(filas)
       job.status = 'listo'
-      job.excel = excelBuffer
       job.progreso = 'Datos descargados correctamente'
     }
   } catch (e) {
@@ -116,7 +92,8 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { ok: true, mensaje: 'RedNICE Cloud Server activo' })
   }
 
-  // POST /sincronizar { email, password, usuario }
+  // POST /sincronizar { email, password, usuario, periodo? }
+  // periodo es opcional, ej. "agosto - 2026" — si no se manda, trae el periodo actual.
   // Inicia una sincronización y devuelve un jobId
   if (req.url === '/sincronizar' && req.method === 'POST') {
     const body = await readBody(req)

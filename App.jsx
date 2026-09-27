@@ -3323,6 +3323,10 @@ function App() {
             <div style={{width:22,height:22,borderRadius:'50%',background:'var(--win-accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700}}>{getInitials(self.nombre)}</div>
             {self.nombre.split(' ').slice(0,2).join(' ')}
           </div>}
+          <button onClick={sincronizar} disabled={sincronizando} title="Sincronizar con tu cuenta NICE" style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'0':'6px 14px',width:isMobile?38:'auto',height:isMobile?38:'auto',justifyContent:'center',borderRadius:6,background:backofficeConectado?'var(--win-green)':'var(--win-surface2)',color:backofficeConectado?'white':'var(--win-text)',fontSize:12,fontWeight:600,border:backofficeConectado?'none':'1px solid var(--win-border)',cursor:sincronizando?'default':'pointer',fontFamily:'inherit',flexShrink:0,opacity:sincronizando?0.6:1}}>
+            <div style={{width:14,height:14,animation:sincronizando?'rnspin 1s linear infinite':'none'}}>{sincronizando?<Icons.Download/>:<Icons.Network/>}</div>
+            {!isMobile && (sincronizando?'Sincronizando...':'Sincronizar')}
+          </button>
           <button onClick={()=>fileRef.current.click()} title="Cargar Excel" style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'0':'6px 14px',width:isMobile?38:'auto',height:isMobile?38:'auto',justifyContent:'center',borderRadius:6,background:'var(--win-accent)',color:'white',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
             <div style={{width:14,height:14}}><Icons.Upload/></div>
             {!isMobile && 'Cargar Excel'}
@@ -3338,6 +3342,16 @@ function App() {
           <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={handleFile}/>
         </div>
       </div>
+
+      {(sincronizando || syncEstado) && (
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',fontSize:12,fontWeight:600,flexShrink:0,
+          background:syncEstado==='error'?'var(--win-red-l, #FEE2E2)':syncEstado==='ok'?'var(--win-green-l, #DCFCE7)':'var(--win-accent-l)',
+          color:syncEstado==='error'?'var(--win-red)':syncEstado==='ok'?'var(--win-green)':'var(--win-accent)'}}>
+          <span>{syncEstado==='error'?'⚠️':syncEstado==='ok'?'✅':'🔄'}</span>
+          <span style={{flex:1}}>{syncMsg}</span>
+          {!sincronizando && <button onClick={()=>{setSyncEstado(null);setSyncMsg('')}} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',fontSize:13,padding:0}}>✕</button>}
+        </div>
+      )}
 
       {/* Contenido escalable según preferencia de tamaño de letra */}
       <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,zoom:fontScale/100}}>
