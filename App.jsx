@@ -3412,8 +3412,8 @@ function App() {
                 <button disabled aria-disabled="true" title="Deshabilitado temporalmente" className="rn-start__opt rn-start__opt--off">
                   <span className="rn-start__num">2</span>
                   <span className="rn-start__txt">
-                    <span className="rn-start__t rn-start__strike">Sincronizar con mi cuenta NICE</span>
-                    <span className="rn-start__d rn-start__strike">descarga tu red directo del Backoffice</span>
+                    <span className="rn-start__t">Sincronizar con mi cuenta NICE</span>
+                    <span className="rn-start__d">descarga tu red directo del Backoffice</span>
                     <span className="rn-start__off-note">Deshabilitado temporalmente</span>
                   </span>
                   <span className="rn-start__ico"><Icons.Network/></span>
