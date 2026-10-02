@@ -257,6 +257,23 @@
     }
     @media (max-width: 380px) { .rn-start__feats { grid-template-columns: 1fr; } }
 
+    /* Logo fijo en el encabezado de cada sección (centrado en escritorio, a la derecha en celular) */
+    .rn-panel-head { position: relative; display: flex; align-items: center; gap: 12px; min-height: 52px; }
+    .rn-panel-head__info { flex: 1; min-width: 0; }
+    .rn-head-logo {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      background: linear-gradient(160deg, rgba(255,255,255,.97) 0%, rgba(232,243,255,.94) 100%);
+      border: 1px solid var(--win-border); border-radius: 12px;
+      padding: 5px 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.18), 0 0 24px rgba(56,170,245,.18);
+      pointer-events: none;
+    }
+    .rn-head-logo img { display: block; height: 46px; width: auto; }
+    @media (max-width: 720px) {
+      .rn-head-logo { position: static; transform: none; order: 2; flex-shrink: 0; padding: 4px 8px; border-radius: 10px; }
+      .rn-head-logo img { height: 30px; }
+    }
+
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-thumb { background: var(--win-border2); border-radius: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }

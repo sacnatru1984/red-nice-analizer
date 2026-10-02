@@ -3353,7 +3353,12 @@ function App() {
       {/* Contenido escalable según preferencia de tamaño de letra */}
       <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,zoom:fontScale/100}}>
       {/* Panel header */}
-      <div style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
+      {/* Siempre visible (no se desplaza con el contenido). El logo se oculta en la pantalla de bienvenida, que ya lo muestra en grande. */}
+      <div className="rn-panel-head" style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
+        {!(!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes')&&(
+          <div className="rn-head-logo"><img src="./assets/logo-red-nice.png" alt="Red NICE Analizer"/></div>
+        )}
+        <div className="rn-panel-head__info">
         <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{curTab.l}</div>
         <div style={{fontSize:12,color:'var(--win-muted)',marginTop:2}}>
           {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&'Carga un archivo Excel del portal NICE para comenzar'}
@@ -3366,6 +3371,7 @@ function App() {
           {tab==='archivos'&&`${archivos.length} archivo${archivos.length!==1?'s':''} cargado${archivos.length!==1?'s':''}`}
           {tab==='reportes'&&`Análisis comparativo multi-período · ${periodos.length} período${periodos.length!==1?'s':''} cargado${periodos.length!==1?'s':''}`}
           {tab==='semana'&&'Metas y planeación semanal · progreso guardado automáticamente'}
+        </div>
         </div>
       </div>
 
