@@ -3138,6 +3138,9 @@ function App() {
   const zoomInTexto = () => setFontScale(z => Math.min(140, z + 10))
   const fileRef = useRef()
   const [menuTabsAbierto, setMenuTabsAbierto] = useState(false)
+  // Pantalla de entrada. Por ahora "Acceder" solo la cierra (sin autenticación);
+  // más adelante se conectará a la base de datos de usuarios con acceso.
+  const [splash, setSplash] = useState(true)
 
   const irAGenealogia = useCallback((ein) => {
     setGenealogiaEin(ein)
@@ -3290,6 +3293,15 @@ function App() {
 
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--win-bg)'}}>
+      {splash&&(
+        <div className="rn-splash" role="dialog" aria-label="Bienvenida Red NICE Analizer">
+          <div className="rn-splash__bg"/>
+          <button className="rn-splash__btn" onClick={()=>setSplash(false)} autoFocus>
+            <span className="rn-splash__btn-txt">Acceder</span>
+            <span className="rn-splash__btn-ico">→</span>
+          </button>
+        </div>
+      )}
       {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
