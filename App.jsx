@@ -840,9 +840,10 @@ async function exportNetworkReport(afiliados) {
   const img=await loadImgReport(fondoRedSrc())
   if(img){ const ar=img.width/img.height, tr=W/hH; let sw,sh,sx,sy; if(ar>tr){sh=img.height;sw=sh*tr;sx=(img.width-sw)/2;sy=0}else{sw=img.width;sh=sw/tr;sx=0;sy=(img.height-sh)/2}; ctx.drawImage(img,sx,sy,sw,sh,0,0,W,hH) }
   const g=ctx.createLinearGradient(0,0,0,hH); g.addColorStop(0,'rgba(11,26,46,.45)'); g.addColorStop(1,'rgba(11,26,46,.95)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,hH)
-  ctx.fillStyle='#3A8FF2'; rrect(ctx,60,70,52,52,13); ctx.fill()
-  ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(86,90,11,0,7); ctx.stroke()
-  ctx.fillStyle=REP.text; ctx.font='700 38px DM Sans, sans-serif'; ctx.textBaseline='middle'; ctx.fillText('RedNICE', 128, 96)
+  const logo=await loadImgReport('./assets/logo-red-nice.png')
+  if(logo){ const lw=300; ctx.drawImage(logo,52,44,lw,lw*logo.height/logo.width) }
+  else { ctx.fillStyle=REP.text; ctx.font='700 38px DM Sans, sans-serif'; ctx.textBaseline='middle'; ctx.fillText('RedNICE', 62, 96) }
+  ctx.textBaseline='middle'
   ctx.fillStyle=REP.cyan; ctx.font='600 17px DM Sans, sans-serif'; ctx.fillText('REPORTE DE RED', 62, 168)
   ctx.fillStyle=REP.text; ctx.font='700 44px DM Sans, sans-serif'; ctx.fillText(self?self.nombre:'Mi red', 62, 212)
   ctx.fillStyle=REP.muted; ctx.font='400 20px DM Sans, sans-serif'; ctx.fillText(`${self?`EIN ${self.ein} · `:''}${new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'})}`, 62, 252)
