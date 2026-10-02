@@ -3293,12 +3293,8 @@ function App() {
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
         <div style={{position:'relative',flexShrink:0}}>
-          <button onClick={()=>setMenuTabsAbierto(v=>!v)} title="Menú de secciones" aria-label="Abrir menú de secciones" aria-expanded={menuTabsAbierto} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px 5px 5px',borderRadius:8,border:'1px solid var(--win-border)',background:menuTabsAbierto?'var(--win-accent-l)':'var(--win-surface2)',cursor:'pointer',fontFamily:'inherit'}}>
-            <div style={{width:26,height:26,background:'var(--win-accent)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'white',boxShadow:'0 0 0 1px rgba(120,200,255,.25), 0 4px 14px rgba(37,99,235,.45)',flexShrink:0}}>
-              <div style={{width:14,height:14}}><Icons.Network/></div>
-            </div>
-            {!isMobile && <span style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>Red<span style={{color:'var(--win-accent)'}}>NICE</span></span>}
-            <span style={{display:'flex',alignItems:'center',gap:5,paddingLeft:isMobile?0:8,borderLeft:isMobile?'none':'1px solid var(--win-border)',color:menuTabsAbierto?'var(--win-accent)':'var(--win-text)',fontSize:12,fontWeight:600}}>
+          <button onClick={()=>setMenuTabsAbierto(v=>!v)} title="Menú de secciones" aria-label="Abrir menú de secciones" aria-expanded={menuTabsAbierto} style={{display:'flex',alignItems:'center',gap:8,padding:isMobile?'0 10px':'0 12px',height:isMobile?38:32,borderRadius:8,border:'1px solid var(--win-border)',background:menuTabsAbierto?'var(--win-accent-l)':'var(--win-surface2)',cursor:'pointer',fontFamily:'inherit'}}>
+            <span style={{display:'flex',alignItems:'center',gap:5,color:menuTabsAbierto?'var(--win-accent)':'var(--win-text)',fontSize:12,fontWeight:600}}>
               <span style={{width:16,height:16,display:'flex'}}><Icons.Menu/></span>
               {!isMobile && 'Menú'}
             </span>
