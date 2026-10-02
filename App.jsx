@@ -3377,43 +3377,46 @@ function App() {
           <div className="rn-welcome">
             <div className="rn-welcome__bg"/>
             <div className="rn-welcome__scrim"/>
-            <div className="rn-welcome__content">
-              <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 14px',borderRadius:20,background:'rgba(13,30,48,.55)',border:'1px solid rgba(120,200,255,.28)',backdropFilter:'blur(6px)',marginBottom:22}}>
-                <div style={{width:7,height:7,borderRadius:'50%',background:'#4FD0F5',boxShadow:'0 0 10px #4FD0F5'}}/>
-                <span style={{fontSize:11,fontWeight:600,letterSpacing:'.12em',color:'#BFE4FB'}}>SEGUIMIENTO DE RED NICE</span>
-              </div>
-              <div style={{fontSize:38,fontWeight:700,color:'#fff',lineHeight:1.1,letterSpacing:'-.02em',marginBottom:14,textShadow:'0 2px 30px rgba(0,0,0,.5)'}}>
-                Visualiza y haz crecer<br/>tu red de mercadeo
-              </div>
-              <div style={{fontSize:15,color:'rgba(220,235,250,.82)',marginBottom:30,maxWidth:440,marginLeft:'auto',marginRight:'auto',lineHeight:1.65}}>
-                Sincroniza tu cuenta NICE o carga el Excel del portal para ver tu genealogía, reportes y planes de carrera personalizados — todo en segundos.
-              </div>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
-                <button onClick={()=>fileRef.current.click()} className="rn-glass-btn">
-                  <div style={{width:18,height:18,flexShrink:0}}><Icons.Upload/></div>
-                  <span style={{display:'flex',flexDirection:'column',alignItems:'flex-start',textAlign:'left',lineHeight:1.35}}>
-                    <span style={{fontSize:15,fontWeight:700}}>Seleccionar Archivo Excel</span>
-                    <span style={{fontSize:11.5,fontWeight:500,opacity:.85,marginTop:2}}>de la sección de afiliados del portal NICE</span>
-                  </span>
-                </button>
-                <div style={{display:'flex',alignItems:'center',gap:10,width:'100%',maxWidth:320}}>
-                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
-                  <span style={{fontSize:11,color:'rgba(180,210,240,.45)',letterSpacing:'.08em'}}>o</span>
-                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
+            <div className="rn-wl">
+              {/* Columna izquierda: logo en placa luminosa + mensaje */}
+              <div className="rn-wl__brand">
+                <div className="rn-logo-stage">
+                  <div className="rn-logo-stage__orbit"/>
+                  <div className="rn-logo-plate">
+                    <img src="./assets/logo-red-nice.png" alt="Red NICE Analizer" className="rn-logo-img"/>
+                  </div>
                 </div>
-                <button onClick={sincronizar} disabled={sincronizando} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 22px',borderRadius:10,background:backofficeConectado?'rgba(22,163,74,.2)':'rgba(13,30,48,.55)',border:`1px solid ${backofficeConectado?'rgba(52,211,153,.5)':'rgba(120,200,255,.35)'}`,backdropFilter:'blur(6px)',color:backofficeConectado?'#4ade80':'#BFE4FB',fontSize:13,fontWeight:600,cursor:sincronizando?'default':'pointer',opacity:sincronizando?0.6:1,fontFamily:'inherit',letterSpacing:'.02em',transition:'.2s'}}>
-                  <span style={{width:15,height:15,display:'flex'}}><Icons.Network/></span>
-                  {sincronizando ? 'Sincronizando…' : 'Sincronizar con mi cuenta NICE'}
+                <div className="rn-wl__title">Visualiza y haz crecer<br/>tu red de mercadeo</div>
+                <div className="rn-wl__sub">Tu genealogía, reportes y plan de carrera personalizados — todo en segundos.</div>
+              </div>
+
+              {/* Columna derecha: panel "Empieza aquí" */}
+              <div className="rn-start">
+                <div className="rn-start__label"><span className="rn-start__dot"/>EMPIEZA AQUÍ</div>
+                <button onClick={()=>fileRef.current.click()} className="rn-start__opt rn-start__opt--primary">
+                  <span className="rn-start__num">1</span>
+                  <span className="rn-start__txt">
+                    <span className="rn-start__t">Seleccionar Archivo Excel</span>
+                    <span className="rn-start__d">de la sección de afiliados del portal NICE</span>
+                  </span>
+                  <span className="rn-start__ico"><Icons.Upload/></span>
+                </button>
+                <button onClick={sincronizar} disabled={sincronizando} className={`rn-start__opt${backofficeConectado?' rn-start__opt--ok':''}`} style={{opacity:sincronizando?0.6:1,cursor:sincronizando?'default':'pointer'}}>
+                  <span className="rn-start__num">2</span>
+                  <span className="rn-start__txt">
+                    <span className="rn-start__t">{sincronizando ? 'Sincronizando…' : 'Sincronizar con mi cuenta NICE'}</span>
+                    <span className="rn-start__d">{backofficeConectado ? '✓ Cuenta conectada · descarga tu red en vivo' : 'descarga tu red directo del Backoffice'}</span>
+                  </span>
+                  <span className="rn-start__ico"><Icons.Network/></span>
                 </button>
                 {/* Botón de datos de ejemplo oculto a propósito (no borrado) — cargarDemo() sigue disponible más abajo. */}
-              </div>
-              <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginTop:34}}>
-                {['Genealogía visual','Plan de carrera','Reportes para tu equipo','Anuncios con IA'].map(f=>(
-                  <div key={f} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 13px',borderRadius:20,background:'rgba(13,30,48,.4)',border:'1px solid rgba(120,200,255,.18)',backdropFilter:'blur(6px)',fontSize:12,fontWeight:500,color:'rgba(220,235,250,.9)'}}>
-                    <div style={{width:5,height:5,borderRadius:'50%',background:'#4FD0F5',flexShrink:0}}/>
-                    {f}
-                  </div>
-                ))}
+                <div className="rn-start__feats">
+                  {[['Genealogía visual',Icons.GitBranch],['Plan de carrera',Icons.Plan],['Reportes para tu equipo',Icons.TrendUp],['Anuncios con IA',Icons.Megaphone]].map(([f,I])=>(
+                    <div key={f} className="rn-start__feat">
+                      <span className="rn-start__feat-ico"><I/></span>{f}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
