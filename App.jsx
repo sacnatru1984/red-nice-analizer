@@ -3318,10 +3318,7 @@ function App() {
             </>
           )}
         </div>
-        <div style={{flex:'1 1 0',minWidth:0,display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:'var(--win-text)'}}>
-          <div style={{width:14,height:14,flexShrink:0,color:'var(--win-accent)'}}><curTab.I/></div>
-          <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{curTab.l}</span>
-        </div>
+        <div style={{flex:'1 1 0',minWidth:0}}/>
         <div className="rn-actions">
           {self&&<div className="rn-user-chip" style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px',borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',fontSize:12,color:'var(--win-text)',fontWeight:500}}>
             <div style={{width:22,height:22,borderRadius:'50%',background:'var(--win-accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700}}>{getInitials(self.nombre)}</div>
