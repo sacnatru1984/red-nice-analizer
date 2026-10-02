@@ -288,7 +288,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                         return (
                           <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 10 : 0 }}>
                             <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de ${meta} (faltan {fUSD(Math.max(0, meta - l.usd))}).
-                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, sus propios puntos dejan de contar (pasan a cuenta aparte), pero <b>su red sigue sumando</b> en el siguiente nivel.</>}
+                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts de grupo) — cada punto que crezca su grupo (ella y su red hasta el siguiente Oro) <b>suma directo</b> a esta línea.</>}
                             {' '}
                             <span onClick={() => setSimExpandida(abiertaSim ? null : l.frontal.ein)} style={{ color: 'var(--win-accent)', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{abiertaSim ? '▾ ocultar simulación' : '▸ ¿cuántos puntos hacen falta?'}</span>
 
@@ -300,7 +300,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                                   <div style={{ fontSize: 11, color: 'var(--win-muted)' }}>Todo lo que aporta hoy viene de Nivel 2 o más — revisa el detalle por línea para esa parte.</div>
                                 ) : (
                                   <>
-                                    <div style={{ fontSize: 10, color: 'var(--win-muted)', marginBottom: 6 }}>Si Nivel 1 (5%, el más eficiente) crece proporcional a lo que cada quien ya aporta — no incluye Nivel 2, ese vale menos por punto:</div>
+                                    <div style={{ fontSize: 10, color: 'var(--win-muted)', marginBottom: 6 }}>Si los Oro del Nivel 1 (el que más paga por punto) crecen su grupo en proporción a lo que ya aportan — no incluye Nivel 2:</div>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                                       <thead>
                                         <tr>
@@ -363,7 +363,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 420 }}>
                                 <thead>
                                   <tr style={{ background: 'var(--win-surface2)' }}>
-                                    {['Nivel', 'Personas', 'Puntos', '%', 'Valor MXN'].map(h => (
+                                    {['Nivel', 'Oros', 'Puntos', '%', 'Valor MXN'].map(h => (
                                       <th key={h} style={{ padding: '6px 10px', textAlign: h === 'Nivel' || h === 'Personas' ? 'left' : 'right', fontSize: 10, fontWeight: 700, letterSpacing: '.05em', color: 'var(--win-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--win-border)' }}>{h}</th>
                                     ))}
                                   </tr>
@@ -414,7 +414,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                                                           <thead>
                                                             <tr>
-                                                              {['Nombre', 'Rango', 'PP', 'Valor/pto', 'Aporte MXN'].map(h => (
+                                                              {['Nombre', 'Rango', 'PP+PG', 'Valor/pto', 'Aporte MXN'].map(h => (
                                                                 <th key={h} style={{ padding: '3px 8px 3px 32px', textAlign: h === 'Nombre' || h === 'Rango' ? 'left' : 'right', fontSize: 9, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</th>
                                                               ))}
                                                             </tr>
@@ -457,7 +457,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11 }}>
                               <span style={{ color: 'var(--win-muted)' }}>Total: <b style={{ color: 'var(--win-title)' }}>{fMXN(linea.totalMXN)}</b></span>
-                              <span style={{ color: 'var(--win-muted)' }}>IVA (16%): <b style={{ color: 'var(--win-title)' }}>-{fMXN(linea.ivaMXN)}</b></span>
+                              <span style={{ color: 'var(--win-muted)' }}>Retención aprox. (10.45%): <b style={{ color: 'var(--win-title)' }}>-{fMXN(linea.ivaMXN)}</b></span>
                               <span style={{ color: 'var(--win-muted)' }}>Neto: <b style={{ color: 'var(--win-title)' }}>{fMXN(linea.netoMXN)}</b></span>
                               <span style={{ color: 'var(--win-muted)' }}>% según {linea.frontal.nombre.split(' ')[0]}: <b style={{ color: 'var(--win-title)' }}>{linea.propios.toLocaleString()} pts propios</b></span>
                             </div>

@@ -250,42 +250,37 @@ function simularChequeDR(self, afiliados, metaPropios) {
   return { propios, propiosReales, califica, tramoMin: tramo.min, niveles, totalBrutoMXN, totalMXN }
 }
 
-// ── Reembolso por Diferencial usando Nivel Oro REAL (no generación fija) ──
-// Nivel 1 = descendientes no-Oro hasta toparse con el primer Oro en cada rama.
-// Nivel 2 = descendientes no-Oro de ESOS Oro (su propio "Nivel 1"), y así
-// sucesivamente — el nivel avanza cada vez que la cadena cruza un Oro, sin
-// importar cuántas generaciones haya abarcado el nivel anterior.
-const IVA = 0.16
-// Cada persona arrastra `piernaRaiz` = el hijo DIRECTO de `self` (Nivel 1,
-// Gen.1) por el que se llegó a ella — así se puede desglosar cualquier nivel
-// por pierna, en vez de una suma plana. Se hereda al bajar de generación y
-// también al cruzar un Oro (esa pierna sigue siendo la misma para self,
-// aunque para el propio Oro cruzado sea "su" Nivel 1 en un cálculo aparte).
+// ── Descuento por Red de una línea, por Nivel Oro REAL (no generación fija) ──
+// MISMA fórmula que simularChequeDR (validada contra cheques reales):
+// Nivel 1 = el primer Oro de cada rama (se salta a quien no es Oro), Nivel 2 =
+// el siguiente Oro debajo de ese, etc. Cada Oro aporta su PP+PG (su grupo
+// hasta el siguiente Oro) × $12.06 × % del nivel.
+// Corrección oct 2026: antes contaba a los NO-Oro con PP × valor de su rango y
+// dejaba fuera a los Oro (quedaba corrido un nivel). Con la red de agosto 2026
+// daba USD $99 para la línea de Diana, cuando Irlanda SÍ es Oro Ejecutivo
+// (esa línea genera +$200); con esta fórmula da ~USD $239.
+// Cada Oro arrastra `piernaRaiz` = el hijo DIRECTO de `self` por el que se
+// llegó a él, para poder desglosar cada nivel por pierna.
 function nivelesOroReales(self, childrenByEin, maxNiveles) {
   const porNivel = []
   let frontera = [{ nodo: self, piernaRaiz: null }]
   for (let n = 1; n <= maxNiveles && frontera.length; n++) {
-    const gente = []
-    const siguienteFrontera = []
+    const orosNivel = []
     for (const { nodo: raiz, piernaRaiz: heredada } of frontera) {
       const stack = (childrenByEin[raiz.ein] || []).map(h => ({ nodo: h, piernaRaiz: heredada || h }))
       while (stack.length) {
         const { nodo: m, piernaRaiz } = stack.pop()
-        if (esOroPlus(m)) { siguienteFrontera.push({ nodo: m, piernaRaiz }); continue }
-        gente.push({ nodo: m, piernaRaiz })
+        if (esOroPlus(m)) { orosNivel.push({ nodo: m, piernaRaiz }); continue }
         for (const c of (childrenByEin[m.ein] || [])) stack.push({ nodo: c, piernaRaiz })
       }
     }
-    // La "frontera" (Oro encontrados) no suma puntos aquí — son quienes
-    // inician el siguiente nivel. Se guardan para mostrarlos igual, con nota.
-    porNivel.push({ gente, fronteraOro: siguienteFrontera })
-    frontera = siguienteFrontera
+    porNivel.push(orosNivel)
+    frontera = orosNivel
   }
   return porNivel
 }
-// Calcula si `self` genera los $200 USD de Reembolso por Diferencial, usando
-// Nivel Oro real (hasta Nivel 3) y el % de la tabla oficial de Descuentos por
-// Red según los PP+PG propios de `self`.
+// ¿La línea de `self` genera los $200 USD de Descuento por Red? Nivel Oro real
+// (hasta Nivel 3) y % de la tabla oficial según los PP+PG propios de `self`.
 function calcularReembolsoNivelOro(self, afiliados, tc, umbral) {
   const childrenByEin = {}
   afiliados.forEach(a => { if (a.einPresentador) (childrenByEin[a.einPresentador] = childrenByEin[a.einPresentador] || []).push(a) })
@@ -294,21 +289,17 @@ function calcularReembolsoNivelOro(self, afiliados, tc, umbral) {
   const califica = esOroPlus(self)
   const porNivel = nivelesOroReales(self, childrenByEin, 3)
   const niveles = [1, 2, 3].map(n => {
-    const { gente, fronteraOro } = porNivel[n - 1] || { gente: [], fronteraOro: [] }
-    const puntos = gente.reduce((s, { nodo: a }) => s + (a.pp || 0), 0)
+    const oros = porNivel[n - 1] || []
     const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    const detalle = gente.map(({ nodo: a, piernaRaiz }) => {
-      const rangoId = getRango(a.rango).id
-      const valorPunto = valorPuntoDe(rangoId)
-      const valorMXN = (a.pp || 0) * valorPunto * pct
-      return { nombre: a.nombre, ein: a.ein, rango: a.rango, pp: a.pp || 0, valorPunto, valorMXN, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }
+    const detalle = oros.map(({ nodo: a, piernaRaiz }) => {
+      const pts = (a.pp || 0) + (a.pg || 0)
+      return { nombre: a.nombre, ein: a.ein, rango: a.rango, pp: pts, valorPunto: VALOR_ORO, valorMXN: pts * VALOR_ORO * pct, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }
     }).sort((x, y) => y.valorMXN - x.valorMXN)
-    const fronteraDetalle = fronteraOro.map(({ nodo: a, piernaRaiz }) => ({ nombre: a.nombre, ein: a.ein, rango: a.rango, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }))
-    const valorBruto = gente.reduce((s, { nodo: a }) => s + (a.pp || 0) * valorPuntoDe(getRango(a.rango).id), 0)
-    return { nivel: n, personas: gente.length, puntos, pct, mxn: valorBruto * pct, detalle, fronteraDetalle }
+    const puntos = detalle.reduce((s, p) => s + p.pp, 0)
+    return { nivel: n, personas: detalle.length, puntos, pct, mxn: puntos * VALOR_ORO * pct, detalle, fronteraDetalle: [] }
   })
   const totalMXN = niveles.reduce((s, n) => s + n.mxn, 0)
-  const ivaMXN = totalMXN * IVA
+  const ivaMXN = totalMXN * RETENCION_FISCAL // retención aproximada (mismo dato que el simulador de cheque)
   const netoMXN = totalMXN - ivaMXN
   const t = tc || TC_FALLBACK
   const usd = netoMXN / t
