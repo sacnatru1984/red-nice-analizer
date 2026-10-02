@@ -724,6 +724,7 @@ const Icons = {
   Tree: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   Plan: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
   Trophy: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="8 1 8 8 12 12 16 8 16 1"/><line x1="8" y1="1" x2="16" y2="1"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>,
+  Menu: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>,
   Upload: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
   Download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Sliders: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>,
@@ -3292,12 +3293,15 @@ function App() {
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
         <div style={{position:'relative',flexShrink:0}}>
-          <button onClick={()=>setMenuTabsAbierto(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px 5px 5px',borderRadius:8,border:'1px solid transparent',background:menuTabsAbierto?'var(--win-surface2)':'none',cursor:'pointer',fontFamily:'inherit'}}>
+          <button onClick={()=>setMenuTabsAbierto(v=>!v)} title="Menú de secciones" aria-label="Abrir menú de secciones" aria-expanded={menuTabsAbierto} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px 5px 5px',borderRadius:8,border:'1px solid var(--win-border)',background:menuTabsAbierto?'var(--win-accent-l)':'var(--win-surface2)',cursor:'pointer',fontFamily:'inherit'}}>
             <div style={{width:26,height:26,background:'var(--win-accent)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'white',boxShadow:'0 0 0 1px rgba(120,200,255,.25), 0 4px 14px rgba(37,99,235,.45)',flexShrink:0}}>
               <div style={{width:14,height:14}}><Icons.Network/></div>
             </div>
             {!isMobile && <span style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>Red<span style={{color:'var(--win-accent)'}}>NICE</span></span>}
-            <span style={{fontSize:9,color:'var(--win-muted)',transform:menuTabsAbierto?'rotate(180deg)':'none',transition:'transform .15s'}}>▾</span>
+            <span style={{display:'flex',alignItems:'center',gap:5,paddingLeft:isMobile?0:8,borderLeft:isMobile?'none':'1px solid var(--win-border)',color:menuTabsAbierto?'var(--win-accent)':'var(--win-text)',fontSize:12,fontWeight:600}}>
+              <span style={{width:16,height:16,display:'flex'}}><Icons.Menu/></span>
+              {!isMobile && 'Menú'}
+            </span>
           </button>
           {menuTabsAbierto && (
             <>
@@ -3389,7 +3393,7 @@ function App() {
                 Visualiza y haz crecer<br/>tu red de mercadeo
               </div>
               <div style={{fontSize:15,color:'rgba(220,235,250,.82)',marginBottom:30,maxWidth:440,marginLeft:'auto',marginRight:'auto',lineHeight:1.65}}>
-                Carga el Excel del portal NICE para ver tu árbol de afiliados, genealogía y planes de carrera personalizados — todo en segundos.
+                Sincroniza tu cuenta NICE o carga el Excel del portal para ver tu genealogía, reportes y planes de carrera personalizados — todo en segundos.
               </div>
               <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
                 <button onClick={()=>fileRef.current.click()} className="rn-glass-btn">
@@ -3399,10 +3403,19 @@ function App() {
                     <span style={{fontSize:11.5,fontWeight:500,opacity:.85,marginTop:2}}>de la sección de afiliados del portal NICE</span>
                   </span>
                 </button>
+                <div style={{display:'flex',alignItems:'center',gap:10,width:'100%',maxWidth:320}}>
+                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
+                  <span style={{fontSize:11,color:'rgba(180,210,240,.45)',letterSpacing:'.08em'}}>o</span>
+                  <div style={{flex:1,height:'1px',background:'rgba(120,200,255,.2)'}}/>
+                </div>
+                <button onClick={sincronizar} disabled={sincronizando} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 22px',borderRadius:10,background:backofficeConectado?'rgba(22,163,74,.2)':'rgba(13,30,48,.55)',border:`1px solid ${backofficeConectado?'rgba(52,211,153,.5)':'rgba(120,200,255,.35)'}`,backdropFilter:'blur(6px)',color:backofficeConectado?'#4ade80':'#BFE4FB',fontSize:13,fontWeight:600,cursor:sincronizando?'default':'pointer',opacity:sincronizando?0.6:1,fontFamily:'inherit',letterSpacing:'.02em',transition:'.2s'}}>
+                  <span style={{width:15,height:15,display:'flex'}}><Icons.Network/></span>
+                  {sincronizando ? 'Sincronizando…' : 'Sincronizar con mi cuenta NICE'}
+                </button>
                 {/* Botón de datos de ejemplo oculto a propósito (no borrado) — cargarDemo() sigue disponible más abajo. */}
               </div>
               <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginTop:34}}>
-                {['Árbol de afiliados','Genealogía visual','Plan de carrera','Reportes para tu equipo'].map(f=>(
+                {['Genealogía visual','Plan de carrera','Reportes para tu equipo','Anuncios con IA'].map(f=>(
                   <div key={f} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 13px',borderRadius:20,background:'rgba(13,30,48,.4)',border:'1px solid rgba(120,200,255,.18)',backdropFilter:'blur(6px)',fontSize:12,fontWeight:500,color:'rgba(220,235,250,.9)'}}>
                     <div style={{width:5,height:5,borderRadius:'50%',background:'#4FD0F5',flexShrink:0}}/>
                     {f}
