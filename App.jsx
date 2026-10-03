@@ -200,15 +200,9 @@ function frontalGenera(a, tc, umbral) {
   return { mxn, usd, tc: t, genera: frontalOroCalifica(a), sobreUmbral: usd >= u }
 }
 
-// ── Simulador de "Cheque del mes" (Descuento por Red — tabla oficial NICE) ──
-// Requiere rango Oro+ propio. El % depende de tus PROPIOS PP+PG del periodo,
-// y se aplica sobre el PP+PG de cada Oro+ que se encuentra en tu red por
-// "Nivel Oro real" (Nivel 1 = el primer Oro de cada línea; Nivel 2 = el
-// siguiente Oro debajo de ese Oro; Nivel 3 = el siguiente después de ese —
-// se salta a quien no es Oro, no cuenta generación literal).
-// Validado contra el cheque real de Irlanda de agosto 2026 ($6,473.36):
-// generación literal daba $9,775.84 (50% de más); Nivel Oro real + retención
-// dio $6,709.84 (solo 3.6% de diferencia).
+// ── Simulador de "Cheque del mes" — % de Descuento por Red por nivel ──
+// El % depende de los PP+PG PROPIOS de quien cobra (tabla oficial NICE).
+// Ver calcularChequeNICE más abajo para la fórmula completa.
 const DR_TRAMOS = [
   { min: 2000, l1: .05, l2: .04, l3: .04 },
   { min: 1500, l1: .03, l2: .03, l3: .03 },
@@ -216,94 +210,108 @@ const DR_TRAMOS = [
   { min: 500, l1: .01, l2: .01, l3: .01 },
   { min: 0, l1: 0, l2: 0, l3: 0 },
 ]
-// Retención fiscal aproximada que NICE descuenta del cheque bruto antes de
-// depositarlo. Validada con un caso real: cheque de $22,000 con retención de
-// $2,300 (10.45%). Puede variar por persona/periodo — es una aproximación.
-const RETENCION_FISCAL = 0.1045
-function simularChequeDR(self, afiliados, metaPropios) {
+// Retención aproximada entre el total del estado de cuenta y lo depositado.
+// Cheque de agosto 2026: estado de cuenta $6,875.55 → depósito $6,473.36 (5.85%).
+// (Otro caso anterior: $22,000 con $2,300 = 10.45% — varía con el monto.)
+const RETENCION_FISCAL = 0.0585
+
+// % de descuento de cada rango (para el Reembolso por Diferencial).
+function descuentoPct(rangoId) {
+  if (rangoId === 'PLATA') return 0.40
+  if (rangoId === 'BRONCE') return 0.35
+  if (rangoId === 'COBRE') return 0.30
+  if (rangoId === 'EIN' || rangoId === 'SIN') return 0.25
+  return 0.45 // Oro y superiores
+}
+
+// ── Cheque NICE — calcado del ESTADO DE CUENTA real (agosto 2026, Irlanda) ──
+// El estado de cuenta paga cada PEDIDO: "valor" del pedido (MXN) × %. En
+// promedio ese valor = puntos × $12.06 (medido: $12.13 por punto en 115 pedidos).
+// Conceptos que se simulan:
+//  • DD (Reembolso por Diferencial): tu grupo NO-Oro (hasta el primer Oro de
+//    cada rama) × (tu % de descuento − el mayor % entre tú y esa persona).
+//    Ej. Irlanda Oro 45% sobre 2 directos Plata 40% → 5%.
+//  • DR (Descuento por Red), Niveles Oro 1-3: cada nivel = el Oro que lo abre
+//    + todo su grupo no-Oro (hasta el siguiente Oro). Se suman los PP
+//    INDIVIDUALES (no el PG, para no contar dos veces) × $12.06 × % del nivel
+//    (5/4/4% con 2,000+ PP+PG propios; tabla DR_TRAMOS). Requiere ser Oro+.
+// No se simulan: reconocimientos fijos ($250 "RECMERC"), $5 "RM Presentador",
+// y pedidos sin descuento por red (kits/paquetes). Por eso puede variar ±5%.
+// Validación agosto 2026: real DR+DD $6,658.59 · este cálculo $6,915 (+3.9%).
+function calcularChequeNICE(self, afiliados, metaPropios) {
   const childrenByEin = {}
   afiliados.forEach(a => { if (a.einPresentador != null) (childrenByEin[a.einPresentador] = childrenByEin[a.einPresentador] || []).push(a) })
   const propiosReales = (self.pp || 0) + (self.pg || 0)
   const propios = (metaPropios != null && metaPropios >= 0) ? metaPropios : propiosReales
   const califica = esOroPlus(self)
   const tramo = DR_TRAMOS.find(t => propios >= t.min)
-  let frontera = [self]
+  const miPct = descuentoPct(getRango(self.rango).id)
+
+  // DD — grupo propio no-Oro, con el mayor % encontrado en el camino
+  const dd = { personas: 0, puntos: 0, mxn: 0, detalle: [] }
+  const st = (childrenByEin[self.ein] || []).map(h => ({ m: h, max: 0, pierna: h }))
+  while (st.length) {
+    const { m, max, pierna } = st.pop()
+    if (esOroPlus(m)) continue
+    const pm = Math.max(max, descuentoPct(getRango(m.rango).id))
+    const dif = Math.max(0, miPct - pm)
+    const pp = m.pp || 0
+    if (pp > 0 && dif > 0) {
+      const mxn = pp * VALOR_ORO * dif
+      dd.personas++; dd.puntos += pp; dd.mxn += mxn
+      dd.detalle.push({ nombre: m.nombre, ein: m.ein, rango: m.rango, pp, pct: dif, valorMXN: mxn, pierna: pierna.nombre, piernaEin: pierna.ein })
+    }
+    for (const c of (childrenByEin[m.ein] || [])) st.push({ m: c, max: pm, pierna })
+  }
+
+  // DR — Niveles Oro 1-3 (Oro que abre + su grupo no-Oro)
+  let frontera = [{ nodo: self, pierna: null }]
   const niveles = [1, 2, 3].map(n => {
-    const encontrados = []
-    const siguienteFrontera = []
-    for (const raiz of frontera) {
-      const stack = [...(childrenByEin[raiz.ein] || [])]
-      while (stack.length) {
-        const m = stack.pop()
-        if (esOroPlus(m)) { encontrados.push(m); siguienteFrontera.push(m); continue }
-        for (const c of (childrenByEin[m.ein] || [])) stack.push(c)
+    const gente = [], siguiente = []
+    for (const { nodo: raiz, pierna: her } of frontera) {
+      const s1 = (childrenByEin[raiz.ein] || []).map(h => ({ m: h, pierna: her || h }))
+      while (s1.length) {
+        const { m, pierna } = s1.pop()
+        if (!esOroPlus(m)) { for (const c of (childrenByEin[m.ein] || [])) s1.push({ m: c, pierna }); continue }
+        // m es el Oro que abre este nivel: él + su grupo no-Oro
+        siguiente.push({ nodo: m, pierna })
+        const s2 = [m]
+        while (s2.length) {
+          const x = s2.pop()
+          gente.push({ nodo: x, pierna, abre: x === m })
+          for (const c of (childrenByEin[x.ein] || [])) if (!esOroPlus(c)) s2.push(c)
+        }
       }
     }
-    frontera = siguienteFrontera
-    const puntos = encontrados.reduce((s, a) => s + (a.pp || 0) + (a.pg || 0), 0)
+    frontera = siguiente
     const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    return { nivel: n, personas: encontrados.length, puntos, pct, importePuntos: puntos * pct }
+    const detalle = gente.filter(g => (g.nodo.pp || 0) > 0).map(({ nodo: a, pierna, abre }) => ({
+      nombre: a.nombre, ein: a.ein, rango: a.rango, pp: a.pp || 0, abre, valorPunto: VALOR_ORO,
+      valorMXN: (a.pp || 0) * VALOR_ORO * pct, pierna: pierna ? pierna.nombre : a.nombre, piernaEin: pierna ? pierna.ein : a.ein,
+    })).sort((x, y) => y.valorMXN - x.valorMXN)
+    const puntos = detalle.reduce((s, p) => s + p.pp, 0)
+    return { nivel: n, oros: siguiente.length, personas: detalle.length, puntos, pct, mxn: puntos * VALOR_ORO * pct, detalle, fronteraDetalle: [] }
   })
-  const totalPuntosDR = niveles.reduce((s, n) => s + n.importePuntos, 0)
-  const totalBrutoMXN = totalPuntosDR * VALOR_ORO
+  const drMXN = niveles.reduce((s, n) => s + n.mxn, 0)
+  const totalBrutoMXN = drMXN + dd.mxn
   const totalMXN = totalBrutoMXN * (1 - RETENCION_FISCAL)
-  return { propios, propiosReales, califica, tramoMin: tramo.min, niveles, totalBrutoMXN, totalMXN }
+  return { propios, propiosReales, califica, tramoMin: tramo.min, miPct, dd, niveles, drMXN, totalBrutoMXN, totalMXN }
+}
+function simularChequeDR(self, afiliados, metaPropios) {
+  return calcularChequeNICE(self, afiliados, metaPropios)
 }
 
-// ── Descuento por Red de una línea, por Nivel Oro REAL (no generación fija) ──
-// MISMA fórmula que simularChequeDR (validada contra cheques reales):
-// Nivel 1 = el primer Oro de cada rama (se salta a quien no es Oro), Nivel 2 =
-// el siguiente Oro debajo de ese, etc. Cada Oro aporta su PP+PG (su grupo
-// hasta el siguiente Oro) × $12.06 × % del nivel.
-// Corrección oct 2026: antes contaba a los NO-Oro con PP × valor de su rango y
-// dejaba fuera a los Oro (quedaba corrido un nivel). Con la red de agosto 2026
-// daba USD $99 para la línea de Diana, cuando Irlanda SÍ es Oro Ejecutivo
-// (esa línea genera +$200); con esta fórmula da ~USD $239.
-// Cada Oro arrastra `piernaRaiz` = el hijo DIRECTO de `self` por el que se
-// llegó a él, para poder desglosar cada nivel por pierna.
-function nivelesOroReales(self, childrenByEin, maxNiveles) {
-  const porNivel = []
-  let frontera = [{ nodo: self, piernaRaiz: null }]
-  for (let n = 1; n <= maxNiveles && frontera.length; n++) {
-    const orosNivel = []
-    for (const { nodo: raiz, piernaRaiz: heredada } of frontera) {
-      const stack = (childrenByEin[raiz.ein] || []).map(h => ({ nodo: h, piernaRaiz: heredada || h }))
-      while (stack.length) {
-        const { nodo: m, piernaRaiz } = stack.pop()
-        if (esOroPlus(m)) { orosNivel.push({ nodo: m, piernaRaiz }); continue }
-        for (const c of (childrenByEin[m.ein] || [])) stack.push({ nodo: c, piernaRaiz })
-      }
-    }
-    porNivel.push(orosNivel)
-    frontera = orosNivel
-  }
-  return porNivel
-}
-// ¿La línea de `self` genera los $200 USD de Descuento por Red? Nivel Oro real
-// (hasta Nivel 3) y % de la tabla oficial según los PP+PG propios de `self`.
+// ── ¿La línea de `self` genera los $200 USD de Descuento por Red? ──
+// Usa EXACTAMENTE el mismo cálculo que el simulador de cheque (calcularChequeNICE,
+// calcado del estado de cuenta de NICE), solo la parte de DR (Niveles Oro 1-3).
 function calcularReembolsoNivelOro(self, afiliados, tc, umbral) {
-  const childrenByEin = {}
-  afiliados.forEach(a => { if (a.einPresentador) (childrenByEin[a.einPresentador] = childrenByEin[a.einPresentador] || []).push(a) })
-  const propios = (self.pp || 0) + (self.pg || 0)
-  const tramo = DR_TRAMOS.find(t => propios >= t.min)
-  const califica = esOroPlus(self)
-  const porNivel = nivelesOroReales(self, childrenByEin, 3)
-  const niveles = [1, 2, 3].map(n => {
-    const oros = porNivel[n - 1] || []
-    const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    const detalle = oros.map(({ nodo: a, piernaRaiz }) => {
-      const pts = (a.pp || 0) + (a.pg || 0)
-      return { nombre: a.nombre, ein: a.ein, rango: a.rango, pp: pts, valorPunto: VALOR_ORO, valorMXN: pts * VALOR_ORO * pct, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }
-    }).sort((x, y) => y.valorMXN - x.valorMXN)
-    const puntos = detalle.reduce((s, p) => s + p.pp, 0)
-    return { nivel: n, personas: detalle.length, puntos, pct, mxn: puntos * VALOR_ORO * pct, detalle, fronteraDetalle: [] }
-  })
-  const totalMXN = niveles.reduce((s, n) => s + n.mxn, 0)
-  const ivaMXN = totalMXN * RETENCION_FISCAL // retención aproximada (mismo dato que el simulador de cheque)
+  const c = calcularChequeNICE(self, afiliados)
+  const totalMXN = c.drMXN
+  const ivaMXN = totalMXN * RETENCION_FISCAL // retención aproximada
   const netoMXN = totalMXN - ivaMXN
   const t = tc || TC_FALLBACK
   const usd = netoMXN / t
-  return { niveles, totalMXN, ivaMXN, netoMXN, usd, tc: t, propios, califica, cumple200: usd >= (umbral || UMBRAL_DESC_USD) }
+  return { niveles: c.niveles, totalMXN, ivaMXN, netoMXN, usd, tc: t, propios: c.propios, califica: c.califica, cumple200: usd >= (umbral || UMBRAL_DESC_USD) }
 }
 
 // Analiza cada línea (frontal Oro directo) de `lider` por separado — cada línea
@@ -1612,9 +1620,9 @@ function ChequeModal({ afiliados, onClose }) {
             </div>
             <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 3 }}>PÁGUESE A LA ORDEN DE</div>
             <div style={{ fontSize: 19, fontWeight: 700, color: '#3A2E0B', marginBottom: 16 }}>{self.nombre}</div>
-            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 4 }}>IMPORTE ESTIMADO (NETO)</div>
-            <div style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalMXN)}</div>
-            <div style={{ fontSize: 10.5, color: '#8A6D1D', marginTop: 4 }}>Bruto {fmtMXN(c.totalBrutoMXN)} · Retención est. ({(RETENCION_FISCAL * 100).toFixed(1)}%) −{fmtMXN(c.totalBrutoMXN - c.totalMXN)}</div>
+            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 4 }}>TOTAL ESTADO DE CUENTA (ESTIMADO)</div>
+            <div style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalBrutoMXN)}</div>
+            <div style={{ fontSize: 10.5, color: '#8A6D1D', marginTop: 4 }}>Depósito aprox. {fmtMXN(c.totalMXN)} · retención est. ({(RETENCION_FISCAL * 100).toFixed(2)}%) −{fmtMXN(c.totalBrutoMXN - c.totalMXN)}</div>
             <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10.5, fontWeight: 700, color: r.color, background: r.bg, padding: '3px 10px', borderRadius: 20 }}>{r.label}</span>
               <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A6D1D' }}>EIN {self.ein} · {c.propios.toLocaleString()} pts propios{esSimulado ? ' (meta)' : ''} ({c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'})</span>
@@ -1623,13 +1631,13 @@ function ChequeModal({ afiliados, onClose }) {
 
           {!c.califica && (
             <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--win-red-l)', color: 'var(--win-red)', fontSize: 12, fontWeight: 600 }}>
-              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+, así que el Descuento por Red no aplica todavía. Esta simulación muestra $0.
+              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+, así que el Descuento por Red (Niveles 1-3) no aplica todavía. Solo se calcula el Reembolso por Diferencial de su grupo.
             </div>
           )}
 
           {/* Desglose por nivel */}
           <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)', marginBottom: 8 }}>Desglose por Nivel Oro</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)', marginBottom: 8 }}>Desglose (como en el estado de cuenta de NICE)</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--win-surface2)' }}>
@@ -1639,13 +1647,20 @@ function ChequeModal({ afiliados, onClose }) {
                 </tr>
               </thead>
               <tbody>
+                <tr style={{ borderBottom: '1px solid var(--win-border)' }}>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--win-title)' }}>Diferencial (DD)</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--win-text)' }}>{c.dd.personas}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-gold)', fontWeight: 600 }}>{c.dd.puntos.toLocaleString()}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-muted)' }}>{c.dd.personas ? ([...new Set(c.dd.detalle.map(d => Math.round(d.pct * 100)))].join('/') + '%') : '—'}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)' }}>{fmtMXN(c.dd.mxn)}</td>
+                </tr>
                 {c.niveles.map(n => (
                   <tr key={n.nivel} style={{ borderBottom: '1px solid var(--win-border)' }}>
                     <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--win-title)' }}>Nivel {n.nivel}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--win-text)' }}>{n.personas}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-gold)', fontWeight: 600 }}>{n.puntos.toLocaleString()}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-muted)' }}>{(n.pct*100).toFixed(0)}%</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)' }}>{fmtMXN(n.importePuntos*VALOR_ORO)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)' }}>{fmtMXN(n.mxn)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1653,7 +1668,7 @@ function ChequeModal({ afiliados, onClose }) {
           </div>
 
           <div style={{ marginTop: 16, fontSize: 11, color: 'var(--win-muted)', lineHeight: 1.6 }}>
-            <strong>Cálculo aproximado</strong> — Nivel 1 es el primer Oro+ que encuentra en cada línea de {esUnoMismo ? 'tu' : `la de ${nombreCorto}`} red, Nivel 2 el siguiente Oro+ debajo de ese, y Nivel 3 el siguiente después de ese (salta a quien no es Oro, no cuenta generación literal). Usa el PP+PG propio de cada Oro+ encontrado. El % depende de {esUnoMismo ? 'tus propios' : 'sus propios'} PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel), y se descuenta una retención fiscal estimada del {(RETENCION_FISCAL * 100).toFixed(1)}%. No es {esUnoMismo ? 'tu' : 'su'} pago oficial de NICE — solo una estimación para planear.
+            <strong>Cómo se calcula</strong> (igual que el estado de cuenta de NICE): <b>Diferencial (DD)</b> = compras de {esUnoMismo ? 'tu' : 'su'} grupo no-Oro × la diferencia de descuento (ej. Oro 45% − Plata 40% = 5%). <b>Niveles 1-3</b> = el primer Oro de cada línea + todo su grupo no-Oro (Nivel 1), el siguiente Oro + su grupo (Nivel 2), y así; se suman los puntos de cada persona × $12.06 × el % del nivel, que depende de {esUnoMismo ? 'tus' : 'sus'} PP+PG (2,000+ → 5/4/4%, 1,500 → 3%, 1,000 → 2%, 500 → 1%). No incluye reconocimientos fijos (ej. $250) ni pedidos de kits/paquetes, así que puede variar ±5%. No es el pago oficial — es una estimación para planear.
           </div>
         </div>
       </div>
