@@ -381,6 +381,16 @@
       .rn-action__t { font-size: 16px; }
     }
 
+    /* Ventana del cheque: 2 columnas en pantallas anchas */
+    .rn-cheque-body { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .rn-cheque-col { min-width: 0; }
+    .rn-cheque-col table { display: block; overflow-x: auto; }
+    @media (min-width: 960px) {
+      .rn-cheque-body { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+      .rn-cheque-col table { display: table; }
+      .rn-cheque-col > :first-child { margin-top: 0 !important; }
+    }
+
     /* ── Barra de navegación inferior (celular) — estilo app NICE ── */
     .rn-bnav {
       flex-shrink: 0; position: relative; z-index: 120;

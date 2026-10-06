@@ -1565,22 +1565,25 @@ function ChequeModal({ afiliados, onClose }) {
   const esSimulado = meta !== propiosReales
   const c = simularChequeDR(self, afiliados, meta)
   const hoy = new Date()
-  const mesLabel = hoy.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
+  const mesLabel = MESES_ES[hoy.getMonth()] + ' ' + hoy.getFullYear()
   const fmtMXN = v => v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 })
 
-  return (
+  // Se monta en <body> (portal): así no queda debajo de la barra superior ni
+  // crece con el zoom de letra A+/A−, y siempre cabe en la pantalla.
+  const nodo = (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,28,.62)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 12 : 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.45)', width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.45)', width: '100%', maxWidth: isMobile ? 620 : 1040, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--win-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, fontSize: 18 }}>💵</div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>{esUnoMismo ? 'Simulación de tu cheque' : `Simulación del cheque de ${nombreCorto}`}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--win-muted)', textTransform: 'capitalize' }}>{mesLabel} · Descuento por Red</div>
+            <div style={{ fontSize: 11.5, color: 'var(--win-muted)' }}>{mesLabel} · Descuento por Red</div>
           </div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--win-border)', background: 'var(--win-surface2)', color: 'var(--win-muted)', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit', flexShrink: 0 }}>✕</button>
         </div>
 
-        <div style={{ padding: isMobile ? 16 : 24 }}>
+        <div className="rn-cheque-body" style={{ padding: isMobile ? 16 : 24 }}>
+          <div className="rn-cheque-col">
           {/* Buscador: simula el cheque de cualquier afiliado, no solo el propio */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ position: 'relative' }}>
@@ -1649,14 +1652,14 @@ function ChequeModal({ afiliados, onClose }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
               <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', color: '#8A6D1D' }}>NICE · CHEQUE SIMULADO</div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, color: '#8A6D1D', textTransform: 'capitalize' }}>{mesLabel}</div>
+                <div style={{ fontSize: 11, color: '#8A6D1D' }}>{mesLabel}</div>
                 {esSimulado && <div style={{ marginTop: 3, fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', color: '#fff', background: '#B8860B', padding: '2px 8px', borderRadius: 20, display: 'inline-block' }}>CON META</div>}
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 3 }}>PÁGUESE A LA ORDEN DE</div>
             <div style={{ fontSize: 19, fontWeight: 700, color: '#3A2E0B', marginBottom: 16 }}>{self.nombre}</div>
             <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 4 }}>TOTAL ESTADO DE CUENTA (ESTIMADO)</div>
-            <div style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalBrutoMXN)}</div>
+            <div style={{ fontSize: isMobile ? 34 : 40, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalBrutoMXN)}</div>
             <div style={{ fontSize: 10.5, color: '#8A6D1D', marginTop: 4 }}>Depósito aprox. {fmtMXN(c.totalMXN)} · retención est. ({(RETENCION_FISCAL * 100).toFixed(2)}%) −{fmtMXN(c.totalBrutoMXN - c.totalMXN)}</div>
             <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10.5, fontWeight: 700, color: r.color, background: r.bg, padding: '3px 10px', borderRadius: 20 }}>{r.label}</span>
@@ -1670,6 +1673,8 @@ function ChequeModal({ afiliados, onClose }) {
             </div>
           )}
 
+          </div>
+          <div className="rn-cheque-col">
           {/* Desglose por nivel */}
           <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)', marginBottom: 8 }}>Desglose (como en el estado de cuenta de NICE)</div>
@@ -1705,10 +1710,12 @@ function ChequeModal({ afiliados, onClose }) {
           <div style={{ marginTop: 16, fontSize: 11, color: 'var(--win-muted)', lineHeight: 1.6 }}>
             <strong>Cómo se calcula</strong> (igual que el estado de cuenta de NICE): <b>Diferencial (DD)</b> = compras de {esUnoMismo ? 'tu' : 'su'} grupo no-Oro × la diferencia de descuento (ej. Oro 45% − Plata 40% = 5%). <b>Niveles 1-3</b> = el primer Oro de cada línea + todo su grupo no-Oro (Nivel 1), el siguiente Oro + su grupo (Nivel 2), y así; se suman los puntos de cada persona × $12.06 × el % del nivel, que depende de {esUnoMismo ? 'tus' : 'sus'} PP+PG (2,000+ → 5/4/4%, 1,500 → 3%, 1,000 → 2%, 500 → 1%). No incluye reconocimientos fijos (ej. $250) ni pedidos de kits/paquetes, así que puede variar ±5%. No es el pago oficial — es una estimación para planear.
           </div>
+          </div>
         </div>
       </div>
     </div>
   )
+  return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
 }
 
 function PanelMiRed({ afiliados, tc }) {
