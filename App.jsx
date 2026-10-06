@@ -723,6 +723,9 @@ const Icons = {
   Tree: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   Plan: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
   Trophy: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="8 1 8 8 12 12 16 8 16 1"/><line x1="8" y1="1" x2="16" y2="1"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>,
+  ArrowRight: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
+  Calc: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="10" y2="16"/><line x1="14" y1="16" x2="16" y2="16"/></svg>,
+  Star: () => <svg viewBox="0 0 24 24" fill="currentColor" style={{width:'100%',height:'100%'}}><polygon points="12 2 15.1 8.6 22 9.3 16.8 14 18.2 21 12 17.4 5.8 21 7.2 14 2 9.3 8.9 8.6 12 2"/></svg>,
   Menu: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>,
   Upload: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
   Download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
@@ -747,10 +750,42 @@ const Icons = {
 
 const s = (styles) => styles
 const S = {
-  card: { background:'var(--win-surface)', border:'1px solid var(--win-border)', borderRadius:10, boxShadow:'0 1px 3px rgba(0,0,0,.08)' },
+  card: { background:'var(--win-surface)', border:'1px solid var(--win-border)', borderRadius:18, boxShadow:'0 4px 18px rgba(15,35,65,.06)' },
   cardHeader: { padding:'12px 16px', borderBottom:'1px solid var(--win-border)', display:'flex', alignItems:'center', gap:8 },
   cardBody: { padding:'14px 16px' },
   cardTitle: { fontSize:13, fontWeight:600, color:'var(--win-title)' },
+}
+
+// Anillo de progreso estilo app NICE (ej. 516 / 500 PF)
+function NiceRing({ value, max, unidad, size = 92 }) {
+  const r = 40, c = 2 * Math.PI * r
+  const pct = max > 0 ? Math.min(1, value / max) : 0
+  return (
+    <div style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
+      <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+        <circle cx="50" cy="50" r={r} fill="var(--nice-tile)" stroke="var(--nice-tile)" strokeWidth="9"/>
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--nice-indigo)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${c * pct} ${c}`}/>
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1 }}>
+        <span style={{ fontSize: size > 80 ? 20 : 17, fontWeight: 700, color: 'var(--win-title)', fontVariantNumeric: 'tabular-nums' }}>{value.toLocaleString()}</span>
+        <span style={{ fontSize: 10, color: 'var(--win-muted)' }}>/ <b style={{ color: 'var(--nice-indigo)' }}>{max.toLocaleString()}</b> {unidad}</span>
+      </div>
+    </div>
+  )
+}
+
+// Tarjeta de acción azul marino con flecha blanca (como "Calculadora Nice")
+function NiceAction({ icon: I, titulo, sub, onClick }) {
+  return (
+    <button onClick={onClick} className="rn-action">
+      <span className="rn-action__ico"><I/></span>
+      <span className="rn-action__txt">
+        {sub && <span className="rn-action__sub">{sub}</span>}
+        <span className="rn-action__t">{titulo}</span>
+      </span>
+      <span className="rn-action__go"><Icons.ArrowRight/></span>
+    </button>
+  )
 }
 
 function RankBadge({ rangoStr, maxWidth }) {
@@ -1749,6 +1784,58 @@ function PanelMiRed({ afiliados, tc }) {
       {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
       {showCheque && <ChequeModal afiliados={afiliados} onClose={()=>setShowCheque(false)}/>}
 
+      {/* Bienvenida estilo app NICE: franja azul marino + resumen con anillos */}
+      {self && (() => {
+        const propios = (self.pp || 0) + (self.pg || 0)
+        const sig = getSiguienteRangoObjetivo(self)
+        const metaFrontales = sig && sig.tipo === 'equipo' ? sig.frontalesOro : Math.max(1, self.frontalesOro || 0)
+        const cheque = calcularChequeNICE(self, afiliados)
+        const hoyMes = new Date()
+        const mes = MESES_ES[hoyMes.getMonth()] + ' ' + hoyMes.getFullYear()
+        return (
+          <div className="rn-welcomebar">
+            <div className="rn-welcomebar__top">
+              <div className="rn-welcomebar__medal">
+                {RANGO_IMG[rSelf.id] ? <img src={RANGO_IMG[rSelf.id]} alt=""/> : <span>{getInitials(self.nombre)}</span>}
+                <div className="rn-welcomebar__rank">{rSelf.label}</div>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div className="rn-welcomebar__ein">EIN <b>{self.ein}</b></div>
+                <div className="rn-welcomebar__ein">Descuento: {Math.round(descuentoPct(rSelf.id) * 100)}%</div>
+                <div className="rn-welcomebar__hola">Hola {self.nombre.split(' ')[0]}! 👋</div>
+                <div className="rn-welcomebar__sub">{total} afiliados · {activos} activos este mes</div>
+              </div>
+            </div>
+            <div className="rn-welcomebar__head">Resumen del mes <span>{mes}</span></div>
+            <div className="rn-sumgrid">
+              <div className="rn-sumcard">
+                <div className="rn-sumcard__t">Puntos del mes</div>
+                <NiceRing value={propios} max={2000} unidad="pts"/>
+                <div className="rn-sumcard__l">Descuento por Red</div>
+                <span className="rn-pill">{propios >= 2000 ? '5/4/4%' : propios >= 1500 ? '3%' : propios >= 1000 ? '2%' : propios >= 500 ? '1%' : '0%'}</span>
+              </div>
+              <div className="rn-sumcard">
+                <div className="rn-sumcard__t">Frontales Oro</div>
+                <NiceRing value={self.frontalesOro || 0} max={metaFrontales} unidad="Oro"/>
+                <div className="rn-sumcard__l">Meta</div>
+                <span className="rn-pill rn-pill--indigo">{sig && sig.tipo === 'equipo' ? sig.label : rSelf.label}</span>
+              </div>
+              <button className="rn-sumcard rn-sumcard--btn" onClick={() => setShowCheque(true)}>
+                <div className="rn-sumcard__t">Cheque estimado</div>
+                <div className="rn-sumcard__star"><span><Icons.Star/></span><b>{cheque.dd.personas + cheque.niveles.reduce((s2, n) => s2 + n.personas, 0)}</b><small>personas</small></div>
+                <div className="rn-sumcard__l">Monto estimado</div>
+                <span className="rn-pill">{cheque.totalBrutoMXN.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })}</span>
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      <div className="rn-actions-list">
+        <NiceAction icon={Icons.Calc} sub="Calculadora de cheque" titulo="Simula el cheque de este mes" onClick={() => setShowCheque(true)}/>
+        <NiceAction icon={Icons.Grid} sub="Toda tu red" titulo="Base de datos de afiliados" onClick={() => setShowDB(true)}/>
+      </div>
+
       {hayPrioridades && (
         <div style={{ ...S.card, marginBottom: 16, overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', background: '#FEF2F2' }}>
@@ -1763,46 +1850,6 @@ function PanelMiRed({ afiliados, tc }) {
         </div>
       )}
 
-      <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:12}}>
-        <button onClick={()=>setShowDB(true)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-accent)',border:'1px solid var(--win-accent)',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          <div style={{width:15,height:15}}><Icons.Grid/></div>
-          Base de datos
-        </button>
-      </div>
-      <button onClick={()=>setShowCheque(true)} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,width:'100%',padding:'18px 20px',marginBottom:16,borderRadius:14,border:'none',background:'linear-gradient(135deg,#D4AF37,#B8860B)',color:'#fff',cursor:'pointer',fontFamily:'inherit',boxShadow:'0 8px 24px rgba(184,134,11,.35)'}}>
-        <span style={{fontSize:26}}>💵</span>
-        <span style={{textAlign:'left'}}>
-          <span style={{display:'block',fontSize:16,fontWeight:800}}>Simula el cheque de este mes</span>
-          <span style={{display:'block',fontSize:11.5,opacity:.9,fontWeight:500}}>Descuento por Red · Busca a cualquier afiliado</span>
-        </span>
-      </button>
-      {/* Hero: total · líder · rango */}
-      {self && (
-        <div className="rn-hero">
-          <div>
-            <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:6}}>TOTAL AFILIADOS</div>
-            <div style={{fontSize:32,fontWeight:700,color:'var(--win-accent)',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{total}</div>
-            <div style={{fontSize:11,color:'var(--win-muted)',marginTop:4}}>{activos} activos · {total>0?Math.round(activos/total*100):0}%</div>
-          </div>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:6}}>LÍDER DE LA RED</div>
-            <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)',lineHeight:1.2}}>{self.nombre}</div>
-            <div style={{fontSize:11,color:'var(--win-muted)',marginTop:4}}>EIN {self.ein}{self.ciudad?` · ${self.ciudad}`:''}</div>
-          </div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:14}}>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:6}}>RANGO NICE</div>
-              <div style={{fontSize:16,fontWeight:700,color:rSelf.color,lineHeight:1.1}}>{rSelf.label}</div>
-              <div style={{fontSize:11,color:'var(--win-muted)',marginTop:4}}>{(self.pp||0)} PP · {(self.pg||0)} PG</div>
-            </div>
-            <div style={{width:64,height:64,borderRadius:'50%',background:rSelf.bg,border:`3px solid ${rSelf.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:`0 0 0 4px ${rSelf.color}22`,overflow:'hidden'}}>
-              {RANGO_IMG[rSelf.id]
-                ? <img src={RANGO_IMG[rSelf.id]} alt={rSelf.label} style={{width:56,height:56,objectFit:'contain'}}/>
-                : <span style={{fontSize:14,fontWeight:700,color:rSelf.color}}>{getInitials(self.nombre)}</span>}
-            </div>
-          </div>
-        </div>
-      )}
       <div className="rn-stats-grid">
         {[{l:'Activos este mes',v:activos,c:'var(--win-green)',sub:`${total>0?Math.round(activos/total*100):0}% actividad`},{l:'PP totales',v:totalPP.toLocaleString(),c:'var(--win-gold)'},{l:'PG totales',v:totalPG.toLocaleString(),c:'var(--win-purple)'},{l:'Rangos Oro+',v:afiliados.filter(a=>{const r=getRango(a.rango);return r.id.includes('ORO')||r.id.includes('DIAMANTE')||r.id==='PLATINO'}).length,c:'var(--win-gold)'}].map(k=>(
           <div key={k.l} style={{...S.card, padding:'14px 16px'}}>
@@ -3147,6 +3194,8 @@ function App() {
   // Pantalla de entrada. Por ahora "Acceder" solo la cierra (sin autenticación);
   // más adelante se conectará a la base de datos de usuarios con acceso.
   const [splash, setSplash] = useState(true)
+  // Hoja inferior "Más" de la barra de navegación en celular (estilo app NICE)
+  const [masAbierto, setMasAbierto] = useState(false)
 
   const irAGenealogia = useCallback((ein) => {
     setGenealogiaEin(ein)
@@ -3291,27 +3340,27 @@ function App() {
     })
   }
 
-  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
+  const TABS = [{id:'red',l:'Mi Red',I:Icons.Home},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
   // Las pestañas 'arbol' y 'semana' se ocultan a propósito (no se borran) — 'arbol' sigue en
   // PanelGenealogia.jsx y 'semana' en PanelSemana.jsx, por si se reactivan más adelante.
   const curTab = TABS.find(t=>t.id===tab)||TABS[0]
   const self = afiliadosCalc.find(a=>a.gen===0) || afiliadosCalc[0]
 
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--win-bg)'}}>
+    <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'Poppins',system-ui,sans-serif",background:'var(--win-bg)'}}>
       {splash&&(
         <div className="rn-splash" role="dialog" aria-label="Bienvenida Red NICE Analizer">
           <div className="rn-splash__bg"/>
           <button className="rn-splash__btn" onClick={()=>setSplash(false)} autoFocus>
-            <span className="rn-splash__btn-txt">Acceder</span>
-            <span className="rn-splash__btn-ico">→</span>
+            <span className="rn-splash__btn-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
+            <span className="rn-splash__btn-txt">Acceder<small>Red NICE Analizer</small></span>
           </button>
         </div>
       )}
       {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
-        <div style={{position:'relative',flexShrink:0}}>
+        <div style={{position:'relative',flexShrink:0,display:isMobile?'none':'block'}}>
           <button onClick={()=>setMenuTabsAbierto(v=>!v)} title="Menú de secciones" aria-label="Abrir menú de secciones" aria-expanded={menuTabsAbierto} style={{display:'flex',alignItems:'center',gap:8,padding:isMobile?'0 10px':'0 12px',height:isMobile?38:32,borderRadius:8,border:'1px solid var(--win-border)',background:menuTabsAbierto?'var(--win-accent-l)':'var(--win-surface2)',cursor:'pointer',fontFamily:'inherit'}}>
             <span style={{display:'flex',alignItems:'center',gap:5,color:menuTabsAbierto?'var(--win-accent)':'var(--win-text)',fontSize:12,fontWeight:600}}>
               <span style={{width:16,height:16,display:'flex'}}><Icons.Menu/></span>
@@ -3461,6 +3510,42 @@ function App() {
         )}
       </div>
       </div>
+      {/* Barra de navegación inferior (solo celular), estilo app NICE */}
+      {isMobile&&(()=>{
+        const PRINCIPALES=['red','genealogia','plan','reportes']
+        const enMas=!PRINCIPALES.includes(tab)
+        const item=(id,l,I,activo,onClick)=>(
+          <button key={id} onClick={onClick} className={'rn-bnav__item'+(activo?' is-active':'')} aria-current={activo?'page':undefined}>
+            <span className="rn-bnav__ico"><I/></span>
+            <span className="rn-bnav__lbl">{l}</span>
+          </button>
+        )
+        return (
+          <>
+            {masAbierto&&(
+              <div className="rn-sheet" onClick={()=>setMasAbierto(false)}>
+                <div className="rn-sheet__panel" onClick={e=>e.stopPropagation()}>
+                  <div className="rn-sheet__grip"/>
+                  <div className="rn-sheet__title">Más secciones</div>
+                  {TABS.filter(t=>!PRINCIPALES.includes(t.id)).map(t=>(
+                    <button key={t.id} className={'rn-sheet__row'+(tab===t.id?' is-active':'')} onClick={()=>{setTab(t.id);setMasAbierto(false)}}>
+                      <span className="rn-sheet__tile"><t.I/></span>
+                      <span style={{flex:1}}>{t.l}</span>
+                      {t.id==='archivos'&&duplicados.length>0&&<span className="rn-sheet__badge">{duplicados.length}</span>}
+                      <span className="rn-sheet__chev"><Icons.ChevRight/></span>
+                    </button>
+                  ))}
+                  <button className="rn-sheet__back" onClick={()=>setMasAbierto(false)}>REGRESAR</button>
+                </div>
+              </div>
+            )}
+            <nav className="rn-bnav">
+              {TABS.filter(t=>PRINCIPALES.includes(t.id)).map(t=>item(t.id,t.l,t.I,tab===t.id,()=>{setTab(t.id);setMasAbierto(false)}))}
+              {item('mas','Más',Icons.Grid,enMas||masAbierto,()=>setMasAbierto(v=>!v))}
+            </nav>
+          </>
+        )
+      })()}
     </div>
   )
 }
