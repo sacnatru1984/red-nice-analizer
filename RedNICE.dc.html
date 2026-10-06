@@ -355,7 +355,12 @@
     .rn-sumcard__t { font-size: 14px; font-weight: 600; }
     .rn-sumcard__l { font-size: 12px; color: var(--win-muted); }
     .rn-sumcard__star { width: 92px; height: 92px; border-radius: 50%; background: #E3E6EE; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; color: var(--nice-navy); }
-    [data-theme="dark"] .rn-sumcard__star { background: var(--nice-tile); color: #fff; }
+    /* En modo oscuro las tarjetas del resumen se quedan blancas, como en la app NICE */
+    [data-theme="dark"] .rn-sumcard {
+      --win-surface: #FFFFFF; --win-title: #0F2341; --win-muted: #7A8194; --win-border: #E5E8F0;
+      --nice-tile: #EEF0FA; --nice-indigo: #2B3A8F; --win-green: #1E9E50; --win-green-l: #E6F6EC;
+      box-shadow: 0 10px 28px rgba(0,0,0,.35);
+    }
     [data-theme="dark"] .rn-welcomebar { background: linear-gradient(160deg, #163050 0%, #0F2846 70%); box-shadow: 0 10px 30px rgba(0,0,0,.25); }
     [data-theme="dark"] .rn-action { background: linear-gradient(135deg, #22395A, #1D324D); border: 1px solid #2F4766; }
     [data-theme="dark"] .rn-action__go { color: #0B233F; }
