@@ -1547,35 +1547,6 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdo
   )
 }
 
-// Monto en letra para el cheque: 6915.20 → "SEIS MIL NOVECIENTOS QUINCE PESOS 20/100 M.N."
-function montoEnLetras(monto) {
-  const U = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE', 'VEINTE', 'VEINTIÚN', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO', 'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE']
-  const D = ['', '', '', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA']
-  const C = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS']
-  const cientos = n => {
-    if (n === 0) return ''
-    if (n === 100) return 'CIEN'
-    const c = Math.floor(n / 100), r = n % 100
-    let t = C[c]
-    if (r) t += (t ? ' ' : '') + (r < 30 ? U[r] : D[Math.floor(r / 10)] + (r % 10 ? ' Y ' + U[r % 10] : ''))
-    return t
-  }
-  const totalCent = Math.round(monto * 100)
-  const entero = Math.floor(totalCent / 100)
-  const cent = totalCent % 100
-  let txt
-  if (entero === 0) txt = 'CERO'
-  else {
-    const mill = Math.floor(entero / 1e6), miles = Math.floor((entero % 1e6) / 1000), resto = entero % 1000
-    const partes = []
-    if (mill) partes.push(mill === 1 ? 'UN MILLÓN' : cientos(mill) + ' MILLONES')
-    if (miles) partes.push(miles === 1 ? 'MIL' : cientos(miles) + ' MIL')
-    if (resto) partes.push(cientos(resto))
-    txt = partes.join(' ')
-  }
-  return `${txt} PESOS ${String(cent).padStart(2, '0')}/100 M.N.`
-}
-
 function ChequeModal({ afiliados, onClose }) {
   const isMobile = useIsMobile()
   const raiz = afiliados.find(a => a.gen === 0) || afiliados[0]
@@ -1687,36 +1658,6 @@ function ChequeModal({ afiliados, onClose }) {
             </div>
           )}
 
-          <div className="rn-chq__grid">
-          <div className="rn-chq__col">
-          {/* Cheque con el nombre de quien lo consulta */}
-          <div className="rn-cheque">
-            <div className="rn-cheque__top">
-              <div className="rn-cheque__brand">
-                <img src="./assets/icono-app.png" alt=""/>
-                <div><b>Red NICE Analizer</b><span>Cheque simulado · Descuento por Red</span></div>
-              </div>
-              <div className="rn-cheque__meta">
-                <div>No. <b>{self.ein}</b></div>
-                <div>{mesLabel}</div>
-                {esSimulado && <span className="rn-cheque__badge">CON META</span>}
-              </div>
-            </div>
-            <div className="rn-cheque__line">
-              <span className="rn-cheque__lbl">PÁGUESE A LA ORDEN DE</span>
-              <span className="rn-cheque__name">{self.nombre}</span>
-              <span className="rn-cheque__box">{fmtMXN(c.totalBrutoMXN)}</span>
-            </div>
-            <div className="rn-cheque__words">{montoEnLetras(c.totalBrutoMXN)}</div>
-            <div className="rn-cheque__bottom">
-              <div>
-                <div className="rn-cheque__dep">Depósito aprox. <b>{fmtMXN(c.totalMXN)}</b></div>
-                <div className="rn-cheque__small">{r.label} · {c.propios.toLocaleString()} pts · {tramoTxt}</div>
-              </div>
-              <div className="rn-cheque__sign"><span/>Estimación · no es pago oficial</div>
-            </div>
-          </div>
-
           {/* Meta de puntos */}
           <div className="rn-chq__card">
             <div className="rn-chq__card-head">
@@ -1735,8 +1676,6 @@ function ChequeModal({ afiliados, onClose }) {
             <div className="rn-chq__scale"><span>0</span><b className={meta >= 2000 ? 'ok' : ''}>{meta.toLocaleString()} de 2,000 pts</b><span>2,000</span></div>
           </div>
 
-          </div>
-          <div className="rn-chq__col">
           {/* Desglose como en el estado de cuenta */}
           <div className="rn-chq__sec">Desglose <span>como en el estado de cuenta de NICE</span></div>
           <div className="rn-chq__rows">
@@ -1752,8 +1691,6 @@ function ChequeModal({ afiliados, onClose }) {
             ))}
           </div>
 
-          </div>
-          </div>
           <div className="rn-chq__how">
             <strong>Cómo se calcula</strong> (igual que el estado de cuenta de NICE): <b>Diferencial (DD)</b> = compras de {esUnoMismo ? 'tu' : 'su'} grupo no-Oro × la diferencia de descuento (ej. Oro 45% − Plata 40% = 5%). <b>Niveles 1-3</b> = el primer Oro de cada línea + todo su grupo no-Oro (Nivel 1), el siguiente Oro + su grupo (Nivel 2), y así; se suman los puntos de cada persona × $12.06 × el % del nivel, que depende de {esUnoMismo ? 'tus' : 'sus'} PP+PG (2,000+ → 5/4/4%, 1,500 → 3%, 1,000 → 2%, 500 → 1%). No incluye reconocimientos fijos (ej. $250) ni pedidos de kits/paquetes, así que puede variar ±5%. No es el pago oficial — es una estimación para planear.
           </div>
