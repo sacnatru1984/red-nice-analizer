@@ -3372,7 +3372,7 @@ function App() {
   const self = afiliadosCalc.find(a=>a.gen===0) || afiliadosCalc[0]
 
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'Poppins',system-ui,sans-serif",background:'var(--win-bg)'}}>
+    <div className="rn-root" style={{display:'flex',flexDirection:'column',fontFamily:"'Poppins',system-ui,sans-serif",background:'var(--win-bg)'}}>
       {splash&&(
         <div className="rn-splash" role="dialog" aria-label="Bienvenida Red NICE Analizer">
           <div className="rn-splash__bg"/>
@@ -3386,7 +3386,7 @@ function App() {
       {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
-        <div style={{position:'relative',flexShrink:0,display:isMobile?'none':'block'}}>
+        <div style={{position:'relative',flexShrink:0}}>
           <button onClick={()=>setMenuTabsAbierto(v=>!v)} title="Menú de secciones" aria-label="Abrir menú de secciones" aria-expanded={menuTabsAbierto} style={{display:'flex',alignItems:'center',gap:8,padding:isMobile?'0 10px':'0 12px',height:isMobile?38:32,borderRadius:8,border:'1px solid var(--win-border)',background:menuTabsAbierto?'var(--win-accent-l)':'var(--win-surface2)',cursor:'pointer',fontFamily:'inherit'}}>
             <span style={{display:'flex',alignItems:'center',gap:5,color:menuTabsAbierto?'var(--win-accent)':'var(--win-text)',fontSize:12,fontWeight:600}}>
               <span style={{width:16,height:16,display:'flex'}}><Icons.Menu/></span>

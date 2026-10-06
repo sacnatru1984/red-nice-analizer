@@ -422,6 +422,10 @@
       .rn-cheque-col > :first-child { margin-top: 0 !important; }
     }
 
+    /* Alto real visible: en iPhone/Safari 100vh incluye la zona detrás de la
+       barra del navegador y escondía la barra inferior. dvh usa solo lo visible. */
+    .rn-root { position: fixed; inset: 0; height: 100vh; height: 100dvh; }
+
     /* ── Barra de navegación inferior (celular) — estilo app NICE ── */
     .rn-bnav {
       flex-shrink: 0; position: relative; z-index: 120;
