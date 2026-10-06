@@ -66,34 +66,35 @@
       --win-tooltip-fg: #FFFFFF;
     }
     [data-theme="dark"] {
-      --win-bg: #0E1320;
-      --win-surface: #161C2B;
-      --win-surface2: #1E2638;
-      --win-border: #2A3346;
-      --win-border2: #3A4459;
-      --win-title: #F1F4FA;
-      --win-text: #C4CCDA;
-      --win-muted: #7C879C;
-      --nice-navy: #0B1830;
-      --nice-navy2: #1A2B48;
-      --nice-indigo: #8C9BFF;
-      --nice-tile: #1E2742;
-      --win-accent: #8C9BFF;
-      --win-accent-l: #1E2742;
-      --win-green: #34D399;
-      --win-green-l: #14271F;
-      --win-gold: #E0A93C;
-      --win-purple: #A78BFA;
+      /* Modo oscuro con el azul marino de la app NICE (#0B233F) */
+      --nice-navy: #0B233F;
+      --nice-navy2: #1D324D;
+      --nice-indigo: #8EA0FF;
+      --nice-tile: #263D5C;
+      --win-bg: #0B233F;
+      --win-surface: #1D324D;
+      --win-surface2: #243B58;
+      --win-border: #2F4766;
+      --win-border2: #3D5677;
+      --win-title: #FFFFFF;
+      --win-text: #D7DFEB;
+      --win-muted: #9AA9BF;
+      --win-accent: #8EA0FF;
+      --win-accent-l: #263D5C;
+      --win-green: #4ADE80;
+      --win-green-l: #173A33;
+      --win-gold: #E8B54A;
+      --win-purple: #B4A2FF;
       --win-red: #F87171;
-      --win-red-l: #2A1A1C;
-      --win-cyan: #4FD0F5;
+      --win-red-l: #3A2230;
+      --win-cyan: #5FD3F7;
       --win-amber: #F2A742;
-      --win-link: #38C6F4;
-      --win-link-glow: 0 0 7px rgba(56,198,244,.55);
-      --win-glow-cyan: rgba(56,198,244,.18);
-      --shadow-md: 0 8px 24px rgba(0,0,0,.45);
-      --win-tooltip-bg: #F1F4FA;
-      --win-tooltip-fg: #14213D;
+      --win-link: #8EA0FF;
+      --win-link-glow: none;
+      --win-glow-cyan: rgba(95,211,247,.12);
+      --shadow-md: 0 8px 24px rgba(0,0,0,.35);
+      --win-tooltip-bg: #FFFFFF;
+      --win-tooltip-fg: #0B233F;
     }
     body { background: var(--win-bg); }
 
@@ -114,9 +115,7 @@
       position: fixed;
       inset: 0;
       background:
-        radial-gradient(900px 520px at 78% -10%, rgba(56,198,244,.16), transparent 60%),
-        radial-gradient(760px 460px at 12% 8%, rgba(37,99,235,.18), transparent 62%),
-        radial-gradient(600px 420px at 60% 108%, rgba(242,167,66,.07), transparent 60%);
+        none;
       pointer-events: none;
       z-index: 0;
     }
@@ -357,6 +356,9 @@
     .rn-sumcard__l { font-size: 12px; color: var(--win-muted); }
     .rn-sumcard__star { width: 92px; height: 92px; border-radius: 50%; background: #E3E6EE; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; color: var(--nice-navy); }
     [data-theme="dark"] .rn-sumcard__star { background: var(--nice-tile); color: #fff; }
+    [data-theme="dark"] .rn-welcomebar { background: linear-gradient(160deg, #163050 0%, #0F2846 70%); box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    [data-theme="dark"] .rn-action { background: linear-gradient(135deg, #22395A, #1D324D); border: 1px solid #2F4766; }
+    [data-theme="dark"] .rn-action__go { color: #0B233F; }
     .rn-sumcard__star span { width: 18px; height: 18px; display: flex; }
     .rn-sumcard__star b { font-size: 19px; }
     .rn-sumcard__star small { font-size: 10px; color: var(--win-muted); }

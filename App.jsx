@@ -1845,9 +1845,9 @@ function PanelMiRed({ afiliados, tc }) {
 
       {hayPrioridades && (
         <div style={{ ...S.card, marginBottom: 16, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', background: '#FEF2F2' }}>
-            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#991B1B' }}>🔥 Prioridades de hoy</span>
-            <div style={{ fontSize: 11, color: '#991B1B', marginTop: 2, opacity: .85 }}>Lo más urgente de toda tu red — el resto del detalle está en Plan de acción, por persona</div>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', background: 'var(--win-red-l)' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--win-red)' }}>🔥 Prioridades de hoy</span>
+            <div style={{ fontSize: 11, color: 'var(--win-red)', marginTop: 2, opacity: .85 }}>Lo más urgente de toda tu red — el resto del detalle está en Plan de acción, por persona</div>
           </div>
           <div style={{ padding: '4px 16px 2px' }}>
             {oroInactivosRed.map(a => filaPrioridad(a, `${getRango(a.rango).label} sin movimiento — si se acumula, arriesga perder la red`, true))}
