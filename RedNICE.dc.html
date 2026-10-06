@@ -22,6 +22,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Cormorant+Garamond:wght@500;600&family=Great+Vibes&display=swap" rel="stylesheet">
   <meta name="ext-resource-dependency" content="./assets/fondo-red.jpg" data-resource-id="fondoRed" />
+  <link rel="icon" type="image/png" href="./assets/favicon.png">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="./rango-medals.js"></script>
@@ -268,14 +270,26 @@
     .rn-splash {
       position: fixed; inset: 0; z-index: 1000;
       background: #04102A;
-      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-      padding-bottom: max(7vh, 40px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: max(6vh, 36px);
+      padding: 24px;
       animation: rnSplashIn .5s ease both;
     }
     .rn-splash__bg {
       position: absolute; inset: 0;
-      background: url('./assets/splash-red-nice.jpg') center 42% / cover no-repeat;
+      /* Fondo azul marino con planos diagonales, como la entrada de la app NICE */
+      background:
+        linear-gradient(118deg, transparent 62%, rgba(40,80,150,.22) 62%, rgba(40,80,150,.10) 100%),
+        linear-gradient(200deg, rgba(40,80,150,.18) 0%, transparent 38%),
+        radial-gradient(70% 50% at 50% 42%, rgba(56,140,240,.28), transparent 70%),
+        linear-gradient(180deg, #0B1E3D 0%, #0A1730 100%);
     }
+    .rn-splash__icon {
+      position: relative; z-index: 1; display: block;
+      width: min(300px, 62vw); height: auto;
+      filter: drop-shadow(0 24px 50px rgba(0,0,0,.45)) drop-shadow(0 0 40px rgba(56,150,245,.25));
+      animation: rnIconIn .6s cubic-bezier(.2,.8,.2,1) both;
+    }
+    @keyframes rnIconIn { from { opacity: 0; transform: scale(.92) translateY(8px); } to { opacity: 1; transform: none; } }
     .rn-splash__btn {
       position: relative; z-index: 1;
       display: inline-flex; align-items: center; justify-content: center; gap: 14px;
@@ -293,9 +307,9 @@
     .rn-splash__btn-txt { display: flex; flex-direction: column; align-items: flex-start; font-size: 20px; font-weight: 600; line-height: 1.15; }
     .rn-splash__btn-txt small { font-size: 12.5px; font-weight: 400; color: #6B7286; letter-spacing: .02em; }
     @keyframes rnSplashIn { from { opacity: 0; } to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { .rn-splash { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .rn-splash, .rn-splash__icon { animation: none; } }
     @media (max-width: 720px) {
-      .rn-splash { padding-bottom: max(9vh, 48px); }
+      .rn-splash { gap: 44px; }
       .rn-splash__btn { min-width: 0; width: calc(100% - 64px); max-width: 320px; font-size: 17px; }
     }
     @media (max-width: 820px) {
