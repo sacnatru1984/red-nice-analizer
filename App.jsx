@@ -3205,9 +3205,9 @@ function App() {
     localStorage.setItem('rednice-theme', theme)
   }, [theme])
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
-  // Tamaño de letra: la app SIEMPRE abre en 110% (estándar pedido por Isaac);
-  // A−/A+ lo mueven de 10 en 10 durante la sesión y el botón del % regresa a 110.
-  const LETRA_ESTANDAR = 110
+  // Tamaño de letra: la app SIEMPRE abre en 100% (estándar pedido por Isaac);
+  // A−/A+ lo mueven de 10 en 10 durante la sesión y el botón del % regresa a 100.
+  const LETRA_ESTANDAR = 100
   const [fontScale, setFontScale] = useState(LETRA_ESTANDAR)
   const zoomOutTexto = () => setFontScale(z => Math.max(80, z - 10))
   const zoomInTexto = () => setFontScale(z => Math.min(140, z + 10))
@@ -3421,7 +3421,7 @@ function App() {
           </button>
           <div style={{display:'flex',alignItems:'center',borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',flexShrink:0,overflow:'hidden'}}>
             <button onClick={zoomOutTexto} disabled={fontScale<=80} title="Achicar letra" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale<=80?'default':'pointer',color:fontScale<=80?'var(--win-muted)':'var(--win-text)',fontSize:12,fontWeight:700,padding:0,fontFamily:'inherit'}}>A−</button>
-            <button onClick={()=>setFontScale(LETRA_ESTANDAR)} title="Regresar al tamaño estándar (110%)" style={{border:'none',borderLeft:'1px solid var(--win-border)',borderRight:'1px solid var(--win-border)',background:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:10,fontWeight:600,padding:isMobile?'0 8px':'0 6px',height:isMobile?38:32,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fontScale}%</button>
+            <button onClick={()=>setFontScale(LETRA_ESTANDAR)} title="Regresar al tamaño estándar (100%)" style={{border:'none',borderLeft:'1px solid var(--win-border)',borderRight:'1px solid var(--win-border)',background:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:10,fontWeight:600,padding:isMobile?'0 8px':'0 6px',height:isMobile?38:32,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fontScale}%</button>
             <button onClick={zoomInTexto} disabled={fontScale>=140} title="Agrandar letra" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale>=140?'default':'pointer',color:fontScale>=140?'var(--win-muted)':'var(--win-text)',fontSize:14,fontWeight:700,padding:0,fontFamily:'inherit'}}>A+</button>
           </div>
           <button onClick={toggleTheme} title={theme==='dark'?'Modo claro':'Modo oscuro'} style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:32,height:isMobile?38:32,borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',cursor:'pointer',color:'var(--win-text)',fontSize:14,padding:0,flexShrink:0}}>
