@@ -1802,14 +1802,32 @@ function PanelMiRed({ afiliados, tc }) {
         return (
           <div className="rn-welcomebar">
             <div className="rn-welcomebar__top">
-              <div className="rn-welcomebar__medal">
-                {RANGO_IMG[rSelf.id] ? <img src={RANGO_IMG[rSelf.id]} alt=""/> : <span>{getInitials(self.nombre)}</span>}
-                <div className="rn-welcomebar__rank">{rSelf.label}</div>
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div className="rn-welcomebar__ein">EIN <b>{self.ein}</b></div>
-                <div className="rn-welcomebar__ein">Descuento: {Math.round(descuentoPct(rSelf.id) * 100)}%</div>
+              {/* Medallas: rango de red + rango de venta (si tiene), como en la página de NICE */}
+              {(() => {
+                const rVenta = self.rangoVenta ? getRango(self.rangoVenta) : null
+                const medallas = [{ r: rSelf, tipo: 'Rango de red' }]
+                if (rVenta && rVenta.id !== 'SIN' && rVenta.id !== rSelf.id) medallas.push({ r: rVenta, tipo: 'Rango de venta' })
+                return (
+                  <div className="rn-welcomebar__medals">
+                    {medallas.map(({ r: mr, tipo }) => (
+                      <div key={tipo} className="rn-welcomebar__medal" title={`${tipo}: ${mr.label}`}>
+                        <div className="rn-welcomebar__disc">
+                          {RANGO_IMG[mr.id] ? <img src={RANGO_IMG[mr.id]} alt=""/> : <span>{getInitials(self.nombre)}</span>}
+                        </div>
+                        <div className="rn-welcomebar__rank">{mr.label}</div>
+                        <div className="rn-welcomebar__tipo">{tipo}</div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+              <div className="rn-welcomebar__info">
                 <div className="rn-welcomebar__hola">Hola {self.nombre.split(' ')[0]}! 👋</div>
+                <div className="rn-welcomebar__nombre">{self.nombre}</div>
+                <div className="rn-welcomebar__chips">
+                  <span className="rn-welcomebar__chip">No. de empresario <b>{self.ein}</b></span>
+                  <span className="rn-welcomebar__chip">Descuento <b>{Math.round(descuentoPct(rSelf.id) * 100)}%</b></span>
+                </div>
                 <div className="rn-welcomebar__sub">{total} afiliados · {activos} activos este mes</div>
               </div>
             </div>
