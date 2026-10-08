@@ -460,9 +460,8 @@ function NivelesPorRed({ raiz, tc, pasaFiltro, defaultAbierto = true }) {
           const color = pct >= 50 ? 'var(--win-green)' : pct >= 25 ? 'var(--win-gold)' : 'var(--win-red)'
           return (
             <div key={d} style={{ background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 10, padding: '12px 12px', flexShrink: isMobile ? 0 : undefined, width: isMobile ? 160 : 'auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }}>
-                <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--win-accent-l)', color: 'var(--win-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{d}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Nivel {d}</span>
+              <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--win-title)', fontVariantNumeric: 'tabular-nums' }}>Nivel {d}</span>
               </div>
               <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', marginBottom: 5 }}>{pct}%</div>
               <div style={{ height: 5, background: 'var(--win-border)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
