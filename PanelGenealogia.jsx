@@ -707,8 +707,11 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
           }, { personas: 0, pp: 0, pg: 0, mxn: 0 })
           const fMXN = v => '$' + Math.round(v).toLocaleString('es-MX')
           const fUSD = v => 'USD $' + Math.round(v / tcVal).toLocaleString('en-US')
-          const TH = ({ children, right }) => (
-            <th style={{ padding: '5px 10px', textAlign: right ? 'right' : 'left', color: 'var(--win-muted)', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', whiteSpace: 'nowrap', background: 'var(--win-surface2)', borderBottom: '2px solid var(--win-border)' }}>{children}</th>
+          const Stat = ({ label, value, color }) => (
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{value}</div>
+              <div style={{ fontSize: 9, color: 'var(--win-muted)', fontWeight: 600, marginTop: 2, textTransform: 'uppercase', letterSpacing: '.03em' }}>{label}</div>
+            </div>
           )
           return (
             <div style={{ borderBottom: '1px solid var(--win-border)', background: 'var(--win-surface)', padding: '12px 16px' }}>
@@ -724,74 +727,49 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
 
               {mostrarNiveles && (
               <>
-              {/* % de actividad por nivel — la señal más importante de duplicación sana */}
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginBottom: 12, lineHeight: 1.4 }}>
+                Los valores en MXN/USD de esta tabla son un <b style={{ color: 'var(--win-text)' }}>estimado de referencia</b> (PP × valor de punto según el rango de cada persona) — no es un cálculo oficial de reembolso de NICE.
+              </div>
+              {/* Una sola tarjeta por nivel: actividad + personas/PP/PG/valor juntos */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
                 {niveles.map(d => {
                   const s = nivelStats[d]
                   const pct = s.personas > 0 ? Math.round(s.activos / s.personas * 100) : 0
                   const color = pct >= 50 ? 'var(--win-green)' : pct >= 25 ? 'var(--win-gold)' : 'var(--win-red)'
                   return (
-                    <div key={d} style={{ flex: '1 1 110px', minWidth: 100, background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 8, padding: '8px 10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--win-muted)' }}>NIVEL {d}</span>
+                    <div key={d} style={{ background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>
+                          <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--win-accent-l)', color: 'var(--win-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{d}</span>
+                          Nivel {d}
+                        </span>
                         <span style={{ fontSize: 13, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
                       </div>
                       <div style={{ height: 5, background: 'var(--win-border)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
                         <div style={{ width: pct + '%', height: '100%', background: color }} />
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--win-muted)' }}>{s.activos} de {s.personas} activos</div>
+                      <div style={{ fontSize: 10, color: 'var(--win-muted)', marginBottom: 10 }}>{s.activos} de {s.personas} activos</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, paddingTop: 10, borderTop: '1px solid var(--win-border)' }}>
+                        <Stat label="Personas" value={s.personas} color="var(--win-text)" />
+                        <Stat label="PP" value={s.pp.toLocaleString()} color="var(--win-gold)" />
+                        <Stat label="PG" value={s.pg.toLocaleString()} color="#7C3AED" />
+                        <Stat label="Valor MXN" value={fMXN(s.mxn)} color="#16A34A" />
+                      </div>
+                      <div style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--win-accent)', marginTop: 6 }}>{fUSD(s.mxn)}</div>
                     </div>
                   )
                 })}
-              </div>
-              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginBottom: 10, lineHeight: 1.4 }}>
-                Los valores en MXN/USD de esta tabla son un <b style={{ color: 'var(--win-text)' }}>estimado de referencia</b> (PP × valor de punto según el rango de cada persona) — no es un cálculo oficial de reembolso de NICE.
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
-                  <thead>
-                    <tr>
-                      <TH>Nivel</TH>
-                      <TH right>Personas</TH>
-                      <TH right>PP</TH>
-                      <TH right>PG</TH>
-                      <TH right>Valor MXN</TH>
-                      <TH right>Valor USD</TH>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {niveles.map((d, i) => {
-                      const s = nivelStats[d]
-                      return (
-                        <tr key={d} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--win-surface2)' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--win-accent-l)'}
-                          onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--win-surface2)'}>
-                          <td style={{ padding: '7px 10px', fontWeight: 700, color: 'var(--win-title)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--win-border)' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                              <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--win-accent-l)', color: 'var(--win-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{d}</span>
-                              Nivel {d}
-                            </span>
-                          </td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-text)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.personas}</td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: 'var(--win-gold)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.pp.toLocaleString()}</td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#7C3AED', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{s.pg.toLocaleString()}</td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#16A34A', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{fMXN(s.mxn)}</td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--win-accent)', fontVariantNumeric: 'tabular-nums', borderBottom: '1px solid var(--win-border)' }}>{fUSD(s.mxn)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: 'var(--win-surface2)', borderTop: '2px solid var(--win-border)' }}>
-                      <td style={{ padding: '8px 10px', fontWeight: 800, color: 'var(--win-title)', fontSize: 12 }}>Total</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-title)', fontVariantNumeric: 'tabular-nums' }}>{tot.personas}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: 'var(--win-gold)', fontVariantNumeric: 'tabular-nums' }}>{tot.pp.toLocaleString()}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#7C3AED', fontVariantNumeric: 'tabular-nums' }}>{tot.pg.toLocaleString()}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#16A34A', fontVariantNumeric: 'tabular-nums' }}>{fMXN(tot.mxn)}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)', fontVariantNumeric: 'tabular-nums' }}>{fUSD(tot.mxn)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+                {/* Total — misma tarjeta, resaltada */}
+                <div style={{ background: 'var(--win-accent-l)', border: '1.5px solid var(--win-accent)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)', marginBottom: 7 }}>Total de la red</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    <Stat label="Personas" value={tot.personas} color="var(--win-text)" />
+                    <Stat label="PP" value={tot.pp.toLocaleString()} color="var(--win-gold)" />
+                    <Stat label="PG" value={tot.pg.toLocaleString()} color="#7C3AED" />
+                    <Stat label="Valor MXN" value={fMXN(tot.mxn)} color="#16A34A" />
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--win-accent)', marginTop: 6 }}>{fUSD(tot.mxn)}</div>
+                </div>
               </div>
               </>
               )}
