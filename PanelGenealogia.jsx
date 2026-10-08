@@ -207,11 +207,51 @@ function ArbolDetalle({ nodo, afiliados, periodos, onClose, onPlanAccion }) {
   )
 }
 
+// Fila indentada (tipo explorador de archivos): mismo contenido que la lista de
+// búsqueda, pero anidada por nivel con expandir/contraer — evita el scroll
+// horizontal del árbol de tarjetas cuando hay muchos directos en una rama.
+function ArbolListaFila({ nodo, depth, onSelect, onGenealogia, isMobile }) {
+  const [expanded, setExpanded] = useState(depth < 1)
+  const r = getRango(nodo.rango)
+  const hijos = nodo.children || []
+  const hasKids = hijos.length > 0
+  return (
+    <>
+      <div onClick={()=>onSelect(nodo)} style={{display:'flex',alignItems:'center',gap:8,padding:`9px 12px 9px ${12+depth*20}px`,borderBottom:'1px solid var(--win-border)',cursor:'pointer'}}>
+        {hasKids ? (
+          <button onClick={e=>{e.stopPropagation(); setExpanded(x=>!x)}} title={expanded?'Contraer':'Expandir'} style={{width:20,height:20,flexShrink:0,border:'none',background:'transparent',color:'var(--win-muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>
+            <div style={{width:11,height:11,transform:expanded?'rotate(180deg)':'rotate(-90deg)',transition:'transform .15s'}}><Icons.ChevDown/></div>
+          </button>
+        ) : <div style={{width:20,flexShrink:0}}/>}
+        <div style={{width:30,height:30,borderRadius:'50%',background:r.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>{RANGO_IMG[r.id]?<img src={RANGO_IMG[r.id]} alt='' style={{width:26,height:26,objectFit:'contain'}}/>:<span style={{fontSize:9,fontWeight:700,color:r.color}}>{getInitials(nodo.nombre)}</span>}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:600,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{nodo.nombre}</div>
+          <div style={{fontSize:11,color:'var(--win-muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>EIN {nodo.ein} · {r.label}{hasKids?` · ${hijos.length} directo${hijos.length===1?'':'s'}`:''}</div>
+        </div>
+        {onGenealogia && (
+          <button
+            title="Ver genealogía desde este afiliado"
+            onClick={e=>{e.stopPropagation(); onGenealogia(nodo.ein)}}
+            style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?34:30,height:isMobile?34:30,borderRadius:6,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',cursor:'pointer',flexShrink:0,padding:0}}>
+            <div style={{width:15,height:15}}><Icons.GitBranch/></div>
+          </button>
+        )}
+        {!isMobile && <RankBadge rangoStr={nodo.rango}/>}
+        <div style={{fontWeight:700,color:'var(--win-gold)',fontSize:12,flexShrink:0}}>{nodo.pp} PP</div>
+      </div>
+      {hasKids && expanded && hijos.map(c=>(
+        <ArbolListaFila key={c.ein} nodo={c} depth={depth+1} onSelect={onSelect} onGenealogia={onGenealogia} isMobile={isMobile}/>
+      ))}
+    </>
+  )
+}
+
 function PanelArbol({ afiliados, onGenealogia, onPlanAccion, periodos }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [seleccionado, setSeleccionado] = useState(null)
+  const [vista, setVista] = useState('lista')
   const tree = buildTree(afiliados)
   const filtrados = q ? afiliados.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())||a.ein.includes(q)) : null
   return (
@@ -225,11 +265,17 @@ function PanelArbol({ afiliados, onGenealogia, onPlanAccion, periodos }) {
         </div>
       </div>
       <div style={S.card}>
-        <div style={S.cardHeader}>
+        <div style={{...S.cardHeader, flexWrap:isMobile?'wrap':'nowrap'}}>
           <span style={S.cardTitle}>{q ? `${filtrados.length} resultados` : 'Árbol de red'}</span>
-          {!q && <span style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>{afiliados.length} afiliados · clic en una tarjeta para ver el detalle</span>}
+          {!q && (
+            <div style={{display:'flex',gap:4,background:'var(--win-surface2)',border:'1px solid var(--win-border)',borderRadius:8,padding:2}}>
+              <button onClick={()=>setVista('lista')} title="Vista en lista — un solo scroll vertical" style={{padding:'5px 10px',borderRadius:6,border:'none',background:vista==='lista'?'var(--win-accent)':'transparent',color:vista==='lista'?'#fff':'var(--win-muted)',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>☰ Lista</button>
+              <button onClick={()=>setVista('arbol')} title="Vista en árbol — tarjetas ramificadas" style={{padding:'5px 10px',borderRadius:6,border:'none',background:vista==='arbol'?'var(--win-accent)':'transparent',color:vista==='arbol'?'#fff':'var(--win-muted)',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>🌳 Árbol</button>
+            </div>
+          )}
+          {!q && <span style={{marginLeft:isMobile?0:'auto',fontSize:11,color:'var(--win-muted)',width:isMobile?'100%':'auto'}}>{afiliados.length} afiliados · clic para ver el detalle</span>}
         </div>
-        <div style={{...S.cardBody, overflowX:'auto', padding: q ? S.cardBody.padding : '28px 16px'}}>
+        <div style={{...S.cardBody, overflowX:'auto', padding: q ? S.cardBody.padding : (vista==='lista' ? 0 : '28px 16px')}}>
           {q ? filtrados.map(a=>{
             const r = getRango(a.rango)
             return (
@@ -248,7 +294,11 @@ function PanelArbol({ afiliados, onGenealogia, onPlanAccion, periodos }) {
                 <div style={{fontWeight:700,color:'var(--win-gold)',fontSize:12,flexShrink:0}}>{a.pp} PP</div>
               </div>
             )
-          }) : (
+          }) : vista==='lista' ? (
+            <div>
+              {tree.map(n=><ArbolListaFila key={n.ein} nodo={n} depth={0} onSelect={setSeleccionado} onGenealogia={onGenealogia} isMobile={isMobile}/>)}
+            </div>
+          ) : (
             <div style={{display:'flex',justifyContent:'center'}}>
               <div style={{display:'flex',flexDirection:'column',gap:28}}>
                 {tree.map(n=><ArbolRama key={n.ein} nodo={n} depth={0} onSelect={setSeleccionado} onGenealogia={onGenealogia} isMobile={isMobile}/>)}
@@ -493,12 +543,12 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
         <div style={{padding:'14px 16px',borderTop:'1px solid var(--win-border)',background:'var(--win-surface2)',display:'flex',flexDirection:'column',gap:16}}>
           <div>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Filtrar rangos:</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(76px, 1fr))',gap:12}}>
+            <div style={{display:'flex',flexWrap:'nowrap',gap:12,overflowX:'auto',paddingBottom:4}}>
               {RANGOS_FILTRO_GEN.map(f => {
                 const rDef = RANGOS.find(rr => rr.id === f.id)
                 const checked = filtroRangos.has(f.id)
                 return (
-                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5}}>
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:0,width:72}}>
                     {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{width:36,height:36,objectFit:'contain'}}/>}
                     <span style={{background:rDef?.bg,color:rDef?.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
                     <input type="checkbox" checked={checked} onChange={()=>toggleFiltro(f.id)} style={{cursor:'pointer',accentColor:'var(--win-accent)'}}/>
@@ -509,14 +559,14 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
           </div>
           <div style={{paddingTop:14,borderTop:'1px solid var(--win-border)'}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Actividad:</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(76px, 1fr))',gap:12,maxWidth:isMobile?'100%':220}}>
+            <div style={{display:'flex',flexWrap:'nowrap',gap:12,overflowX:'auto',paddingBottom:4}}>
               {[
                 { id:'activo', label:'Con puntos', color:'#16A34A', relleno:true },
                 { id:'inactivo', label:'Sin puntos', color:'#9CA3AF', relleno:false },
               ].map(f => {
                 const checked = filtroActividad.has(f.id)
                 return (
-                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5}}>
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:0,width:72}}>
                     <div style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center'}}>
                       <div style={{width:15,height:15,borderRadius:'50%',background:f.relleno?f.color:'transparent',border:`2px solid ${f.color}`}}/>
                     </div>
