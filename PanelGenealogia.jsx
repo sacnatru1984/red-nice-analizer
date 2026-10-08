@@ -389,6 +389,114 @@ function bucketRangoGen(id) {
   return id
 }
 
+// ── Puntos y valor por nivel: una tarjeta por nivel con toda su info junta.
+// Se usa dentro de Genealogia (sobre la persona seleccionada) y en Mi Red
+// (pantalla de inicio, sobre toda la organizacion) — por eso vive separado
+// y se expone en window, en vez de quedar atado al estado de un solo panel.
+function NivelesPorRed({ raiz, tc, pasaFiltro, defaultAbierto = true }) {
+  ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
+  const isMobile = useIsMobile()
+  const [mostrarNiveles, setMostrarNiveles] = useState(defaultAbierto)
+  if (!raiz) return null
+  const tcVal = tc || TC_FALLBACK
+  const nivelStats = {}
+  const walkNivel = (n, d) => {
+    if (d > 0) {
+      const rangoId = getRango(n.rango).id
+      if (!nivelStats[d]) nivelStats[d] = { personas: 0, activos: 0, pp: 0, pg: 0, mxn: 0 }
+      nivelStats[d].personas++
+      if (((n.pp || 0) + (n.pg || 0)) > 0) nivelStats[d].activos++
+      nivelStats[d].pp += (n.pp || 0)
+      nivelStats[d].pg += (n.pg || 0)
+      nivelStats[d].mxn += (n.pp || 0) * valorPuntoDe(rangoId)
+    }
+    const hijos = (n.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
+    for (const c of hijos) walkNivel(c, d + 1)
+  }
+  walkNivel(raiz, 0)
+  const niveles = Object.keys(nivelStats).map(Number).sort((a, b) => a - b)
+  if (!niveles.length) return null
+  const tot = niveles.reduce((acc, d) => {
+    acc.personas += nivelStats[d].personas
+    acc.pp += nivelStats[d].pp
+    acc.pg += nivelStats[d].pg
+    acc.mxn += nivelStats[d].mxn
+    return acc
+  }, { personas: 0, pp: 0, pg: 0, mxn: 0 })
+  const fMXN = v => '$' + Math.round(v).toLocaleString('es-MX')
+  const fUSD = v => 'USD $' + Math.round(v / tcVal).toLocaleString('en-US')
+  const Row = ({ label, value, color }) => (
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
+      <span style={{ fontSize: 9.5, color: 'var(--win-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.02em', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontSize: 12.5, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
+    </div>
+  )
+  return (
+    <div style={{ ...S.card, marginBottom: 14, padding: '12px 16px' }}>
+      <div
+        onClick={() => setMostrarNiveles(v => !v)}
+        title={mostrarNiveles ? 'Ocultar' : 'Mostrar'}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: mostrarNiveles ? 10 : 0, cursor: 'pointer', userSelect: 'none' }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C47F17', boxShadow: '0 0 6px #C47F17' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Puntos y valor por nivel</span>
+        <span style={{ fontSize: 10, color: 'var(--win-muted)', marginLeft: 4 }}>· TC: ${tcVal.toFixed(2)} MXN/USD</span>
+        <div style={{ marginLeft: 'auto', width: 14, height: 14, color: 'var(--win-muted)', transform: mostrarNiveles ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><Icons.ChevDown/></div>
+      </div>
+
+      {mostrarNiveles && (
+      <>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 20, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)', marginBottom: 12 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--win-accent)', flexShrink: 0 }} />
+        <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Tu organización llega hasta el Nivel {niveles[niveles.length - 1]}</span>
+      </div>
+      <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginBottom: 12, lineHeight: 1.4 }}>
+        Los valores en MXN/USD de esta tabla son un <b style={{ color: 'var(--win-text)' }}>estimado de referencia</b> (PP × valor de punto según el rango de cada persona) — no es un cálculo oficial de reembolso de NICE.
+      </div>
+      {/* Una tarjeta por nivel, todas en una sola fila (scroll horizontal en móvil) */}
+      <div style={{ display: isMobile ? 'flex' : 'grid', flexWrap: isMobile ? 'nowrap' : undefined, gridTemplateColumns: isMobile ? undefined : `repeat(${niveles.length}, 1fr)`, gap: 10, overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? 4 : 0 }}>
+        {niveles.map(d => {
+          const s = nivelStats[d]
+          const pct = s.personas > 0 ? Math.round(s.activos / s.personas * 100) : 0
+          const color = pct >= 50 ? 'var(--win-green)' : pct >= 25 ? 'var(--win-gold)' : 'var(--win-red)'
+          return (
+            <div key={d} style={{ background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 10, padding: '12px 12px', flexShrink: isMobile ? 0 : undefined, width: isMobile ? 160 : 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--win-accent-l)', color: 'var(--win-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{d}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Nivel {d}</span>
+              </div>
+              <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', marginBottom: 5 }}>{pct}%</div>
+              <div style={{ height: 5, background: 'var(--win-border)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
+                <div style={{ width: pct + '%', height: '100%', background: color }} />
+              </div>
+              <div style={{ fontSize: 9.5, color: 'var(--win-muted)', textAlign: 'center', marginBottom: 10 }}>{s.activos} de {s.personas} activos</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, paddingTop: 10, borderTop: '1px solid var(--win-border)' }}>
+                <Row label="Personas" value={s.personas} color="var(--win-text)" />
+                <Row label="PP" value={s.pp.toLocaleString()} color="var(--win-gold)" />
+                <Row label="PG" value={s.pg.toLocaleString()} color="#7C3AED" />
+                <Row label="Valor MXN" value={fMXN(s.mxn)} color="#16A34A" />
+                <Row label="Valor USD" value={fUSD(s.mxn)} color="var(--win-accent)" />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {/* Total de la red — resumen debajo, no forma parte de las tarjetas por nivel */}
+      <div style={{ marginTop: 12, background: 'var(--win-accent-l)', border: '1.5px solid var(--win-accent)', borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Total de la red</span>
+        <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginLeft: isMobile ? 0 : 'auto' }}>
+          <Row label="Personas" value={tot.personas} color="var(--win-text)" />
+          <Row label="PP" value={tot.pp.toLocaleString()} color="var(--win-gold)" />
+          <Row label="PG" value={tot.pg.toLocaleString()} color="#7C3AED" />
+          <Row label="Valor MXN" value={fMXN(tot.mxn)} color="#16A34A" />
+          <Row label="Valor USD" value={fUSD(tot.mxn)} color="var(--win-accent)" />
+        </div>
+      </div>
+      </>
+      )}
+    </div>
+  )
+}
+
 function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPlanAccion }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
@@ -410,7 +518,6 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
   }
   const [seleccionado, setSeleccionado] = useState(null)
   const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
-  const [mostrarNiveles, setMostrarNiveles] = useState(false)
   const [history, setHistory] = useState([]) // pila de EINs anteriores
   const scrollRef = useRef(null)
   const [filtroRangos, setFiltroRangos] = useState(() => new Set(RANGOS_FILTRO_GEN.map(x => x.id)))
@@ -678,106 +785,8 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
           )
         })()}
 
-        {/* ── Tabla de puntos y valor por nivel ── */}
-        {raiz && (() => {
-          const tcVal = tc || TC_FALLBACK
-          const nivelStats = {}
-          const walkNivel = (n, d) => {
-            if (d > 0) {
-              const rangoId = getRango(n.rango).id
-              if (!nivelStats[d]) nivelStats[d] = { personas: 0, activos: 0, pp: 0, pg: 0, mxn: 0 }
-              nivelStats[d].personas++
-              if (((n.pp || 0) + (n.pg || 0)) > 0) nivelStats[d].activos++
-              nivelStats[d].pp += (n.pp || 0)
-              nivelStats[d].pg += (n.pg || 0)
-              nivelStats[d].mxn += (n.pp || 0) * valorPuntoDe(rangoId)
-            }
-            const hijos = (n.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
-            for (const c of hijos) walkNivel(c, d + 1)
-          }
-          walkNivel(raiz, 0)
-          const niveles = Object.keys(nivelStats).map(Number).sort((a, b) => a - b)
-          if (!niveles.length) return null
-          const tot = niveles.reduce((acc, d) => {
-            acc.personas += nivelStats[d].personas
-            acc.pp += nivelStats[d].pp
-            acc.pg += nivelStats[d].pg
-            acc.mxn += nivelStats[d].mxn
-            return acc
-          }, { personas: 0, pp: 0, pg: 0, mxn: 0 })
-          const fMXN = v => '$' + Math.round(v).toLocaleString('es-MX')
-          const fUSD = v => 'USD $' + Math.round(v / tcVal).toLocaleString('en-US')
-          const Row = ({ label, value, color }) => (
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
-              <span style={{ fontSize: 9.5, color: 'var(--win-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.02em', whiteSpace: 'nowrap' }}>{label}</span>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
-            </div>
-          )
-          return (
-            <div style={{ borderBottom: '1px solid var(--win-border)', background: 'var(--win-surface)', padding: '12px 16px' }}>
-              <div
-                onClick={() => setMostrarNiveles(v => !v)}
-                title={mostrarNiveles ? 'Ocultar' : 'Mostrar'}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: mostrarNiveles ? 10 : 0, cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C47F17', boxShadow: '0 0 6px #C47F17' }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Puntos y valor por nivel</span>
-                <span style={{ fontSize: 10, color: 'var(--win-muted)', marginLeft: 4 }}>· TC: ${tcVal.toFixed(2)} MXN/USD</span>
-                <div style={{ marginLeft: 'auto', width: 14, height: 14, color: 'var(--win-muted)', transform: mostrarNiveles ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><Icons.ChevDown/></div>
-              </div>
-
-              {mostrarNiveles && (
-              <>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 20, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)', marginBottom: 12 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--win-accent)', flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Tu organización llega hasta el Nivel {niveles[niveles.length - 1]}</span>
-              </div>
-              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginBottom: 12, lineHeight: 1.4 }}>
-                Los valores en MXN/USD de esta tabla son un <b style={{ color: 'var(--win-text)' }}>estimado de referencia</b> (PP × valor de punto según el rango de cada persona) — no es un cálculo oficial de reembolso de NICE.
-              </div>
-              {/* Una tarjeta por nivel, todas en una sola fila (scroll horizontal en móvil) */}
-              <div style={{ display: isMobile ? 'flex' : 'grid', flexWrap: isMobile ? 'nowrap' : undefined, gridTemplateColumns: isMobile ? undefined : `repeat(${niveles.length}, 1fr)`, gap: 10, overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? 4 : 0 }}>
-                {niveles.map(d => {
-                  const s = nivelStats[d]
-                  const pct = s.personas > 0 ? Math.round(s.activos / s.personas * 100) : 0
-                  const color = pct >= 50 ? 'var(--win-green)' : pct >= 25 ? 'var(--win-gold)' : 'var(--win-red)'
-                  return (
-                    <div key={d} style={{ background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 10, padding: '12px 12px', flexShrink: isMobile ? 0 : undefined, width: isMobile ? 160 : 'auto' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }}>
-                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--win-accent-l)', color: 'var(--win-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{d}</span>
-                        <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Nivel {d}</span>
-                      </div>
-                      <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', marginBottom: 5 }}>{pct}%</div>
-                      <div style={{ height: 5, background: 'var(--win-border)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
-                        <div style={{ width: pct + '%', height: '100%', background: color }} />
-                      </div>
-                      <div style={{ fontSize: 9.5, color: 'var(--win-muted)', textAlign: 'center', marginBottom: 10 }}>{s.activos} de {s.personas} activos</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, paddingTop: 10, borderTop: '1px solid var(--win-border)' }}>
-                        <Row label="Personas" value={s.personas} color="var(--win-text)" />
-                        <Row label="PP" value={s.pp.toLocaleString()} color="var(--win-gold)" />
-                        <Row label="PG" value={s.pg.toLocaleString()} color="#7C3AED" />
-                        <Row label="Valor MXN" value={fMXN(s.mxn)} color="#16A34A" />
-                        <Row label="Valor USD" value={fUSD(s.mxn)} color="var(--win-accent)" />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {/* Total de la red — resumen debajo, no forma parte de las 6 tarjetas */}
-              <div style={{ marginTop: 12, background: 'var(--win-accent-l)', border: '1.5px solid var(--win-accent)', borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Total de la red</span>
-                <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginLeft: isMobile ? 0 : 'auto' }}>
-                  <Row label="Personas" value={tot.personas} color="var(--win-text)" />
-                  <Row label="PP" value={tot.pp.toLocaleString()} color="var(--win-gold)" />
-                  <Row label="PG" value={tot.pg.toLocaleString()} color="#7C3AED" />
-                  <Row label="Valor MXN" value={fMXN(tot.mxn)} color="#16A34A" />
-                  <Row label="Valor USD" value={fUSD(tot.mxn)} color="var(--win-accent)" />
-                </div>
-              </div>
-              </>
-              )}
-            </div>
-          )
-        })()}
+        {/* ── Puntos y valor por nivel ── */}
+        <NivelesPorRed raiz={raiz} tc={tc} pasaFiltro={pasaFiltro} defaultAbierto={false} />
 
         <div ref={scrollRef} style={{...S.cardBody,overflow:'auto',padding:'24px 16px',position:'relative'}}>
           {!raiz ? (
@@ -1092,3 +1101,4 @@ window.PanelArbol = PanelArbol
 window.GenealogiaNodo = GenealogiaNodo
 window.PanelGenealogia = PanelGenealogia
 window.RedVisual = RedVisual
+window.NivelesPorRed = NivelesPorRed

@@ -1714,6 +1714,8 @@ function PanelMiRed({ afiliados, tc }) {
   const RCOLS = {'Oro Ejecutivo':'#C47F17','Oro Senior':'#C47F17','Oro Master':'#C47F17','Oro':'#C47F17','Oro Experto':'#C47F17','Oro Premier':'#C47F17','Oro Elite':'#C47F17','Platino':'#7C3AED','Diamante':'#7C3AED','Diamante Master':'#7C3AED','Doble Diamante SL':'#7C3AED','Plata':'#1D4ED8','Bronce':'#EA580C','Cobre':'#B45309','Empresario':'#6B7280','Sin Descuento':'#9CA3AF'}
   const self = afiliados.find(a => a.gen === 0) || afiliados[0]
   const rSelf = self ? getRango(self.rango) : null
+  const NivelesPorRed = useExternal('NivelesPorRed')
+  const raizMiRed = buildTree(afiliados)[0]
   const lideres = [...afiliados].filter(a=>a.ein!==self?.ein).sort((a,b)=>(b.pg||0)-(a.pg||0)).slice(0,5)
   const enRiesgo = afiliados.filter(a=>((a.pp||0)+(a.pg||0))===0)
   const frontalesLider = self ? afiliados.filter(a=>a.einPresentador===self.ein) : []
@@ -1807,6 +1809,8 @@ function PanelMiRed({ afiliados, tc }) {
         <NiceAction icon={Icons.Calc} sub="Calculadora de cheque" titulo="Simula el cheque de este mes" onClick={() => setShowCheque(true)}/>
         <NiceAction icon={Icons.Grid} sub="Toda tu red" titulo="Base de datos de afiliados" onClick={() => setShowDB(true)}/>
       </div>
+
+      {NivelesPorRed && raizMiRed && <NivelesPorRed raiz={raizMiRed} tc={tc}/>}
 
       <div className="rn-stats-grid">
         {[{l:'Activos este mes',v:activos,c:'var(--win-green)',sub:`${total>0?Math.round(activos/total*100):0}% actividad`},{l:'PP totales',v:totalPP.toLocaleString(),c:'var(--win-gold)'},{l:'PG totales',v:totalPG.toLocaleString(),c:'var(--win-purple)'},{l:'Rangos Oro+',v:afiliados.filter(a=>{const r=getRango(a.rango);return r.id.includes('ORO')||r.id.includes('DIAMANTE')||r.id==='PLATINO'}).length,c:'var(--win-gold)'}].map(k=>(
