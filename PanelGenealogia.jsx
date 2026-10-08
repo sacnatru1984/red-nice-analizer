@@ -727,6 +727,10 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
 
               {mostrarNiveles && (
               <>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 20, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)', marginBottom: 12 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--win-accent)', flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--win-title)' }}>Tu organización llega hasta el Nivel {niveles[niveles.length - 1]}</span>
+              </div>
               <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginBottom: 12, lineHeight: 1.4 }}>
                 Los valores en MXN/USD de esta tabla son un <b style={{ color: 'var(--win-text)' }}>estimado de referencia</b> (PP × valor de punto según el rango de cada persona) — no es un cálculo oficial de reembolso de NICE.
               </div>

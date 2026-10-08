@@ -1,5 +1,13 @@
 {
   "rewrites": [
     { "source": "/", "destination": "/RedNICE.dc.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)\\.(jsx|html)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+      ]
+    }
   ]
 }
