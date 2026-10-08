@@ -686,7 +686,6 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
         </div>
       </div>
       <div style={S.card}>
-        <div style={{position:'sticky', top:0, zIndex:20, background:'var(--win-surface)', borderTopLeftRadius:10, borderTopRightRadius:10}}>
         <div style={{...S.cardHeader, flexWrap: isMobile ? 'wrap' : 'nowrap'}}>
           <button onClick={regresar} disabled={!rootEin && history.length===0}
             title="Regresar a la vista anterior"
@@ -730,7 +729,6 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
               </span>
             )
           })}
-        </div>
         </div>
 
         {/* Tarjeta de info de la persona seleccionada */}
