@@ -360,6 +360,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
   }
   const [seleccionado, setSeleccionado] = useState(null)
   const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
+  const [mostrarNiveles, setMostrarNiveles] = useState(true)
   const [history, setHistory] = useState([]) // pila de EINs anteriores
   const scrollRef = useRef(null)
   const [filtroRangos, setFiltroRangos] = useState(() => new Set(RANGOS_FILTRO_GEN.map(x => x.id)))
@@ -661,12 +662,18 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
           )
           return (
             <div style={{ borderBottom: '1px solid var(--win-border)', background: 'var(--win-surface)', padding: '12px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div
+                onClick={() => setMostrarNiveles(v => !v)}
+                title={mostrarNiveles ? 'Ocultar' : 'Mostrar'}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: mostrarNiveles ? 10 : 0, cursor: 'pointer', userSelect: 'none' }}>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C47F17', boxShadow: '0 0 6px #C47F17' }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--win-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Puntos y valor por nivel</span>
                 <span style={{ fontSize: 10, color: 'var(--win-muted)', marginLeft: 4 }}>· TC: ${tcVal.toFixed(2)} MXN/USD</span>
+                <div style={{ marginLeft: 'auto', width: 14, height: 14, color: 'var(--win-muted)', transform: mostrarNiveles ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><Icons.ChevDown/></div>
               </div>
 
+              {mostrarNiveles && (
+              <>
               {/* % de actividad por nivel — la señal más importante de duplicación sana */}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
                 {niveles.map(d => {
@@ -736,6 +743,8 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
                   </tfoot>
                 </table>
               </div>
+              </>
+              )}
             </div>
           )
         })()}
