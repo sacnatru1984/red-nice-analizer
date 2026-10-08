@@ -410,7 +410,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
   }
   const [seleccionado, setSeleccionado] = useState(null)
   const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
-  const [mostrarNiveles, setMostrarNiveles] = useState(true)
+  const [mostrarNiveles, setMostrarNiveles] = useState(false)
   const [history, setHistory] = useState([]) // pila de EINs anteriores
   const scrollRef = useRef(null)
   const [filtroRangos, setFiltroRangos] = useState(() => new Set(RANGOS_FILTRO_GEN.map(x => x.id)))
