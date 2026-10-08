@@ -200,15 +200,9 @@ function frontalGenera(a, tc, umbral) {
   return { mxn, usd, tc: t, genera: frontalOroCalifica(a), sobreUmbral: usd >= u }
 }
 
-// ── Simulador de "Cheque del mes" (Descuento por Red — tabla oficial NICE) ──
-// Requiere rango Oro+ propio. El % depende de tus PROPIOS PP+PG del periodo,
-// y se aplica sobre el PP+PG de cada Oro+ que se encuentra en tu red por
-// "Nivel Oro real" (Nivel 1 = el primer Oro de cada línea; Nivel 2 = el
-// siguiente Oro debajo de ese Oro; Nivel 3 = el siguiente después de ese —
-// se salta a quien no es Oro, no cuenta generación literal).
-// Validado contra el cheque real de Irlanda de agosto 2026 ($6,473.36):
-// generación literal daba $9,775.84 (50% de más); Nivel Oro real + retención
-// dio $6,709.84 (solo 3.6% de diferencia).
+// ── Simulador de "Cheque del mes" — % de Descuento por Red por nivel ──
+// El % depende de los PP+PG PROPIOS de quien cobra (tabla oficial NICE).
+// Ver calcularChequeNICE más abajo para la fórmula completa.
 const DR_TRAMOS = [
   { min: 2000, l1: .05, l2: .04, l3: .04 },
   { min: 1500, l1: .03, l2: .03, l3: .03 },
@@ -216,103 +210,108 @@ const DR_TRAMOS = [
   { min: 500, l1: .01, l2: .01, l3: .01 },
   { min: 0, l1: 0, l2: 0, l3: 0 },
 ]
-// Retención fiscal aproximada que NICE descuenta del cheque bruto antes de
-// depositarlo. Validada con un caso real: cheque de $22,000 con retención de
-// $2,300 (10.45%). Puede variar por persona/periodo — es una aproximación.
-const RETENCION_FISCAL = 0.1045
-function simularChequeDR(self, afiliados, metaPropios) {
+// Retención aproximada entre el total del estado de cuenta y lo depositado.
+// Cheque de agosto 2026: estado de cuenta $6,875.55 → depósito $6,473.36 (5.85%).
+// (Otro caso anterior: $22,000 con $2,300 = 10.45% — varía con el monto.)
+const RETENCION_FISCAL = 0.0585
+
+// % de descuento de cada rango (para el Reembolso por Diferencial).
+function descuentoPct(rangoId) {
+  if (rangoId === 'PLATA') return 0.40
+  if (rangoId === 'BRONCE') return 0.35
+  if (rangoId === 'COBRE') return 0.30
+  if (rangoId === 'EIN' || rangoId === 'SIN') return 0.25
+  return 0.45 // Oro y superiores
+}
+
+// ── Cheque NICE — calcado del ESTADO DE CUENTA real (agosto 2026, Irlanda) ──
+// El estado de cuenta paga cada PEDIDO: "valor" del pedido (MXN) × %. En
+// promedio ese valor = puntos × $12.06 (medido: $12.13 por punto en 115 pedidos).
+// Conceptos que se simulan:
+//  • DD (Reembolso por Diferencial): tu grupo NO-Oro (hasta el primer Oro de
+//    cada rama) × (tu % de descuento − el mayor % entre tú y esa persona).
+//    Ej. Irlanda Oro 45% sobre 2 directos Plata 40% → 5%.
+//  • DR (Descuento por Red), Niveles Oro 1-3: cada nivel = el Oro que lo abre
+//    + todo su grupo no-Oro (hasta el siguiente Oro). Se suman los PP
+//    INDIVIDUALES (no el PG, para no contar dos veces) × $12.06 × % del nivel
+//    (5/4/4% con 2,000+ PP+PG propios; tabla DR_TRAMOS). Requiere ser Oro+.
+// No se simulan: reconocimientos fijos ($250 "RECMERC"), $5 "RM Presentador",
+// y pedidos sin descuento por red (kits/paquetes). Por eso puede variar ±5%.
+// Validación agosto 2026: real DR+DD $6,658.59 · este cálculo $6,915 (+3.9%).
+function calcularChequeNICE(self, afiliados, metaPropios) {
   const childrenByEin = {}
   afiliados.forEach(a => { if (a.einPresentador != null) (childrenByEin[a.einPresentador] = childrenByEin[a.einPresentador] || []).push(a) })
   const propiosReales = (self.pp || 0) + (self.pg || 0)
   const propios = (metaPropios != null && metaPropios >= 0) ? metaPropios : propiosReales
   const califica = esOroPlus(self)
   const tramo = DR_TRAMOS.find(t => propios >= t.min)
-  let frontera = [self]
+  const miPct = descuentoPct(getRango(self.rango).id)
+
+  // DD — grupo propio no-Oro, con el mayor % encontrado en el camino
+  const dd = { personas: 0, puntos: 0, mxn: 0, detalle: [] }
+  const st = (childrenByEin[self.ein] || []).map(h => ({ m: h, max: 0, pierna: h }))
+  while (st.length) {
+    const { m, max, pierna } = st.pop()
+    if (esOroPlus(m)) continue
+    const pm = Math.max(max, descuentoPct(getRango(m.rango).id))
+    const dif = Math.max(0, miPct - pm)
+    const pp = m.pp || 0
+    if (pp > 0 && dif > 0) {
+      const mxn = pp * VALOR_ORO * dif
+      dd.personas++; dd.puntos += pp; dd.mxn += mxn
+      dd.detalle.push({ nombre: m.nombre, ein: m.ein, rango: m.rango, pp, pct: dif, valorMXN: mxn, pierna: pierna.nombre, piernaEin: pierna.ein })
+    }
+    for (const c of (childrenByEin[m.ein] || [])) st.push({ m: c, max: pm, pierna })
+  }
+
+  // DR — Niveles Oro 1-3 (Oro que abre + su grupo no-Oro)
+  let frontera = [{ nodo: self, pierna: null }]
   const niveles = [1, 2, 3].map(n => {
-    const encontrados = []
-    const siguienteFrontera = []
-    for (const raiz of frontera) {
-      const stack = [...(childrenByEin[raiz.ein] || [])]
-      while (stack.length) {
-        const m = stack.pop()
-        if (esOroPlus(m)) { encontrados.push(m); siguienteFrontera.push(m); continue }
-        for (const c of (childrenByEin[m.ein] || [])) stack.push(c)
+    const gente = [], siguiente = []
+    for (const { nodo: raiz, pierna: her } of frontera) {
+      const s1 = (childrenByEin[raiz.ein] || []).map(h => ({ m: h, pierna: her || h }))
+      while (s1.length) {
+        const { m, pierna } = s1.pop()
+        if (!esOroPlus(m)) { for (const c of (childrenByEin[m.ein] || [])) s1.push({ m: c, pierna }); continue }
+        // m es el Oro que abre este nivel: él + su grupo no-Oro
+        siguiente.push({ nodo: m, pierna })
+        const s2 = [m]
+        while (s2.length) {
+          const x = s2.pop()
+          gente.push({ nodo: x, pierna, abre: x === m })
+          for (const c of (childrenByEin[x.ein] || [])) if (!esOroPlus(c)) s2.push(c)
+        }
       }
     }
-    frontera = siguienteFrontera
-    const puntos = encontrados.reduce((s, a) => s + (a.pp || 0) + (a.pg || 0), 0)
+    frontera = siguiente
     const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    return { nivel: n, personas: encontrados.length, puntos, pct, importePuntos: puntos * pct }
+    const detalle = gente.filter(g => (g.nodo.pp || 0) > 0).map(({ nodo: a, pierna, abre }) => ({
+      nombre: a.nombre, ein: a.ein, rango: a.rango, pp: a.pp || 0, abre, valorPunto: VALOR_ORO,
+      valorMXN: (a.pp || 0) * VALOR_ORO * pct, pierna: pierna ? pierna.nombre : a.nombre, piernaEin: pierna ? pierna.ein : a.ein,
+    })).sort((x, y) => y.valorMXN - x.valorMXN)
+    const puntos = detalle.reduce((s, p) => s + p.pp, 0)
+    return { nivel: n, oros: siguiente.length, personas: detalle.length, puntos, pct, mxn: puntos * VALOR_ORO * pct, detalle, fronteraDetalle: [] }
   })
-  const totalPuntosDR = niveles.reduce((s, n) => s + n.importePuntos, 0)
-  const totalBrutoMXN = totalPuntosDR * VALOR_ORO
+  const drMXN = niveles.reduce((s, n) => s + n.mxn, 0)
+  const totalBrutoMXN = drMXN + dd.mxn
   const totalMXN = totalBrutoMXN * (1 - RETENCION_FISCAL)
-  return { propios, propiosReales, califica, tramoMin: tramo.min, niveles, totalBrutoMXN, totalMXN }
+  return { propios, propiosReales, califica, tramoMin: tramo.min, miPct, dd, niveles, drMXN, totalBrutoMXN, totalMXN }
+}
+function simularChequeDR(self, afiliados, metaPropios) {
+  return calcularChequeNICE(self, afiliados, metaPropios)
 }
 
-// ── Reembolso por Diferencial usando Nivel Oro REAL (no generación fija) ──
-// Nivel 1 = descendientes no-Oro hasta toparse con el primer Oro en cada rama.
-// Nivel 2 = descendientes no-Oro de ESOS Oro (su propio "Nivel 1"), y así
-// sucesivamente — el nivel avanza cada vez que la cadena cruza un Oro, sin
-// importar cuántas generaciones haya abarcado el nivel anterior.
-const IVA = 0.16
-// Cada persona arrastra `piernaRaiz` = el hijo DIRECTO de `self` (Nivel 1,
-// Gen.1) por el que se llegó a ella — así se puede desglosar cualquier nivel
-// por pierna, en vez de una suma plana. Se hereda al bajar de generación y
-// también al cruzar un Oro (esa pierna sigue siendo la misma para self,
-// aunque para el propio Oro cruzado sea "su" Nivel 1 en un cálculo aparte).
-function nivelesOroReales(self, childrenByEin, maxNiveles) {
-  const porNivel = []
-  let frontera = [{ nodo: self, piernaRaiz: null }]
-  for (let n = 1; n <= maxNiveles && frontera.length; n++) {
-    const gente = []
-    const siguienteFrontera = []
-    for (const { nodo: raiz, piernaRaiz: heredada } of frontera) {
-      const stack = (childrenByEin[raiz.ein] || []).map(h => ({ nodo: h, piernaRaiz: heredada || h }))
-      while (stack.length) {
-        const { nodo: m, piernaRaiz } = stack.pop()
-        if (esOroPlus(m)) { siguienteFrontera.push({ nodo: m, piernaRaiz }); continue }
-        gente.push({ nodo: m, piernaRaiz })
-        for (const c of (childrenByEin[m.ein] || [])) stack.push({ nodo: c, piernaRaiz })
-      }
-    }
-    // La "frontera" (Oro encontrados) no suma puntos aquí — son quienes
-    // inician el siguiente nivel. Se guardan para mostrarlos igual, con nota.
-    porNivel.push({ gente, fronteraOro: siguienteFrontera })
-    frontera = siguienteFrontera
-  }
-  return porNivel
-}
-// Calcula si `self` genera los $200 USD de Reembolso por Diferencial, usando
-// Nivel Oro real (hasta Nivel 3) y el % de la tabla oficial de Descuentos por
-// Red según los PP+PG propios de `self`.
+// ── ¿La línea de `self` genera los $200 USD de Descuento por Red? ──
+// Usa EXACTAMENTE el mismo cálculo que el simulador de cheque (calcularChequeNICE,
+// calcado del estado de cuenta de NICE), solo la parte de DR (Niveles Oro 1-3).
 function calcularReembolsoNivelOro(self, afiliados, tc, umbral) {
-  const childrenByEin = {}
-  afiliados.forEach(a => { if (a.einPresentador) (childrenByEin[a.einPresentador] = childrenByEin[a.einPresentador] || []).push(a) })
-  const propios = (self.pp || 0) + (self.pg || 0)
-  const tramo = DR_TRAMOS.find(t => propios >= t.min)
-  const califica = esOroPlus(self)
-  const porNivel = nivelesOroReales(self, childrenByEin, 3)
-  const niveles = [1, 2, 3].map(n => {
-    const { gente, fronteraOro } = porNivel[n - 1] || { gente: [], fronteraOro: [] }
-    const puntos = gente.reduce((s, { nodo: a }) => s + (a.pp || 0), 0)
-    const pct = !califica ? 0 : (n === 1 ? tramo.l1 : n === 2 ? tramo.l2 : tramo.l3)
-    const detalle = gente.map(({ nodo: a, piernaRaiz }) => {
-      const rangoId = getRango(a.rango).id
-      const valorPunto = valorPuntoDe(rangoId)
-      const valorMXN = (a.pp || 0) * valorPunto * pct
-      return { nombre: a.nombre, ein: a.ein, rango: a.rango, pp: a.pp || 0, valorPunto, valorMXN, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }
-    }).sort((x, y) => y.valorMXN - x.valorMXN)
-    const fronteraDetalle = fronteraOro.map(({ nodo: a, piernaRaiz }) => ({ nombre: a.nombre, ein: a.ein, rango: a.rango, pierna: piernaRaiz ? piernaRaiz.nombre : a.nombre, piernaEin: piernaRaiz ? piernaRaiz.ein : a.ein }))
-    const valorBruto = gente.reduce((s, { nodo: a }) => s + (a.pp || 0) * valorPuntoDe(getRango(a.rango).id), 0)
-    return { nivel: n, personas: gente.length, puntos, pct, mxn: valorBruto * pct, detalle, fronteraDetalle }
-  })
-  const totalMXN = niveles.reduce((s, n) => s + n.mxn, 0)
-  const ivaMXN = totalMXN * IVA
+  const c = calcularChequeNICE(self, afiliados)
+  const totalMXN = c.drMXN
+  const ivaMXN = totalMXN * RETENCION_FISCAL // retención aproximada
   const netoMXN = totalMXN - ivaMXN
   const t = tc || TC_FALLBACK
   const usd = netoMXN / t
-  return { niveles, totalMXN, ivaMXN, netoMXN, usd, tc: t, propios, califica, cumple200: usd >= (umbral || UMBRAL_DESC_USD) }
+  return { niveles: c.niveles, totalMXN, ivaMXN, netoMXN, usd, tc: t, propios: c.propios, califica: c.califica, cumple200: usd >= (umbral || UMBRAL_DESC_USD) }
 }
 
 // Analiza cada línea (frontal Oro directo) de `lider` por separado — cada línea
@@ -724,6 +723,10 @@ const Icons = {
   Tree: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   Plan: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
   Trophy: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="8 1 8 8 12 12 16 8 16 1"/><line x1="8" y1="1" x2="16" y2="1"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>,
+  ArrowRight: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
+  Calc: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="10" y2="16"/><line x1="14" y1="16" x2="16" y2="16"/></svg>,
+  Star: () => <svg viewBox="0 0 24 24" fill="currentColor" style={{width:'100%',height:'100%'}}><polygon points="12 2 15.1 8.6 22 9.3 16.8 14 18.2 21 12 17.4 5.8 21 7.2 14 2 9.3 8.9 8.6 12 2"/></svg>,
+  Menu: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>,
   Upload: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
   Download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Sliders: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>,
@@ -747,10 +750,42 @@ const Icons = {
 
 const s = (styles) => styles
 const S = {
-  card: { background:'var(--win-surface)', border:'1px solid var(--win-border)', borderRadius:10, boxShadow:'0 1px 3px rgba(0,0,0,.08)' },
+  card: { background:'var(--win-surface)', border:'1px solid var(--win-border)', borderRadius:18, boxShadow:'0 4px 18px rgba(15,35,65,.06)' },
   cardHeader: { padding:'12px 16px', borderBottom:'1px solid var(--win-border)', display:'flex', alignItems:'center', gap:8 },
   cardBody: { padding:'14px 16px' },
   cardTitle: { fontSize:13, fontWeight:600, color:'var(--win-title)' },
+}
+
+// Anillo de progreso estilo app NICE (ej. 516 / 500 PF)
+function NiceRing({ value, max, unidad, size = 92 }) {
+  const r = 40, c = 2 * Math.PI * r
+  const pct = max > 0 ? Math.min(1, value / max) : 0
+  return (
+    <div style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
+      <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+        <circle cx="50" cy="50" r={r} fill="var(--nice-tile)" stroke="var(--nice-tile)" strokeWidth="9"/>
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--nice-indigo)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${c * pct} ${c}`}/>
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1 }}>
+        <span style={{ fontSize: size > 80 ? 20 : 17, fontWeight: 700, color: 'var(--win-title)', fontVariantNumeric: 'tabular-nums' }}>{value.toLocaleString()}</span>
+        <span style={{ fontSize: 10, color: 'var(--win-muted)' }}>/ <b style={{ color: 'var(--nice-indigo)' }}>{max.toLocaleString()}</b> {unidad}</span>
+      </div>
+    </div>
+  )
+}
+
+// Tarjeta de acción azul marino con flecha blanca (como "Calculadora Nice")
+function NiceAction({ icon: I, titulo, sub, onClick }) {
+  return (
+    <button onClick={onClick} className="rn-action">
+      <span className="rn-action__ico"><I/></span>
+      <span className="rn-action__txt">
+        {sub && <span className="rn-action__sub">{sub}</span>}
+        <span className="rn-action__t">{titulo}</span>
+      </span>
+      <span className="rn-action__go"><Icons.ArrowRight/></span>
+    </button>
+  )
 }
 
 function RankBadge({ rangoStr, maxWidth }) {
@@ -839,9 +874,10 @@ async function exportNetworkReport(afiliados) {
   const img=await loadImgReport(fondoRedSrc())
   if(img){ const ar=img.width/img.height, tr=W/hH; let sw,sh,sx,sy; if(ar>tr){sh=img.height;sw=sh*tr;sx=(img.width-sw)/2;sy=0}else{sw=img.width;sh=sw/tr;sx=0;sy=(img.height-sh)/2}; ctx.drawImage(img,sx,sy,sw,sh,0,0,W,hH) }
   const g=ctx.createLinearGradient(0,0,0,hH); g.addColorStop(0,'rgba(11,26,46,.45)'); g.addColorStop(1,'rgba(11,26,46,.95)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,hH)
-  ctx.fillStyle='#3A8FF2'; rrect(ctx,60,70,52,52,13); ctx.fill()
-  ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(86,90,11,0,7); ctx.stroke()
-  ctx.fillStyle=REP.text; ctx.font='700 38px DM Sans, sans-serif'; ctx.textBaseline='middle'; ctx.fillText('RedNICE', 128, 96)
+  const logo=await loadImgReport('./assets/logo-red-nice.png')
+  if(logo){ const lw=300; ctx.drawImage(logo,52,44,lw,lw*logo.height/logo.width) }
+  else { ctx.fillStyle=REP.text; ctx.font='700 38px DM Sans, sans-serif'; ctx.textBaseline='middle'; ctx.fillText('RedNICE', 62, 96) }
+  ctx.textBaseline='middle'
   ctx.fillStyle=REP.cyan; ctx.font='600 17px DM Sans, sans-serif'; ctx.fillText('REPORTE DE RED', 62, 168)
   ctx.fillStyle=REP.text; ctx.font='700 44px DM Sans, sans-serif'; ctx.fillText(self?self.nombre:'Mi red', 62, 212)
   ctx.fillStyle=REP.muted; ctx.font='400 20px DM Sans, sans-serif'; ctx.fillText(`${self?`EIN ${self.ein} · `:''}${new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'})}`, 62, 252)
@@ -1529,143 +1565,140 @@ function ChequeModal({ afiliados, onClose }) {
   const esSimulado = meta !== propiosReales
   const c = simularChequeDR(self, afiliados, meta)
   const hoy = new Date()
-  const mesLabel = hoy.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
+  const mesLabel = MESES_ES[hoy.getMonth()] + ' ' + hoy.getFullYear()
   const fmtMXN = v => v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 })
 
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,28,.62)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 12 : 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.45)', width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto' }}>
-        <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--win-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, fontSize: 18 }}>💵</div>
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>{esUnoMismo ? 'Simulación de tu cheque' : `Simulación del cheque de ${nombreCorto}`}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--win-muted)', textTransform: 'capitalize' }}>{mesLabel} · Descuento por Red</div>
+  // Se monta en <body> (portal): así no queda debajo de la barra superior ni
+  // crece con el zoom de letra A+/A−, y siempre cabe en la pantalla.
+  // Estilo igual a la bienvenida de Mi Red (app NICE): franja azul marino,
+  // tarjetas blancas con anillos y montos en pastilla verde.
+  const rVenta = self.rangoVenta ? getRango(self.rangoVenta) : null
+  const medallas = [{ r, tipo: 'Rango de red' }]
+  if (rVenta && rVenta.id !== 'SIN' && rVenta.id !== r.id) medallas.push({ r: rVenta, tipo: 'Rango de venta' })
+  const tramoTxt = c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'
+  const personasPagan = c.dd.personas + c.niveles.reduce((s2, n) => s2 + n.personas, 0)
+  const filas = [
+    { k: 'DD', t: 'Diferencial (DD)', d: 'Tu grupo que aún no es Oro', personas: c.dd.personas, puntos: c.dd.puntos, pct: c.dd.personas ? [...new Set(c.dd.detalle.map(x => Math.round(x.pct * 100)))].join('/') + '%' : '—', mxn: c.dd.mxn },
+    ...c.niveles.map(n => ({ k: 'N' + n.nivel, t: 'Nivel ' + n.nivel, d: n.nivel === 1 ? 'Primer Oro de cada línea + su grupo' : 'Siguiente Oro + su grupo', personas: n.personas, puntos: n.puntos, pct: (n.pct * 100).toFixed(0) + '%', mxn: n.mxn })),
+  ]
+  const nodo = (
+    <div className="rn-chq-overlay" onClick={onClose}>
+      <div className="rn-chq" onClick={e => e.stopPropagation()}>
+        {/* Franja azul marino */}
+        <div className="rn-chq__head">
+          <div className="rn-chq__bar">
+            <span className="rn-chq__kicker">CALCULADORA DE CHEQUE · {mesLabel.toUpperCase()}</span>
+            <button className="rn-chq__close" onClick={onClose} aria-label="Cerrar">✕</button>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--win-border)', background: 'var(--win-surface2)', color: 'var(--win-muted)', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit', flexShrink: 0 }}>✕</button>
+          <div className="rn-chq__who">
+            <div className="rn-chq__medals">
+              {medallas.map(({ r: mr, tipo }) => (
+                <div key={tipo} className="rn-chq__medal" title={`${tipo}: ${mr.label}`}>
+                  {RANGO_IMG[mr.id] ? <img src={RANGO_IMG[mr.id]} alt=""/> : <span>{getInitials(self.nombre)}</span>}
+                  <div className="rn-chq__rank">{mr.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div className="rn-chq__title">{esUnoMismo ? 'Tu cheque del mes' : `Cheque de ${nombreCorto}`}</div>
+              <div className="rn-chq__name">{self.nombre}</div>
+              <div className="rn-chq__chips">
+                <span className="rn-chq__chip">No. de empresario <b>{self.ein}</b></span>
+                <span className="rn-chq__chip">{c.propios.toLocaleString()} pts{esSimulado ? ' (meta)' : ''} · <b>{tramoTxt}</b></span>
+              </div>
+            </div>
+          </div>
+          {/* Buscador: simula el cheque de cualquier afiliado */}
+          <div className="rn-chq__search">
+            <span className="rn-chq__search-ico"><Icons.Search/></span>
+            <input value={q} onChange={ev => { setQ(ev.target.value); setDrop(true) }} placeholder="Buscar socio para ver su cheque…"/>
+            {!esUnoMismo && <button onClick={limpiar}>Volver a {raiz.nombre.split(' ')[0]}</button>}
+            {drop && res.length > 0 && (
+              <div className="rn-chq__drop">
+                {res.map(a => {
+                  const ar = getRango(a.rango)
+                  return (
+                    <div key={a.ein} className="rn-chq__opt" onClick={() => elegir(a)}>
+                      <span className="rn-chq__opt-img">{RANGO_IMG[ar.id] ? <img src={RANGO_IMG[ar.id]} alt=""/> : getInitials(a.nombre)}</span>
+                      <span style={{ minWidth: 0 }}><b>{a.nombre}</b><small>EIN {a.ein} · {ar.label}</small></span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          {/* Resumen en tarjetas blancas */}
+          <div className="rn-chq__sum">
+            <div className="rn-sumcard">
+              <div className="rn-sumcard__t">Puntos del mes</div>
+              <NiceRing value={c.propios} max={2000} unidad={isMobile ? '' : 'pts'} size={isMobile ? 84 : 92}/>
+              <div className="rn-sumcard__l">Descuento por Red</div>
+              <span className="rn-pill">{tramoTxt}</span>
+            </div>
+            <div className="rn-sumcard rn-chq__total">
+              <div className="rn-sumcard__t">Total estimado</div>
+              <div className="rn-chq__amount">{fmtMXN(c.totalBrutoMXN)}</div>
+              <div className="rn-sumcard__l">Depósito aprox.</div>
+              <span className="rn-pill">{fmtMXN(c.totalMXN)}</span>
+              <div className="rn-chq__ret">Retención est. {(RETENCION_FISCAL * 100).toFixed(2)}% · −{fmtMXN(c.totalBrutoMXN - c.totalMXN)}</div>
+            </div>
+            <div className="rn-sumcard">
+              <div className="rn-sumcard__t">Te generan</div>
+              <div className="rn-sumcard__star"><span><Icons.Star/></span><b>{personasPagan}</b><small>personas</small></div>
+              <div className="rn-sumcard__l">Rango</div>
+              <span className="rn-pill rn-pill--indigo">{r.label}</span>
+            </div>
+          </div>
         </div>
 
-        <div style={{ padding: isMobile ? 16 : 24 }}>
-          {/* Buscador: simula el cheque de cualquier afiliado, no solo el propio */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: '1px solid var(--win-border)', borderRadius: 8, background: 'var(--win-surface2)' }}>
-                <div style={{ width: 16, height: 16, color: 'var(--win-muted)', flexShrink: 0 }}><Icons.Search/></div>
-                <input
-                  value={q}
-                  onChange={ev => { setQ(ev.target.value); setDrop(true) }}
-                  placeholder={`Buscar afiliado para simular su cheque... (ahora: ${nombreCorto})`}
-                  style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: 'var(--win-text)', fontFamily: 'inherit', outline: 'none' }}
-                />
-                {!esUnoMismo && <button onClick={limpiar} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--win-border2)', background: 'var(--win-surface)', color: 'var(--win-muted)', fontSize: 10.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Volver a {raiz.nombre.split(' ')[0]}</button>}
-              </div>
-              {drop && res.length > 0 && (
-                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.10)', zIndex: 50, overflow: 'hidden' }}>
-                  {res.map(a => {
-                    const ar = getRango(a.rango)
-                    return (
-                      <div key={a.ein} onClick={() => elegir(a)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--win-border)' }} onMouseEnter={ev => ev.currentTarget.style.background = 'var(--win-accent-l)'} onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}>
-                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: ar.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>{RANGO_IMG[ar.id] ? <img src={RANGO_IMG[ar.id]} alt='' style={{ width: 22, height: 22, objectFit: 'contain' }}/> : <span style={{ fontSize: 9, fontWeight: 700, color: ar.color }}>{getInitials(a.nombre)}</span>}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--win-title)' }}>{a.nombre}</div><div style={{ fontSize: 10.5, color: 'var(--win-muted)' }}>EIN {a.ein} · {ar.label}</div></div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Meta editable: simula qué pasaría con otro monto de puntos propios */}
-          <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 12, background: 'var(--win-surface2)', border: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ minWidth: 180 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--win-title)' }}>🎯 {esUnoMismo ? 'Mi meta de puntos para este mes' : `Meta de puntos de ${nombreCorto}`}</div>
-              <div style={{ fontSize: 10.5, color: 'var(--win-muted)', marginTop: 2 }}>Cambia el número y mira cómo se mueve el cheque. Ahora lleva{esUnoMismo ? 's' : ''} {propiosReales.toLocaleString()} pts.</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <input
-                type="number" min={0} value={meta}
-                onChange={e => setMeta(Math.max(0, Number(e.target.value) || 0))}
-                style={{ width: 110, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--win-border2)', background: 'var(--win-surface)', color: 'var(--win-text)', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', textAlign: 'right' }}
-              />
-              {esSimulado && (
-                <button onClick={() => setMeta(propiosReales)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--win-border2)', background: 'var(--win-surface)', color: 'var(--win-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                  Restablecer
-                </button>
-              )}
-            </div>
-            <div style={{ width: '100%' }}>
-              <input
-                type="range" min={0} max={2000} step={10} value={Math.min(2000, meta)}
-                onChange={e => setMeta(Math.max(0, Number(e.target.value) || 0))}
-                className={'rn-slider' + (meta >= 2000 ? ' rn-slider-full' : '')}
-                style={{ '--rn-slider-pct': Math.min(100, (meta / 2000) * 100) + '%' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 10.5, color: 'var(--win-muted)' }}>
-                <span>0</span>
-                <span style={{ fontWeight: 700, color: meta >= 2000 ? 'var(--win-green)' : 'var(--win-text)' }}>{meta.toLocaleString()} de 2,000 pts</span>
-                <span>2,000</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Cheque visual */}
-          <div style={{ background: 'linear-gradient(135deg,#FDF8ED,#F5EFDC)', border: '2px solid #D4B96A', borderRadius: 14, padding: isMobile ? '18px 16px' : '22px 26px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(212,185,106,.18)' }}/>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', color: '#8A6D1D' }}>NICE · CHEQUE SIMULADO</div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, color: '#8A6D1D', textTransform: 'capitalize' }}>{mesLabel}</div>
-                {esSimulado && <div style={{ marginTop: 3, fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', color: '#fff', background: '#B8860B', padding: '2px 8px', borderRadius: 20, display: 'inline-block' }}>CON META</div>}
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 3 }}>PÁGUESE A LA ORDEN DE</div>
-            <div style={{ fontSize: 19, fontWeight: 700, color: '#3A2E0B', marginBottom: 16 }}>{self.nombre}</div>
-            <div style={{ fontSize: 11, color: '#8A6D1D', fontWeight: 600, marginBottom: 4 }}>IMPORTE ESTIMADO (NETO)</div>
-            <div style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, color: '#3A2E0B', letterSpacing: '-.02em', lineHeight: 1 }}>{fmtMXN(c.totalMXN)}</div>
-            <div style={{ fontSize: 10.5, color: '#8A6D1D', marginTop: 4 }}>Bruto {fmtMXN(c.totalBrutoMXN)} · Retención est. ({(RETENCION_FISCAL * 100).toFixed(1)}%) −{fmtMXN(c.totalBrutoMXN - c.totalMXN)}</div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: r.color, background: r.bg, padding: '3px 10px', borderRadius: 20 }}>{r.label}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A6D1D' }}>EIN {self.ein} · {c.propios.toLocaleString()} pts propios{esSimulado ? ' (meta)' : ''} ({c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'})</span>
-            </div>
-          </div>
-
+        <div className="rn-chq__body">
           {!c.califica && (
-            <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--win-red-l)', color: 'var(--win-red)', fontSize: 12, fontWeight: 600 }}>
-              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+, así que el Descuento por Red no aplica todavía. Esta simulación muestra $0.
+            <div className="rn-chq__alert">
+              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+: los Niveles 1-3 no aplican. Solo se calcula el Diferencial de su grupo.
             </div>
           )}
 
-          {/* Desglose por nivel */}
-          <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--win-title)', marginBottom: 8 }}>Desglose por Nivel Oro</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: 'var(--win-surface2)' }}>
-                  {['Nivel', 'Personas', 'Puntos', '%', 'Importe'].map(h => (
-                    <th key={h} style={{ padding: '7px 10px', textAlign: h==='Nivel'||h==='Personas'?'center':'right', fontSize: 10, fontWeight: 700, letterSpacing: '.05em', color: 'var(--win-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--win-border)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {c.niveles.map(n => (
-                  <tr key={n.nivel} style={{ borderBottom: '1px solid var(--win-border)' }}>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--win-title)' }}>Nivel {n.nivel}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--win-text)' }}>{n.personas}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-gold)', fontWeight: 600 }}>{n.puntos.toLocaleString()}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--win-muted)' }}>{(n.pct*100).toFixed(0)}%</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--win-accent)' }}>{fmtMXN(n.importePuntos*VALOR_ORO)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Meta de puntos */}
+          <div className="rn-chq__card">
+            <div className="rn-chq__card-head">
+              <span className="rn-chq__tile"><Icons.Target/></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="rn-chq__card-t">{esUnoMismo ? 'Mi meta de puntos' : `Meta de puntos de ${nombreCorto}`}</div>
+                <div className="rn-chq__card-d">Mueve la meta y mira cómo cambia el cheque · lleva{esUnoMismo ? 's' : ''} {propiosReales.toLocaleString()} pts</div>
+              </div>
+              <input className="rn-chq__num" type="number" min={0} value={meta} onChange={e => setMeta(Math.max(0, Number(e.target.value) || 0))}/>
+              {esSimulado && <button className="rn-chq__reset" onClick={() => setMeta(propiosReales)}>Restablecer</button>}
+            </div>
+            <input type="range" min={0} max={2000} step={10} value={Math.min(2000, meta)}
+              onChange={e => setMeta(Math.max(0, Number(e.target.value) || 0))}
+              className={'rn-slider' + (meta >= 2000 ? ' rn-slider-full' : '')}
+              style={{ '--rn-slider-pct': Math.min(100, (meta / 2000) * 100) + '%' }}/>
+            <div className="rn-chq__scale"><span>0</span><b className={meta >= 2000 ? 'ok' : ''}>{meta.toLocaleString()} de 2,000 pts</b><span>2,000</span></div>
           </div>
 
-          <div style={{ marginTop: 16, fontSize: 11, color: 'var(--win-muted)', lineHeight: 1.6 }}>
-            <strong>Cálculo aproximado</strong> — Nivel 1 es el primer Oro+ que encuentra en cada línea de {esUnoMismo ? 'tu' : `la de ${nombreCorto}`} red, Nivel 2 el siguiente Oro+ debajo de ese, y Nivel 3 el siguiente después de ese (salta a quien no es Oro, no cuenta generación literal). Usa el PP+PG propio de cada Oro+ encontrado. El % depende de {esUnoMismo ? 'tus propios' : 'sus propios'} PP+PG de este periodo (500 → 1%, 1,000 → 2%, 1,500 → 3%, 2,000+ → 5%/4%/4% por nivel), y se descuenta una retención fiscal estimada del {(RETENCION_FISCAL * 100).toFixed(1)}%. No es {esUnoMismo ? 'tu' : 'su'} pago oficial de NICE — solo una estimación para planear.
+          {/* Desglose como en el estado de cuenta */}
+          <div className="rn-chq__sec">Desglose <span>como en el estado de cuenta de NICE</span></div>
+          <div className="rn-chq__rows">
+            {filas.map(fl => (
+              <div key={fl.k} className="rn-chq__row">
+                <span className="rn-chq__tile rn-chq__tile--txt">{fl.k}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="rn-chq__row-t">{fl.t} <em>{fl.pct}</em></div>
+                  <div className="rn-chq__row-d">{fl.personas} persona{fl.personas !== 1 ? 's' : ''} · {fl.puntos.toLocaleString()} pts · {fl.d}</div>
+                </div>
+                <span className="rn-pill">{fmtMXN(fl.mxn)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="rn-chq__how">
+            <strong>Cómo se calcula</strong> (igual que el estado de cuenta de NICE): <b>Diferencial (DD)</b> = compras de {esUnoMismo ? 'tu' : 'su'} grupo no-Oro × la diferencia de descuento (ej. Oro 45% − Plata 40% = 5%). <b>Niveles 1-3</b> = el primer Oro de cada línea + todo su grupo no-Oro (Nivel 1), el siguiente Oro + su grupo (Nivel 2), y así; se suman los puntos de cada persona × $12.06 × el % del nivel, que depende de {esUnoMismo ? 'tus' : 'sus'} PP+PG (2,000+ → 5/4/4%, 1,500 → 3%, 1,000 → 2%, 500 → 1%). No incluye reconocimientos fijos (ej. $250) ni pedidos de kits/paquetes, así que puede variar ±5%. No es el pago oficial — es una estimación para planear.
           </div>
         </div>
       </div>
     </div>
   )
+  return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
 }
 
 function PanelMiRed({ afiliados, tc }) {
@@ -1741,11 +1774,81 @@ function PanelMiRed({ afiliados, tc }) {
       {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
       {showCheque && <ChequeModal afiliados={afiliados} onClose={()=>setShowCheque(false)}/>}
 
+      {/* Bienvenida estilo app NICE: franja azul marino + resumen con anillos */}
+      {self && (() => {
+        const propios = (self.pp || 0) + (self.pg || 0)
+        const sig = getSiguienteRangoObjetivo(self)
+        const metaFrontales = sig && sig.tipo === 'equipo' ? sig.frontalesOro : Math.max(1, self.frontalesOro || 0)
+        const cheque = calcularChequeNICE(self, afiliados)
+        const hoyMes = new Date()
+        const mes = MESES_ES[hoyMes.getMonth()] + ' ' + hoyMes.getFullYear()
+        return (
+          <div className="rn-welcomebar">
+            <div className="rn-welcomebar__top">
+              {/* Medallas: rango de red + rango de venta (si tiene), como en la página de NICE */}
+              {(() => {
+                const rVenta = self.rangoVenta ? getRango(self.rangoVenta) : null
+                const medallas = [{ r: rSelf, tipo: 'Rango de red' }]
+                if (rVenta && rVenta.id !== 'SIN' && rVenta.id !== rSelf.id) medallas.push({ r: rVenta, tipo: 'Rango de venta' })
+                return (
+                  <div className="rn-welcomebar__medals">
+                    {medallas.map(({ r: mr, tipo }) => (
+                      <div key={tipo} className="rn-welcomebar__medal" title={`${tipo}: ${mr.label}`}>
+                        <div className="rn-welcomebar__disc">
+                          {RANGO_IMG[mr.id] ? <img src={RANGO_IMG[mr.id]} alt=""/> : <span>{getInitials(self.nombre)}</span>}
+                        </div>
+                        <div className="rn-welcomebar__rank">{mr.label}</div>
+                        <div className="rn-welcomebar__tipo">{tipo}</div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+              <div className="rn-welcomebar__info">
+                <div className="rn-welcomebar__hola">Hola {self.nombre.split(' ')[0]}! 👋</div>
+                <div className="rn-welcomebar__nombre">{self.nombre}</div>
+                <div className="rn-welcomebar__chips">
+                  <span className="rn-welcomebar__chip">No. de empresario <b>{self.ein}</b></span>
+                  <span className="rn-welcomebar__chip">Descuento <b>{Math.round(descuentoPct(rSelf.id) * 100)}%</b></span>
+                </div>
+                <div className="rn-welcomebar__sub">{total} afiliados · {activos} activos este mes</div>
+              </div>
+            </div>
+            <div className="rn-welcomebar__head">Resumen del mes <span>{mes}</span></div>
+            <div className="rn-sumgrid">
+              <div className="rn-sumcard">
+                <div className="rn-sumcard__t">Puntos del mes</div>
+                <NiceRing value={propios} max={2000} unidad="pts"/>
+                <div className="rn-sumcard__l">Descuento por Red</div>
+                <span className="rn-pill">{propios >= 2000 ? '5/4/4%' : propios >= 1500 ? '3%' : propios >= 1000 ? '2%' : propios >= 500 ? '1%' : '0%'}</span>
+              </div>
+              <div className="rn-sumcard">
+                <div className="rn-sumcard__t">Frontales Oro</div>
+                <NiceRing value={self.frontalesOro || 0} max={metaFrontales} unidad="Oro"/>
+                <div className="rn-sumcard__l">Meta</div>
+                <span className="rn-pill rn-pill--indigo">{sig && sig.tipo === 'equipo' ? sig.label : rSelf.label}</span>
+              </div>
+              <button className="rn-sumcard rn-sumcard--btn" onClick={() => setShowCheque(true)}>
+                <div className="rn-sumcard__t">Cheque estimado</div>
+                <div className="rn-sumcard__star"><span><Icons.Star/></span><b>{cheque.dd.personas + cheque.niveles.reduce((s2, n) => s2 + n.personas, 0)}</b><small>personas</small></div>
+                <div className="rn-sumcard__l">Monto estimado</div>
+                <span className="rn-pill">{cheque.totalBrutoMXN.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })}</span>
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      <div className="rn-actions-list">
+        <NiceAction icon={Icons.Calc} sub="Calculadora de cheque" titulo="Simula el cheque de este mes" onClick={() => setShowCheque(true)}/>
+        <NiceAction icon={Icons.Grid} sub="Toda tu red" titulo="Base de datos de afiliados" onClick={() => setShowDB(true)}/>
+      </div>
+
       {hayPrioridades && (
         <div style={{ ...S.card, marginBottom: 16, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', background: '#FEF2F2' }}>
-            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#991B1B' }}>🔥 Prioridades de hoy</span>
-            <div style={{ fontSize: 11, color: '#991B1B', marginTop: 2, opacity: .85 }}>Lo más urgente de toda tu red — el resto del detalle está en Plan de acción, por persona</div>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--win-border)', background: 'var(--win-red-l)' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--win-red)' }}>🔥 Prioridades de hoy</span>
+            <div style={{ fontSize: 11, color: 'var(--win-red)', marginTop: 2, opacity: .85 }}>Lo más urgente de toda tu red — el resto del detalle está en Plan de acción, por persona</div>
           </div>
           <div style={{ padding: '4px 16px 2px' }}>
             {oroInactivosRed.map(a => filaPrioridad(a, `${getRango(a.rango).label} sin movimiento — si se acumula, arriesga perder la red`, true))}
@@ -1755,46 +1858,6 @@ function PanelMiRed({ afiliados, tc }) {
         </div>
       )}
 
-      <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:12}}>
-        <button onClick={()=>setShowDB(true)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:8,background:'var(--win-accent)',border:'1px solid var(--win-accent)',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          <div style={{width:15,height:15}}><Icons.Grid/></div>
-          Base de datos
-        </button>
-      </div>
-      <button onClick={()=>setShowCheque(true)} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,width:'100%',padding:'18px 20px',marginBottom:16,borderRadius:14,border:'none',background:'linear-gradient(135deg,#D4AF37,#B8860B)',color:'#fff',cursor:'pointer',fontFamily:'inherit',boxShadow:'0 8px 24px rgba(184,134,11,.35)'}}>
-        <span style={{fontSize:26}}>💵</span>
-        <span style={{textAlign:'left'}}>
-          <span style={{display:'block',fontSize:16,fontWeight:800}}>Simula el cheque de este mes</span>
-          <span style={{display:'block',fontSize:11.5,opacity:.9,fontWeight:500}}>Descuento por Red · Busca a cualquier afiliado</span>
-        </span>
-      </button>
-      {/* Hero: total · líder · rango */}
-      {self && (
-        <div className="rn-hero">
-          <div>
-            <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:6}}>TOTAL AFILIADOS</div>
-            <div style={{fontSize:32,fontWeight:700,color:'var(--win-accent)',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{total}</div>
-            <div style={{fontSize:11,color:'var(--win-muted)',marginTop:4}}>{activos} activos · {total>0?Math.round(activos/total*100):0}%</div>
-          </div>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:6}}>LÍDER DE LA RED</div>
-            <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)',lineHeight:1.2}}>{self.nombre}</div>
-            <div style={{fontSize:11,color:'var(--win-muted)',marginTop:4}}>EIN {self.ein}{self.ciudad?` · ${self.ciudad}`:''}</div>
-          </div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:14}}>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:'.05em',color:'var(--win-muted)',marginBottom:6}}>RANGO NICE</div>
-              <div style={{fontSize:16,fontWeight:700,color:rSelf.color,lineHeight:1.1}}>{rSelf.label}</div>
-              <div style={{fontSize:11,color:'var(--win-muted)',marginTop:4}}>{(self.pp||0)} PP · {(self.pg||0)} PG</div>
-            </div>
-            <div style={{width:64,height:64,borderRadius:'50%',background:rSelf.bg,border:`3px solid ${rSelf.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:`0 0 0 4px ${rSelf.color}22`,overflow:'hidden'}}>
-              {RANGO_IMG[rSelf.id]
-                ? <img src={RANGO_IMG[rSelf.id]} alt={rSelf.label} style={{width:56,height:56,objectFit:'contain'}}/>
-                : <span style={{fontSize:14,fontWeight:700,color:rSelf.color}}>{getInitials(self.nombre)}</span>}
-            </div>
-          </div>
-        </div>
-      )}
       <div className="rn-stats-grid">
         {[{l:'Activos este mes',v:activos,c:'var(--win-green)',sub:`${total>0?Math.round(activos/total*100):0}% actividad`},{l:'PP totales',v:totalPP.toLocaleString(),c:'var(--win-gold)'},{l:'PG totales',v:totalPG.toLocaleString(),c:'var(--win-purple)'},{l:'Rangos Oro+',v:afiliados.filter(a=>{const r=getRango(a.rango);return r.id.includes('ORO')||r.id.includes('DIAMANTE')||r.id==='PLATINO'}).length,c:'var(--win-gold)'}].map(k=>(
           <div key={k.l} style={{...S.card, padding:'14px 16px'}}>
@@ -3149,17 +3212,19 @@ function App() {
     localStorage.setItem('rednice-theme', theme)
   }, [theme])
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
-  const [fontScale, setFontScale] = useState(() => {
-    if (typeof window === 'undefined') return 100
-    return parseInt(localStorage.getItem('rednice-fontscale'), 10) || 100
-  })
-  useEffect(() => {
-    try { localStorage.setItem('rednice-fontscale', String(fontScale)) } catch (e) {}
-  }, [fontScale])
+  // Tamaño de letra: la app SIEMPRE abre en 100% (estándar pedido por Isaac);
+  // A−/A+ lo mueven de 10 en 10 durante la sesión y el botón del % regresa a 100.
+  const LETRA_ESTANDAR = 100
+  const [fontScale, setFontScale] = useState(LETRA_ESTANDAR)
   const zoomOutTexto = () => setFontScale(z => Math.max(80, z - 10))
   const zoomInTexto = () => setFontScale(z => Math.min(140, z + 10))
   const fileRef = useRef()
   const [menuTabsAbierto, setMenuTabsAbierto] = useState(false)
+  // Pantalla de entrada. Por ahora "Acceder" solo la cierra (sin autenticación);
+  // más adelante se conectará a la base de datos de usuarios con acceso.
+  const [splash, setSplash] = useState(true)
+  // Hoja inferior "Más" de la barra de navegación en celular (estilo app NICE)
+  const [masAbierto, setMasAbierto] = useState(false)
 
   const irAGenealogia = useCallback((ein) => {
     setGenealogiaEin(ein)
@@ -3304,24 +3369,33 @@ function App() {
     })
   }
 
-  const TABS = [{id:'red',l:'Mi Red',I:Icons.BarChart},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
+  const TABS = [{id:'red',l:'Mi Red',I:Icons.Home},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
   // Las pestañas 'arbol' y 'semana' se ocultan a propósito (no se borran) — 'arbol' sigue en
   // PanelGenealogia.jsx y 'semana' en PanelSemana.jsx, por si se reactivan más adelante.
   const curTab = TABS.find(t=>t.id===tab)||TABS[0]
   const self = afiliadosCalc.find(a=>a.gen===0) || afiliadosCalc[0]
 
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100vh',fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--win-bg)'}}>
+    <div className="rn-root" style={{display:'flex',flexDirection:'column',fontFamily:"'Poppins',system-ui,sans-serif",background:'var(--win-bg)'}}>
+      {splash&&(
+        <div className="rn-splash" role="dialog" aria-label="Bienvenida Red NICE Analizer">
+          <div className="rn-splash__bg"/>
+          <img className="rn-splash__icon" src="./assets/icono-app.png" alt="Red NICE Analizer"/>
+          <button className="rn-splash__btn" onClick={()=>setSplash(false)} autoFocus>
+            <span className="rn-splash__btn-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
+            <span className="rn-splash__btn-txt">Acceder<small>Red NICE Analizer</small></span>
+          </button>
+        </div>
+      )}
       {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
         <div style={{position:'relative',flexShrink:0}}>
-          <button onClick={()=>setMenuTabsAbierto(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px 5px 5px',borderRadius:8,border:'1px solid transparent',background:menuTabsAbierto?'var(--win-surface2)':'none',cursor:'pointer',fontFamily:'inherit'}}>
-            <div style={{width:26,height:26,background:'var(--win-accent)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'white',boxShadow:'0 0 0 1px rgba(120,200,255,.25), 0 4px 14px rgba(37,99,235,.45)',flexShrink:0}}>
-              <div style={{width:14,height:14}}><Icons.Network/></div>
-            </div>
-            {!isMobile && <span style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>Red<span style={{color:'var(--win-accent)'}}>NICE</span></span>}
-            <span style={{fontSize:9,color:'var(--win-muted)',transform:menuTabsAbierto?'rotate(180deg)':'none',transition:'transform .15s'}}>▾</span>
+          <button onClick={()=>setMenuTabsAbierto(v=>!v)} title="Menú de secciones" aria-label="Abrir menú de secciones" aria-expanded={menuTabsAbierto} style={{display:'flex',alignItems:'center',gap:8,padding:isMobile?'0 10px':'0 12px',height:isMobile?38:32,borderRadius:8,border:'1px solid var(--win-border)',background:menuTabsAbierto?'var(--win-accent-l)':'var(--win-surface2)',cursor:'pointer',fontFamily:'inherit'}}>
+            <span style={{display:'flex',alignItems:'center',gap:5,color:menuTabsAbierto?'var(--win-accent)':'var(--win-text)',fontSize:12,fontWeight:600}}>
+              <span style={{width:16,height:16,display:'flex'}}><Icons.Menu/></span>
+              {!isMobile && 'Menú'}
+            </span>
           </button>
           {menuTabsAbierto && (
             <>
@@ -3338,22 +3412,23 @@ function App() {
             </>
           )}
         </div>
-        <div style={{flex:'1 1 0',minWidth:0,display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:'var(--win-text)'}}>
-          <div style={{width:14,height:14,flexShrink:0,color:'var(--win-accent)'}}><curTab.I/></div>
-          <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{curTab.l}</span>
-        </div>
+        <div style={{flex:'1 1 0',minWidth:0}}/>
         <div className="rn-actions">
           {self&&<div className="rn-user-chip" style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px',borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',fontSize:12,color:'var(--win-text)',fontWeight:500}}>
             <div style={{width:22,height:22,borderRadius:'50%',background:'var(--win-accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700}}>{getInitials(self.nombre)}</div>
             {self.nombre.split(' ').slice(0,2).join(' ')}
           </div>}
+          <button onClick={sincronizar} disabled={sincronizando} title="Sincronizar con tu cuenta NICE" style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'0':'6px 14px',width:isMobile?38:'auto',height:isMobile?38:'auto',justifyContent:'center',borderRadius:6,background:backofficeConectado?'var(--win-green)':'var(--win-surface2)',color:backofficeConectado?'white':'var(--win-text)',fontSize:12,fontWeight:600,border:backofficeConectado?'none':'1px solid var(--win-border)',cursor:sincronizando?'default':'pointer',fontFamily:'inherit',flexShrink:0,opacity:sincronizando?0.6:1}}>
+            <div style={{width:14,height:14,animation:sincronizando?'rnspin 1s linear infinite':'none'}}>{sincronizando?<Icons.Download/>:<Icons.Network/>}</div>
+            {!isMobile && (sincronizando?'Sincronizando...':'Sincronizar')}
+          </button>
           <button onClick={()=>fileRef.current.click()} title="Cargar Excel" style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'0':'6px 14px',width:isMobile?38:'auto',height:isMobile?38:'auto',justifyContent:'center',borderRadius:6,background:'var(--win-accent)',color:'white',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
             <div style={{width:14,height:14}}><Icons.Upload/></div>
             {!isMobile && 'Cargar Excel'}
           </button>
           <div style={{display:'flex',alignItems:'center',borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',flexShrink:0,overflow:'hidden'}}>
             <button onClick={zoomOutTexto} disabled={fontScale<=80} title="Achicar letra" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale<=80?'default':'pointer',color:fontScale<=80?'var(--win-muted)':'var(--win-text)',fontSize:12,fontWeight:700,padding:0,fontFamily:'inherit'}}>A−</button>
-            <button onClick={()=>setFontScale(100)} title="Restablecer tamaño de letra" style={{border:'none',borderLeft:'1px solid var(--win-border)',borderRight:'1px solid var(--win-border)',background:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:10,fontWeight:600,padding:isMobile?'0 8px':'0 6px',height:isMobile?38:32,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fontScale}%</button>
+            <button onClick={()=>setFontScale(LETRA_ESTANDAR)} title="Regresar al tamaño estándar (100%)" style={{border:'none',borderLeft:'1px solid var(--win-border)',borderRight:'1px solid var(--win-border)',background:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:10,fontWeight:600,padding:isMobile?'0 8px':'0 6px',height:isMobile?38:32,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fontScale}%</button>
             <button onClick={zoomInTexto} disabled={fontScale>=140} title="Agrandar letra" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale>=140?'default':'pointer',color:fontScale>=140?'var(--win-muted)':'var(--win-text)',fontSize:14,fontWeight:700,padding:0,fontFamily:'inherit'}}>A+</button>
           </div>
           <button onClick={toggleTheme} title={theme==='dark'?'Modo claro':'Modo oscuro'} style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:32,height:isMobile?38:32,borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',cursor:'pointer',color:'var(--win-text)',fontSize:14,padding:0,flexShrink:0}}>
@@ -3363,10 +3438,25 @@ function App() {
         </div>
       </div>
 
+      {(sincronizando || syncEstado) && (
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',fontSize:12,fontWeight:600,flexShrink:0,
+          background:syncEstado==='error'?'var(--win-red-l, #FEE2E2)':syncEstado==='ok'?'var(--win-green-l, #DCFCE7)':'var(--win-accent-l)',
+          color:syncEstado==='error'?'var(--win-red)':syncEstado==='ok'?'var(--win-green)':'var(--win-accent)'}}>
+          <span>{syncEstado==='error'?'⚠️':syncEstado==='ok'?'✅':'🔄'}</span>
+          <span style={{flex:1}}>{syncMsg}</span>
+          {!sincronizando && <button onClick={()=>{setSyncEstado(null);setSyncMsg('')}} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',fontSize:13,padding:0}}>✕</button>}
+        </div>
+      )}
+
       {/* Contenido escalable según preferencia de tamaño de letra */}
       <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,zoom:fontScale/100}}>
       {/* Panel header */}
-      <div style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
+      {/* Siempre visible (no se desplaza con el contenido). El logo se oculta en la pantalla de bienvenida, que ya lo muestra en grande. */}
+      <div className="rn-panel-head" style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
+        {!(!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes')&&(
+          <div className="rn-head-logo"><img src="./assets/logo-red-nice.png" alt="Red NICE Analizer"/></div>
+        )}
+        <div className="rn-panel-head__info">
         <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{curTab.l}</div>
         <div style={{fontSize:12,color:'var(--win-muted)',marginTop:2}}>
           {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&'Carga un archivo Excel del portal NICE para comenzar'}
@@ -3380,6 +3470,7 @@ function App() {
           {tab==='reportes'&&`Análisis comparativo multi-período · ${periodos.length} período${periodos.length!==1?'s':''} cargado${periodos.length!==1?'s':''}`}
           {tab==='semana'&&'Metas y planeación semanal · progreso guardado automáticamente'}
         </div>
+        </div>
       </div>
 
       {/* Body */}
@@ -3390,34 +3481,48 @@ function App() {
           <div className="rn-welcome">
             <div className="rn-welcome__bg"/>
             <div className="rn-welcome__scrim"/>
-            <div className="rn-welcome__content">
-              <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 14px',borderRadius:20,background:'rgba(13,30,48,.55)',border:'1px solid rgba(120,200,255,.28)',backdropFilter:'blur(6px)',marginBottom:22}}>
-                <div style={{width:7,height:7,borderRadius:'50%',background:'#4FD0F5',boxShadow:'0 0 10px #4FD0F5'}}/>
-                <span style={{fontSize:11,fontWeight:600,letterSpacing:'.12em',color:'#BFE4FB'}}>SEGUIMIENTO DE RED NICE</span>
+            <div className="rn-wl">
+              {/* Columna izquierda: logo en placa luminosa + mensaje */}
+              <div className="rn-wl__brand">
+                <div className="rn-logo-stage">
+                  <div className="rn-logo-stage__orbit"/>
+                  <div className="rn-logo-plate">
+                    <img src="./assets/logo-red-nice.png" alt="Red NICE Analizer" className="rn-logo-img"/>
+                  </div>
+                </div>
+                <div className="rn-wl__title">Visualiza y haz crecer<br/>tu red de mercadeo</div>
+                <div className="rn-wl__sub">Tu genealogía, reportes y plan de carrera personalizados — todo en segundos.</div>
               </div>
-              <div style={{fontSize:38,fontWeight:700,color:'#fff',lineHeight:1.1,letterSpacing:'-.02em',marginBottom:14,textShadow:'0 2px 30px rgba(0,0,0,.5)'}}>
-                Visualiza y haz crecer<br/>tu red de mercadeo
-              </div>
-              <div style={{fontSize:15,color:'rgba(220,235,250,.82)',marginBottom:30,maxWidth:440,marginLeft:'auto',marginRight:'auto',lineHeight:1.65}}>
-                Carga el Excel del portal NICE para ver tu árbol de afiliados, genealogía y planes de carrera personalizados — todo en segundos.
-              </div>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
-                <button onClick={()=>fileRef.current.click()} className="rn-glass-btn">
-                  <div style={{width:18,height:18,flexShrink:0}}><Icons.Upload/></div>
-                  <span style={{display:'flex',flexDirection:'column',alignItems:'flex-start',textAlign:'left',lineHeight:1.35}}>
-                    <span style={{fontSize:15,fontWeight:700}}>Seleccionar Archivo Excel</span>
-                    <span style={{fontSize:11.5,fontWeight:500,opacity:.85,marginTop:2}}>de la sección de afiliados del portal NICE</span>
+
+              {/* Columna derecha: panel "Empieza aquí" */}
+              <div className="rn-start">
+                <div className="rn-start__label"><span className="rn-start__dot"/>EMPIEZA AQUÍ</div>
+                <button onClick={()=>fileRef.current.click()} className="rn-start__opt rn-start__opt--primary">
+                  <span className="rn-start__num">1</span>
+                  <span className="rn-start__txt">
+                    <span className="rn-start__t">Seleccionar Archivo Excel</span>
+                    <span className="rn-start__d">de la sección de afiliados del portal NICE</span>
                   </span>
+                  <span className="rn-start__ico"><Icons.Upload/></span>
+                </button>
+                {/* Deshabilitado temporalmente a petición de Isaac (oct 2026). Para reactivar: onClick={sincronizar}, disabled={sincronizando} y quitar rn-start__opt--off + la nota. */}
+                <button disabled aria-disabled="true" title="Deshabilitado temporalmente" className="rn-start__opt rn-start__opt--off">
+                  <span className="rn-start__num">2</span>
+                  <span className="rn-start__txt">
+                    <span className="rn-start__t">Sincronizar con mi cuenta NICE</span>
+                    <span className="rn-start__d">descarga tu red directo del Backoffice</span>
+                    <span className="rn-start__off-note">Deshabilitado temporalmente</span>
+                  </span>
+                  <span className="rn-start__ico"><Icons.Network/></span>
                 </button>
                 {/* Botón de datos de ejemplo oculto a propósito (no borrado) — cargarDemo() sigue disponible más abajo. */}
-              </div>
-              <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginTop:34}}>
-                {['Árbol de afiliados','Genealogía visual','Plan de carrera','Reportes para tu equipo'].map(f=>(
-                  <div key={f} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 13px',borderRadius:20,background:'rgba(13,30,48,.4)',border:'1px solid rgba(120,200,255,.18)',backdropFilter:'blur(6px)',fontSize:12,fontWeight:500,color:'rgba(220,235,250,.9)'}}>
-                    <div style={{width:5,height:5,borderRadius:'50%',background:'#4FD0F5',flexShrink:0}}/>
-                    {f}
-                  </div>
-                ))}
+                <div className="rn-start__feats">
+                  {[['Genealogía visual',Icons.GitBranch],['Plan de carrera',Icons.Plan],['Reportes para tu equipo',Icons.TrendUp],['Anuncios con IA',Icons.Megaphone]].map(([f,I])=>(
+                    <div key={f} className="rn-start__feat">
+                      <span className="rn-start__feat-ico"><I/></span>{f}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -3435,6 +3540,42 @@ function App() {
         )}
       </div>
       </div>
+      {/* Barra de navegación inferior (solo celular), estilo app NICE */}
+      {isMobile&&(()=>{
+        const PRINCIPALES=['red','genealogia','plan','reportes']
+        const enMas=!PRINCIPALES.includes(tab)
+        const item=(id,l,I,activo,onClick)=>(
+          <button key={id} onClick={onClick} className={'rn-bnav__item'+(activo?' is-active':'')} aria-current={activo?'page':undefined}>
+            <span className="rn-bnav__ico"><I/></span>
+            <span className="rn-bnav__lbl">{l}</span>
+          </button>
+        )
+        return (
+          <>
+            {masAbierto&&(
+              <div className="rn-sheet" onClick={()=>setMasAbierto(false)}>
+                <div className="rn-sheet__panel" onClick={e=>e.stopPropagation()}>
+                  <div className="rn-sheet__grip"/>
+                  <div className="rn-sheet__title">Más secciones</div>
+                  {TABS.filter(t=>!PRINCIPALES.includes(t.id)).map(t=>(
+                    <button key={t.id} className={'rn-sheet__row'+(tab===t.id?' is-active':'')} onClick={()=>{setTab(t.id);setMasAbierto(false)}}>
+                      <span className="rn-sheet__tile"><t.I/></span>
+                      <span style={{flex:1}}>{t.l}</span>
+                      {t.id==='archivos'&&duplicados.length>0&&<span className="rn-sheet__badge">{duplicados.length}</span>}
+                      <span className="rn-sheet__chev"><Icons.ChevRight/></span>
+                    </button>
+                  ))}
+                  <button className="rn-sheet__back" onClick={()=>setMasAbierto(false)}>REGRESAR</button>
+                </div>
+              </div>
+            )}
+            <nav className="rn-bnav">
+              {TABS.filter(t=>PRINCIPALES.includes(t.id)).map(t=>item(t.id,t.l,t.I,tab===t.id,()=>{setTab(t.id);setMasAbierto(false)}))}
+              {item('mas','Más',Icons.Grid,enMas||masAbierto,()=>setMasAbierto(v=>!v))}
+            </nav>
+          </>
+        )
+      })()}
     </div>
   )
 }

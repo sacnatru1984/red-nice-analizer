@@ -288,7 +288,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                         return (
                           <div key={l.frontal.ein} style={{ fontSize: 11.5, color: 'var(--win-text)', lineHeight: 1.6, marginBottom: i < Math.min(2, sinCerrar.length) - 1 ? 10 : 0 }}>
                             <b>Plan {i === 0 ? 'A' : 'B'} — {nombreLinea}:</b> {fUSD(l.usd)} de ${meta} (faltan {fUSD(Math.max(0, meta - l.usd))}).
-                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — si sube a rango Oro, sus propios puntos dejan de contar (pasan a cuenta aparte), pero <b>su red sigue sumando</b> en el siguiente nivel.</>}
+                            {mc && <> Su pieza clave es <b>{mc.nombre.split(' ').slice(0, 2).join(' ')}</b> ({mc.rango || '—'}, {mc.pp.toLocaleString()} pts) — cada punto que haga <b>suma directo</b> a esta línea, y si llega a Oro abre un nivel nuevo con su propio grupo.</>}
                             {' '}
                             <span onClick={() => setSimExpandida(abiertaSim ? null : l.frontal.ein)} style={{ color: 'var(--win-accent)', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{abiertaSim ? '▾ ocultar simulación' : '▸ ¿cuántos puntos hacen falta?'}</span>
 
@@ -300,7 +300,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                                   <div style={{ fontSize: 11, color: 'var(--win-muted)' }}>Todo lo que aporta hoy viene de Nivel 2 o más — revisa el detalle por línea para esa parte.</div>
                                 ) : (
                                   <>
-                                    <div style={{ fontSize: 10, color: 'var(--win-muted)', marginBottom: 6 }}>Si Nivel 1 (5%, el más eficiente) crece proporcional a lo que cada quien ya aporta — no incluye Nivel 2, ese vale menos por punto:</div>
+                                    <div style={{ fontSize: 10, color: 'var(--win-muted)', marginBottom: 6 }}>Si quienes ya compran en Nivel 1 (el que más paga por punto) crecen en proporción a lo que ya aportan — no incluye Nivel 2:</div>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                                       <thead>
                                         <tr>
@@ -457,7 +457,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11 }}>
                               <span style={{ color: 'var(--win-muted)' }}>Total: <b style={{ color: 'var(--win-title)' }}>{fMXN(linea.totalMXN)}</b></span>
-                              <span style={{ color: 'var(--win-muted)' }}>IVA (16%): <b style={{ color: 'var(--win-title)' }}>-{fMXN(linea.ivaMXN)}</b></span>
+                              <span style={{ color: 'var(--win-muted)' }}>Retención aprox. (5.85%): <b style={{ color: 'var(--win-title)' }}>-{fMXN(linea.ivaMXN)}</b></span>
                               <span style={{ color: 'var(--win-muted)' }}>Neto: <b style={{ color: 'var(--win-title)' }}>{fMXN(linea.netoMXN)}</b></span>
                               <span style={{ color: 'var(--win-muted)' }}>% según {linea.frontal.nombre.split(' ')[0]}: <b style={{ color: 'var(--win-title)' }}>{linea.propios.toLocaleString()} pts propios</b></span>
                             </div>

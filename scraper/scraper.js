@@ -3,6 +3,7 @@ import { CONFIG } from './config.js'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
+import { extraerRedCompleta, filasAWorkbookBuffer, cerrarModalesIniciales } from './extraer-afiliados.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const carpetaDescargas = path.resolve(__dirname, CONFIG.carpetaDescargas)
@@ -51,7 +52,6 @@ async function main() {
   // URLs dinámicas basadas en el usuario
   const usuario = creds.usuario || CONFIG.usuario
   const urlLogin = `https://backoffice.niceonline.com/${usuario}/Account/Login`
-  const urlAfiliados = `https://backoffice.niceonline.com/${usuario}/BackOffice/Affiliates`
 
   // ── 2. Login en Backoffice ──
   console.log('Iniciando sesion en Backoffice...')
@@ -62,52 +62,27 @@ async function main() {
   const page = await context.newPage()
 
   await page.goto(urlLogin, { waitUntil: 'networkidle' })
-  await page.fill('input[name="UserName"], input[type="text"], #UserName', creds.email)
-  await page.fill('input[name="Password"], input[type="password"], #Password', creds.password)
-  await page.click('button[type="submit"], input[type="submit"], .btn-login, .btn-primary')
+  await cerrarModalesIniciales(page)
+  await page.fill('#LoginName', creds.email)
+  await page.fill('#LoginPassword', creds.password)
+  await page.click('#loginButton')
   await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 })
     .catch(() => console.log('  (continuando tras login...)'))
   console.log('Sesion iniciada')
 
-  // ── 3. Ir a Afiliados ──
+  // ── 3. Leer tabla de Afiliados (nunca clicar el botón "Excel": crashea la sesión) ──
   console.log('Navegando a Afiliados...')
-  await page.goto(urlAfiliados, { waitUntil: 'networkidle', timeout: 20000 })
-  await page.waitForSelector('table, .affiliates, #affiliates-table, .datatable', { timeout: 15000 })
-    .catch(() => console.log('  (tabla no encontrada por selector, continuando...)'))
-  await page.waitForTimeout(2000)
+  const periodo = process.env.REDNICE_PERIODO || null // ej. "agosto - 2026"; vacío = periodo actual
+  const filas = await extraerRedCompleta(page, { usuario, periodo })
+  console.log(`  ${filas.length} afiliados leídos${periodo ? ` (periodo: ${periodo})` : ' (periodo actual)'}`)
 
-  // ── 4. Descargar Excel ──
-  console.log('Descargando Excel...')
-  const botonesExportar = [
-    'text=EXCEL', 'text=Excel',
-    'button:has-text("EXCEL")', 'button:has-text("Excel")',
-    'a:has-text("EXCEL")', 'a:has-text("Excel")',
-    '.export-excel', '#btnExcel', '#exportExcel',
-    '[href*="excel"]', '[href*="Export"]',
-  ]
-
-  let downloadPromise = null
-  let clickOk = false
-  for (const selector of botonesExportar) {
-    const btn = page.locator(selector).first()
-    const visible = await btn.isVisible().catch(() => false)
-    if (visible) {
-      console.log(`  Boton encontrado: ${selector}`)
-      downloadPromise = page.waitForEvent('download', { timeout: 30000 })
-      await btn.click()
-      clickOk = true
-      break
-    }
+  if (filas.length === 0) {
+    throw new Error('No se leyó ninguna fila de la tabla de afiliados — revisa que la sesión haya iniciado correctamente.')
   }
 
-  if (!clickOk) {
-    console.log('  Boton no encontrado automaticamente - haz clic en Exportar manualmente.')
-    downloadPromise = page.waitForEvent('download', { timeout: 120000 })
-  }
-
-  const download = await downloadPromise
+  const buffer = await filasAWorkbookBuffer(filas)
   const rutaArchivo = path.join(carpetaDescargas, 'afiliados.xlsx')
-  await download.saveAs(rutaArchivo)
+  fs.writeFileSync(rutaArchivo, buffer)
   console.log(`Excel guardado: ${rutaArchivo}`)
 
   await context.close()
