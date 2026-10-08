@@ -270,6 +270,7 @@ function GenealogiaNodo({ nodo, depth=0, onHover, onLeave, pasaFiltro, onSelect,
   const activo = (nodo.pp + nodo.pg) > 0
   const hijosFiltrados = (nodo.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
   const hasKids = hijosFiltrados.length > 0
+  const [expanded, setExpanded] = useState(depth < 2)
   const size = Math.max(28, 42 - depth*3)
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'0 4px'}}>
@@ -298,20 +299,27 @@ function GenealogiaNodo({ nodo, depth=0, onHover, onLeave, pasaFiltro, onSelect,
       <div style={{fontSize:8,fontWeight:600,color:r.color,marginTop:3,maxWidth:70,textAlign:'center',lineHeight:1.1}}>{r.label}</div>
       <div style={{fontSize:9,fontWeight:600,color:'var(--win-title)',marginTop:2,maxWidth:70,textAlign:'center',lineHeight:1.15,wordBreak:'break-word'}}>{nodo.nombre.split(' ').slice(0,2).join(' ')}</div>
       {hasKids && (
-        <>
-          <div style={{width:2,height:12,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
-          <div style={{position:'relative',display:'flex',alignItems:'flex-start',justifyContent:'center'}}>
-            {hijosFiltrados.length>1 && (
-              <div style={{position:'absolute',top:0,left:'8px',right:'8px',height:2,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
-            )}
-            {hijosFiltrados.map(c=>(
-              <div key={c.ein} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-                <div style={{width:2,height:10,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
-                <GenealogiaNodo nodo={c} depth={depth+1} onHover={onHover} onLeave={onLeave} pasaFiltro={pasaFiltro} onSelect={onSelect} selectedEin={selectedEin}/>
-              </div>
-            ))}
-          </div>
-        </>
+        <div style={{position:'relative',width:2,height:18,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}>
+          <button
+            onClick={e=>{ e.stopPropagation(); setExpanded(x=>!x) }}
+            title={expanded ? 'Contraer rama' : `Expandir rama (${hijosFiltrados.length})`}
+            style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',minWidth:22,height:20,padding:'0 6px',borderRadius:10,border:'1px solid var(--win-border)',background:'var(--win-surface)',color:'var(--win-accent)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',boxShadow:'0 2px 6px rgba(0,0,0,.25)',fontSize:10,fontWeight:800,zIndex:2,whiteSpace:'nowrap'}}>
+            {expanded ? '−' : `+${hijosFiltrados.length}`}
+          </button>
+        </div>
+      )}
+      {hasKids && expanded && (
+        <div style={{position:'relative',display:'flex',alignItems:'flex-start',justifyContent:'center'}}>
+          {hijosFiltrados.length>1 && (
+            <div style={{position:'absolute',top:0,left:'8px',right:'8px',height:2,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
+          )}
+          {hijosFiltrados.map(c=>(
+            <div key={c.ein} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+              <div style={{width:2,height:10,background:'var(--win-link)',boxShadow:'var(--win-link-glow)'}}/>
+              <GenealogiaNodo nodo={c} depth={depth+1} onHover={onHover} onLeave={onLeave} pasaFiltro={pasaFiltro} onSelect={onSelect} selectedEin={selectedEin}/>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -481,40 +489,47 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
             {raiz ? `${raiz.nombre} · ${countDescendants(raiz)+1} afiliados` : 'Selecciona una persona'}
           </div>
         </div>
-        <div style={{padding:'12px 16px',borderTop:'1px solid var(--win-border)',background:'var(--win-surface2)',display:'flex',flexWrap:'wrap',gap:14,alignItems:'flex-end'}}>
-          <span style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',alignSelf:'center'}}>Filtrar rangos:</span>
-          {RANGOS_FILTRO_GEN.map(f => {
-            const rDef = RANGOS.find(rr => rr.id === f.id)
-            const checked = filtroRangos.has(f.id)
-            return (
-              <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5}}>
-                {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{width:36,height:36,objectFit:'contain'}}/>}
-                <span style={{background:rDef?.bg,color:rDef?.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
-                <input type="checkbox" checked={checked} onChange={()=>toggleFiltro(f.id)} style={{cursor:'pointer',accentColor:'var(--win-accent)'}}/>
-              </label>
-            )
-          })}
-          <div style={{display:'flex',gap:14,alignItems:'flex-end',marginLeft:isMobile?0:'auto',paddingLeft:isMobile?0:14,borderLeft:isMobile?'none':'1px solid var(--win-border)'}}>
-            <span style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',alignSelf:'center'}}>Actividad:</span>
-            {[
-              { id:'activo', label:'Con puntos', color:'#16A34A', relleno:true },
-              { id:'inactivo', label:'Sin puntos', color:'#9CA3AF', relleno:false },
-            ].map(f => {
-              const checked = filtroActividad.has(f.id)
-              return (
-                <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5}}>
-                  <div style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    <div style={{width:15,height:15,borderRadius:'50%',background:f.relleno?f.color:'transparent',border:`2px solid ${f.color}`}}/>
-                  </div>
-                  <span style={{background:f.color+'22',color:f.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
-                  <input type="checkbox" checked={checked} onChange={()=>toggleActividad(f.id)} style={{cursor:'pointer',accentColor:f.color}}/>
-                </label>
-              )
-            })}
+        <div style={{padding:'14px 16px',borderTop:'1px solid var(--win-border)',background:'var(--win-surface2)',display:'flex',flexDirection:'column',gap:16}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Filtrar rangos:</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(76px, 1fr))',gap:12}}>
+              {RANGOS_FILTRO_GEN.map(f => {
+                const rDef = RANGOS.find(rr => rr.id === f.id)
+                const checked = filtroRangos.has(f.id)
+                return (
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5}}>
+                    {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{width:36,height:36,objectFit:'contain'}}/>}
+                    <span style={{background:rDef?.bg,color:rDef?.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
+                    <input type="checkbox" checked={checked} onChange={()=>toggleFiltro(f.id)} style={{cursor:'pointer',accentColor:'var(--win-accent)'}}/>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+          <div style={{paddingTop:14,borderTop:'1px solid var(--win-border)'}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Actividad:</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(76px, 1fr))',gap:12,maxWidth:isMobile?'100%':220}}>
+              {[
+                { id:'activo', label:'Con puntos', color:'#16A34A', relleno:true },
+                { id:'inactivo', label:'Sin puntos', color:'#9CA3AF', relleno:false },
+              ].map(f => {
+                const checked = filtroActividad.has(f.id)
+                return (
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5}}>
+                    <div style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <div style={{width:15,height:15,borderRadius:'50%',background:f.relleno?f.color:'transparent',border:`2px solid ${f.color}`}}/>
+                    </div>
+                    <span style={{background:f.color+'22',color:f.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
+                    <input type="checkbox" checked={checked} onChange={()=>toggleActividad(f.id)} style={{cursor:'pointer',accentColor:f.color}}/>
+                  </label>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
       <div style={S.card}>
+        <div style={{position:'sticky', top:0, zIndex:20, background:'var(--win-surface)', borderTopLeftRadius:10, borderTopRightRadius:10}}>
         <div style={{...S.cardHeader, flexWrap: isMobile ? 'wrap' : 'nowrap'}}>
           <button onClick={regresar} disabled={!rootEin && history.length===0}
             title="Regresar a la vista anterior"
@@ -558,6 +573,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
               </span>
             )
           })}
+        </div>
         </div>
 
         {/* Tarjeta de info de la persona seleccionada */}
