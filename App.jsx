@@ -3089,8 +3089,32 @@ function useExternal(name) {
   return v
 }
 
+function RNSpinner({ size = 96, label = 'Cargando…' }) {
+  const stroke = Math.round(size * 0.1)
+  const r = (size - stroke) / 2
+  const c = size / 2
+  const circ = 2 * Math.PI * r
+  const arcLen = circ * 0.3
+  const dot = Math.max(3, Math.round(size * 0.045))
+  return (
+    <div style={{ padding: '48px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'relative', width: size, height: size }}>
+        <svg width={size} height={size} style={{ position: 'absolute', inset: 0, animation: 'rnspin 1s linear infinite', transformOrigin: '50% 50%' }}>
+          <g transform={`rotate(-90 ${c} ${c})`}>
+            <circle cx={c} cy={c} r={r} fill="none" stroke="var(--win-border2)" strokeWidth={stroke} />
+            <circle cx={c} cy={c} r={r} fill="none" stroke="var(--win-title)" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${arcLen} ${circ - arcLen}`} />
+            <circle cx={c - r} cy={c} r={dot} fill="var(--win-muted)" />
+          </g>
+        </svg>
+        <div style={{ position: 'absolute', inset: stroke, borderRadius: '50%', background: 'var(--win-surface)', boxShadow: '0 6px 18px rgba(16,33,61,.18)' }} />
+      </div>
+      <div style={{ marginTop: 18, fontSize: 16, fontWeight: 700, color: 'var(--win-title)' }}>{label}</div>
+    </div>
+  )
+}
+
 function PanelCargando() {
-  return <div style={{padding:'40px',textAlign:'center',color:'var(--win-muted)',fontSize:13}}>Cargando…</div>
+  return <RNSpinner/>
 }
 
 function App() {
