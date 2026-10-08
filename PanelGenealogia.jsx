@@ -540,16 +540,16 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
             {raiz ? `${raiz.nombre} · ${countDescendants(raiz)+1} afiliados` : 'Selecciona una persona'}
           </div>
         </div>
-        <div style={{padding:'14px 16px',borderTop:'1px solid var(--win-border)',background:'var(--win-surface2)',display:'flex',flexDirection:'column',gap:16}}>
-          <div>
+        <div style={{padding:'14px 16px',borderTop:'1px solid var(--win-border)',background:'var(--win-surface2)',display:'flex',flexDirection:isMobile?'column':'row',gap:isMobile?16:24,alignItems:'stretch'}}>
+          <div style={{flex:isMobile?'none':3,minWidth:0}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Filtrar rangos:</div>
-            <div style={{display:'flex',flexWrap:'nowrap',gap:12,overflowX:'auto',paddingBottom:4}}>
+            <div style={{display:isMobile?'flex':'grid',flexWrap:isMobile?'nowrap':undefined,gridTemplateColumns:isMobile?undefined:`repeat(${RANGOS_FILTRO_GEN.length}, 1fr)`,gap:12,overflowX:isMobile?'auto':'visible',paddingBottom:isMobile?4:0}}>
               {RANGOS_FILTRO_GEN.map(f => {
                 const rDef = RANGOS.find(rr => rr.id === f.id)
                 const checked = filtroRangos.has(f.id)
                 return (
-                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:0,width:72}}>
-                    {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{width:36,height:36,objectFit:'contain'}}/>}
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:isMobile?0:undefined,width:isMobile?72:'auto'}}>
+                    {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{width:isMobile?36:44,height:isMobile?36:44,objectFit:'contain'}}/>}
                     <span style={{background:rDef?.bg,color:rDef?.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
                     <input type="checkbox" checked={checked} onChange={()=>toggleFiltro(f.id)} style={{cursor:'pointer',accentColor:'var(--win-accent)'}}/>
                   </label>
@@ -557,18 +557,18 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
               })}
             </div>
           </div>
-          <div style={{paddingTop:14,borderTop:'1px solid var(--win-border)'}}>
+          <div style={{flex:isMobile?'none':1,minWidth:isMobile?'auto':160,paddingTop:isMobile?14:0,borderTop:isMobile?'1px solid var(--win-border)':'none',paddingLeft:isMobile?0:24,borderLeft:isMobile?'none':'1px solid var(--win-border)'}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Actividad:</div>
-            <div style={{display:'flex',flexWrap:'nowrap',gap:12,overflowX:'auto',paddingBottom:4}}>
+            <div style={{display:'flex',flexWrap:'nowrap',gap:16,overflowX:isMobile?'auto':'visible',paddingBottom:isMobile?4:0}}>
               {[
                 { id:'activo', label:'Con puntos', color:'#16A34A', relleno:true },
                 { id:'inactivo', label:'Sin puntos', color:'#9CA3AF', relleno:false },
               ].map(f => {
                 const checked = filtroActividad.has(f.id)
                 return (
-                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:0,width:72}}>
-                    <div style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      <div style={{width:15,height:15,borderRadius:'50%',background:f.relleno?f.color:'transparent',border:`2px solid ${f.color}`}}/>
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:0,width:isMobile?72:'auto'}}>
+                    <div style={{width:isMobile?36:44,height:isMobile?36:44,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <div style={{width:isMobile?15:18,height:isMobile?15:18,borderRadius:'50%',background:f.relleno?f.color:'transparent',border:`2px solid ${f.color}`}}/>
                     </div>
                     <span style={{background:f.color+'22',color:f.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
                     <input type="checkbox" checked={checked} onChange={()=>toggleActividad(f.id)} style={{cursor:'pointer',accentColor:f.color}}/>
