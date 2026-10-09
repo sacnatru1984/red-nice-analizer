@@ -571,9 +571,12 @@
       pointer-events: none;
     }
     .rn-head-logo img { display: block; height: 46px; width: auto; }
+    .rn-panel-head--compact { min-height: 40px; }
+    .rn-panel-head--compact .rn-head-logo img { height: 30px; }
     @media (max-width: 720px) {
       .rn-head-logo { position: static; transform: none; order: 2; flex-shrink: 0; padding: 4px 8px; border-radius: 10px; }
       .rn-head-logo img { height: 30px; }
+      .rn-panel-head--compact .rn-head-logo img { height: 24px; }
     }
 
     ::-webkit-scrollbar { width: 10px; height: 10px; }

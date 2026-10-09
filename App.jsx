@@ -3274,9 +3274,9 @@ function App() {
             {!isMobile && 'Cargar Excel'}
           </button>
           <div style={{display:'flex',alignItems:'center',borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',flexShrink:0,overflow:'hidden'}}>
-            <button onClick={zoomOutTexto} disabled={fontScale<=80} title="Achicar letra" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale<=80?'default':'pointer',color:fontScale<=80?'var(--win-muted)':'var(--win-text)',fontSize:12,fontWeight:700,padding:0,fontFamily:'inherit'}}>A−</button>
-            <button onClick={()=>setFontScale(LETRA_ESTANDAR)} title="Regresar al tamaño estándar (100%)" style={{border:'none',borderLeft:'1px solid var(--win-border)',borderRight:'1px solid var(--win-border)',background:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:10,fontWeight:600,padding:isMobile?'0 8px':'0 6px',height:isMobile?38:32,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fontScale}%</button>
-            <button onClick={zoomInTexto} disabled={fontScale>=140} title="Agrandar letra" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale>=140?'default':'pointer',color:fontScale>=140?'var(--win-muted)':'var(--win-text)',fontSize:14,fontWeight:700,padding:0,fontFamily:'inherit'}}>A+</button>
+            <button onClick={zoomOutTexto} disabled={fontScale<=80} title="Tamaño de letra: achicar (no es el zoom del árbol)" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale<=80?'default':'pointer',color:fontScale<=80?'var(--win-muted)':'var(--win-text)',fontSize:12,fontWeight:700,padding:0,fontFamily:'inherit'}}>A−</button>
+            <button onClick={()=>setFontScale(LETRA_ESTANDAR)} title="Tamaño de letra: regresar al estándar (100%)" style={{border:'none',borderLeft:'1px solid var(--win-border)',borderRight:'1px solid var(--win-border)',background:'none',cursor:'pointer',color:'var(--win-muted)',fontSize:10,fontWeight:600,padding:isMobile?'0 8px':'0 6px',height:isMobile?38:32,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fontScale}%</button>
+            <button onClick={zoomInTexto} disabled={fontScale>=140} title="Tamaño de letra: agrandar (no es el zoom del árbol)" style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:30,height:isMobile?38:32,border:'none',background:'none',cursor:fontScale>=140?'default':'pointer',color:fontScale>=140?'var(--win-muted)':'var(--win-text)',fontSize:14,fontWeight:700,padding:0,fontFamily:'inherit'}}>A+</button>
           </div>
           <button onClick={toggleTheme} title={theme==='dark'?'Modo claro':'Modo oscuro'} style={{display:'flex',alignItems:'center',justifyContent:'center',width:isMobile?38:32,height:isMobile?38:32,borderRadius:6,background:'var(--win-surface2)',border:'1px solid var(--win-border)',cursor:'pointer',color:'var(--win-text)',fontSize:14,padding:0,flexShrink:0}}>
             {theme==='dark'?'☀️':'🌙'}
@@ -3299,7 +3299,7 @@ function App() {
       <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,zoom:fontScale/100}}>
       {/* Panel header */}
       {/* Siempre visible (no se desplaza con el contenido). El logo se oculta en la pantalla de bienvenida, que ya lo muestra en grande. */}
-      <div className="rn-panel-head" style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
+      <div className={"rn-panel-head"+(tab==='genealogia'?' rn-panel-head--compact':'')} style={{padding:tab==='genealogia'?'6px 24px 6px':'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
         {!(!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes')&&(
           <div className="rn-head-logo"><img src="./assets/logo-red-nice.png" alt="Red NICE Analizer"/></div>
         )}
