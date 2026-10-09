@@ -646,7 +646,7 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
   const selNodo = selEin ? nodoPorEin.get(selEin) : null
   const panelAbierto = !esMovil && sheet && !!selNodo
   const altoVisible = Math.max(160, vp.h - (esMovil && sheet && selNodo ? FS_SHEET : 0))
-  const anchoVisible = Math.max(200, anchoVisible - (panelAbierto ? FS_PANEL : 0))
+  const anchoVisible = Math.max(200, vp.w - (panelAbierto ? FS_PANEL : 0))
 
   // Bloquea el scroll de la página de fondo y cierra con Escape.
   useEffect(() => {
