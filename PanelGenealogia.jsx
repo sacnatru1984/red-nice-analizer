@@ -126,9 +126,8 @@ function ArbolRama({ nodo, depth, onSelect, onGenealogia, isMobile }) {
   )
 }
 
-// Contenido de la ficha de un integrante. Se usa en el panel inferior (celular,
-// panel Árbol) y en el panel lateral de Genealogía (computadora).
-function FichaContenido({ nodo, afiliados, periodos, onClose, onPlanAccion, acciones = [] }) {
+function ArbolDetalle({ nodo, afiliados, periodos, onClose, onPlanAccion }) {
+  if (!nodo) return null
   const r = getRango(nodo.rango)
   const activo = (nodo.pp + nodo.pg) > 0
   const directos = (afiliados||[]).filter(a=>a.einPresentador===nodo.ein).length
@@ -137,7 +136,14 @@ function FichaContenido({ nodo, afiliados, periodos, onClose, onPlanAccion, acci
   const fecha = fmtFechaArbol(nodo.fechaRegistro || nodo.fechaContrato)
 
   return (
-    <>
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(10,14,24,.55)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:440,background:'var(--win-surface)',borderTopLeftRadius:18,borderTopRightRadius:18,border:'1px solid var(--win-border)',borderBottom:'none',padding:'16px 20px 26px',maxHeight:'86vh',overflowY:'auto'}}>
+        <div style={{display:'flex',justifyContent:'flex-end'}}>
+          <button onClick={onClose} style={{background:'var(--win-surface2)',border:'none',borderRadius:'50%',width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--win-muted)',cursor:'pointer',padding:0}}>
+            <div style={{width:12,height:12}}><Icons.X/></div>
+          </button>
+        </div>
+
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',marginTop:-4,marginBottom:16}}>
           <div style={{width:56,height:56,borderRadius:'50%',background:r.bg,border:`2px solid ${r.color}`,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:8,overflow:'hidden'}}>
             {RANGO_IMG[r.id] ? <img src={RANGO_IMG[r.id]} alt={r.label} style={{width:48,height:48,objectFit:'contain'}}/> : <span style={{fontSize:16,fontWeight:700,color:r.color}}>{getInitials(nodo.nombre)}</span>}
@@ -154,7 +160,7 @@ function FichaContenido({ nodo, afiliados, periodos, onClose, onPlanAccion, acci
             { label:'PP', value:nodo.pp, color:'var(--win-gold)' },
             { label:'PG', value:nodo.pg, color:'#7C3AED' },
             { label:'Directos', value:directos, color:'var(--win-accent)' },
-            { label:'Equipo total', value:total, color:'var(--win-green)' },
+            { label:'Ramif.', value:total, color:'var(--win-green)' },
           ].map(x=>(
             <div key={x.label} style={{flex:1,textAlign:'center',padding:'10px 4px',borderRadius:10,background:'var(--win-surface2)',border:'1px solid var(--win-border)'}}>
               <div style={{fontSize:16,fontWeight:800,color:x.color,fontVariantNumeric:'tabular-nums'}}>{(x.value||0).toLocaleString()}</div>
@@ -190,34 +196,12 @@ function FichaContenido({ nodo, afiliados, periodos, onClose, onPlanAccion, acci
           </div>
         )}
 
-        {acciones.map(a => (
-          <button key={a.label} onClick={a.onClick} disabled={a.disabled} title={a.title || a.label} style={{width:'100%',marginTop:10,minHeight:44,padding:'10px',borderRadius:10,background:a.primaria?'var(--win-accent)':'var(--win-surface2)',color:a.primaria?'#fff':'var(--win-title)',border:a.primaria?'none':'1px solid var(--win-border)',fontSize:13,fontWeight:700,cursor:a.disabled?'not-allowed':'pointer',opacity:a.disabled?0.5:1,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-            {a.icono && <div style={{width:15,height:15}}><a.icono/></div>}
-            {a.label}
-          </button>
-        ))}
-
         {onPlanAccion && (
-          <button onClick={()=>{onPlanAccion(nodo.ein); onClose()}} style={{width:'100%',marginTop:acciones.length?10:18,minHeight:44,padding:'11px',borderRadius:10,background:acciones.length?'var(--win-surface2)':'var(--win-accent)',color:acciones.length?'var(--win-title)':'#fff',border:acciones.length?'1px solid var(--win-border)':'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+          <button onClick={()=>{onPlanAccion(nodo.ein); onClose()}} style={{width:'100%',marginTop:18,padding:'11px',borderRadius:10,background:'var(--win-accent)',color:'#fff',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
             <div style={{width:15,height:15}}><Icons.Plan/></div>
             Plan de Acción
           </button>
         )}
-    </>
-  )
-}
-
-function ArbolDetalle({ nodo, afiliados, periodos, onClose, onPlanAccion, acciones }) {
-  if (!nodo) return null
-  return (
-    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(10,14,24,.55)',zIndex:450,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:440,background:'var(--win-surface)',borderTopLeftRadius:18,borderTopRightRadius:18,border:'1px solid var(--win-border)',borderBottom:'none',padding:'16px 20px 26px',maxHeight:'86vh',overflowY:'auto'}}>
-        <div style={{display:'flex',justifyContent:'flex-end'}}>
-          <button onClick={onClose} aria-label="Cerrar" style={{background:'var(--win-surface2)',border:'none',borderRadius:'50%',width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--win-muted)',cursor:'pointer',padding:0}}>
-            <div style={{width:12,height:12}}><Icons.X/></div>
-          </button>
-        </div>
-        <FichaContenido nodo={nodo} afiliados={afiliados} periodos={periodos} onClose={onClose} onPlanAccion={onPlanAccion} acciones={acciones}/>
       </div>
     </div>
   )
@@ -512,174 +496,18 @@ function NivelesPorRed({ raiz, tc, pasaFiltro, defaultAbierto = true }) {
   )
 }
 
-// ── Genealogía: lienzo con tarjetas, conectores, pan/zoom, minimapa y ficha ──
-const GEN_PAD = 40, GEN_GX = 26, GEN_GY = 70, GEN_PAGINA = 12, GEN_PANEL = 330
-const genMedidas = (movil) => movil ? { cw: 190, ch: 126, medalla: 44 } : { cw: 236, ch: 132, medalla: 52 }
-const genClampZoom = z => Math.min(2, Math.max(0.25, z))
-const GEN_IC = { width: 14, height: 14, display: 'inline-flex', flexShrink: 0 }
-const GenIco = {
-  Atras: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="15 18 9 12 15 6"/></svg>,
-  Ajustar: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>,
-  Completa: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>,
-  Salir: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5"/></svg>,
-}
-
-// Ruta de nodos desde `origen` hasta el EIN (ambos incluidos), sobre los hijos reales.
-function rutaEntre(origen, ein) {
-  if (!origen) return null
-  if (origen.ein === ein) return [origen]
-  for (const c of origen.children || []) {
-    const sub = rutaEntre(c, ein)
-    if (sub) return [origen, ...sub]
-  }
-  return null
-}
-
-// Acomodo tipo "tidy tree": cada hoja ocupa una tarjeta y cada padre se centra
-// sobre sus hijos visibles, así las tarjetas nunca se enciman. Solo recorre las
-// ramas abiertas (render progresivo) y pagina los directos de 12 en 12.
-function layoutGenealogia(raiz, expandidos, limites, hijosDe, cw, ch) {
-  const nodos = [], enlaces = [], toggles = []
-  let maxX = 0, maxY = 0
-  const colocar = (n, depth, x0) => {
-    const y = GEN_PAD + depth * (ch + GEN_GY)
-    maxY = Math.max(maxY, y + ch + 34)
-    const hijos = hijosDe(n)
-    if (!hijos.length || !expandidos.has(n.ein)) {
-      const cx = x0 + cw / 2
-      nodos.push({ n, x: x0, y, cx })
-      if (hijos.length) toggles.push({ ein: n.ein, cx, y: y + ch, abierto: false, total: hijos.length })
-      maxX = Math.max(maxX, x0 + cw)
-      return { w: cw, cx }
-    }
-    const vis = hijos.slice(0, limites[n.ein] || GEN_PAGINA)
-    const resto = hijos.length - vis.length
-    const centros = []
-    let x = x0
-    vis.forEach((c, i) => {
-      if (i > 0) x += GEN_GX
-      const r = colocar(c, depth + 1, x)
-      centros.push(r.cx)
-      x += r.w
-    })
-    if (resto > 0) {
-      x += GEN_GX
-      const cxm = x + cw / 2
-      nodos.push({ mas: true, padre: n.ein, resto, x, y: y + ch + GEN_GY, cx: cxm })
-      centros.push(cxm)
-      maxX = Math.max(maxX, x + cw)
-      x += cw
-    }
-    const cx = (centros[0] + centros[centros.length - 1]) / 2
-    nodos.push({ n, x: cx - cw / 2, y, cx })
-    enlaces.push({ px: cx, py: y + ch, hijos: centros, cy: y + ch + GEN_GY })
-    toggles.push({ ein: n.ein, cx, y: y + ch, abierto: true, total: hijos.length })
-    return { w: x - x0, cx }
-  }
-  if (raiz) colocar(raiz, 0, GEN_PAD)
-  return { nodos, enlaces, toggles, ancho: maxX + GEN_PAD, alto: maxY + GEN_PAD }
-}
-
-// Conector padre → hijo con esquinas redondeadas; las líneas corren por el
-// espacio libre entre filas, nunca por encima de una tarjeta.
-function genConector(px, py, cx, cy) {
-  if (Math.abs(cx - px) < 1) return `M${px} ${py} V${cy}`
-  const mid = py + (cy - py) / 2
-  const r = Math.min(10, Math.abs(cx - px) / 2, (cy - py) / 4)
-  const s = cx > px ? 1 : -1
-  return `M${px} ${py} V${mid - r} Q${px} ${mid} ${px + s * r} ${mid} H${cx - s * r} Q${cx} ${mid} ${cx} ${mid + r} V${cy}`
-}
-
-function GenBtn({ movil, onClick, title, disabled, activo, children }) {
-  return (
-    <button onClick={onClick} title={title} aria-label={title} disabled={disabled}
-      style={{height:movil?40:32,minWidth:movil?40:32,padding:movil?'0 9px':'0 10px',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:6,borderRadius:8,border:'1px solid var(--win-border)',background:activo?'var(--win-accent)':'var(--win-surface2)',color:activo?'#fff':'var(--win-title)',fontSize:12,fontWeight:600,cursor:disabled?'not-allowed':'pointer',opacity:disabled?0.45:1,fontFamily:'inherit',whiteSpace:'nowrap',flexShrink:0}}>
-      {children}
-    </button>
-  )
-}
-
-function GenTarjeta({ rec, conteo, seleccionada, esRaiz, cw, ch, medalla, onSel, onExplorar }) {
-  const n = rec.n
-  const r = getRango(n.rango)
-  const activo = ((n.pp || 0) + (n.pg || 0)) > 0
-  return (
-    <div role="button" tabIndex={0} title={n.nombre}
-      onClick={() => onSel(n)} onKeyDown={e => { if (e.key === 'Enter') onSel(n) }}
-      style={{position:'absolute',left:rec.x,top:rec.y,width:cw,height:ch,boxSizing:'border-box',padding:'10px 12px',borderRadius:14,background:'var(--win-surface)',border:seleccionada?'2px solid var(--win-accent)':esRaiz?'1.5px solid var(--win-accent)':'1px solid var(--win-border)',boxShadow:seleccionada?'0 0 0 4px rgba(59,130,246,.25), 0 10px 24px -10px rgba(0,0,0,.45)':'0 6px 18px -10px rgba(0,0,0,.35)',cursor:'pointer',display:'flex',flexDirection:'column',gap:6,userSelect:'none',WebkitUserSelect:'none'}}>
-      <div style={{display:'flex',alignItems:'center',gap:10,minHeight:medalla}}>
-        <div style={{position:'relative',width:medalla,height:medalla,borderRadius:'50%',background:r.bg,border:`2px solid ${r.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxSizing:'border-box'}}>
-          {RANGO_IMG[r.id]
-            ? <img src={RANGO_IMG[r.id]} alt={r.label} draggable={false} style={{width:medalla-8,height:medalla-8,objectFit:'contain'}}/>
-            : <span style={{fontSize:Math.round(medalla/3.4),fontWeight:700,color:r.color}}>{getInitials(n.nombre)}</span>}
-          <span title={activo?'Con puntos este periodo':'Sin puntos este periodo'} style={{position:'absolute',right:-2,bottom:-2,width:11,height:11,borderRadius:'50%',background:activo?'#16A34A':'#9CA3AF',border:'2px solid var(--win-surface)'}}/>
-        </div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12.5,fontWeight:700,color:'var(--win-title)',lineHeight:1.22,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',wordBreak:'normal',overflowWrap:'normal',hyphens:'manual'}}>{n.nombre}</div>
-          <span style={{display:'inline-block',marginTop:4,padding:'1px 9px',borderRadius:20,background:r.bg,color:r.color,fontSize:10.5,fontWeight:700,whiteSpace:'nowrap'}}>{r.label}</span>
-        </div>
-      </div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10,fontSize:11,color:'var(--win-muted)',whiteSpace:'nowrap'}}>
-        <span>Directos: <b style={{color:'var(--win-title)'}}>{conteo.directos}</b></span>
-        <span style={{width:1,height:12,background:'var(--win-border)'}}/>
-        <span>Equipo: <b style={{color:'var(--win-title)'}}>{conteo.equipo}</b></span>
-      </div>
-      {!esRaiz && conteo.directos > 0 && (
-        <button onClick={e => { e.stopPropagation(); onExplorar(n.ein) }} title={`Ver el equipo de ${n.nombre}`}
-          style={{marginTop:'auto',height:26,borderRadius:8,border:'1px solid var(--win-border)',background:'var(--win-surface2)',color:'var(--win-accent)',fontSize:11.5,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          Ver equipo ›
-        </button>
-      )}
-    </div>
-  )
-}
-
-function GenMinimapa({ layout, vista, vp, cw, ch, selEin, raizEin, w, h, onIr }) {
-  const ref = useRef(null)
-  const s = Math.min(w / Math.max(layout.ancho, 1), h / Math.max(layout.alto, 1))
-  const mover = (e) => {
-    const el = ref.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const k = rect.width / w || 1
-    onIr((e.clientX - rect.left) / k / s, (e.clientY - rect.top) / k / s)
-  }
-  return (
-    <svg ref={ref} width={w} height={h} style={{display:'block',cursor:'pointer',touchAction:'none',borderRadius:6}}
-      onPointerDown={e => { e.stopPropagation(); try { e.currentTarget.setPointerCapture(e.pointerId) } catch (_) {} mover(e) }}
-      onPointerMove={e => { if (e.buttons) mover(e) }}>
-      <rect width={w} height={h} fill="var(--win-surface2)"/>
-      {layout.nodos.map((r, i) => (
-        <rect key={i} x={r.x * s} y={r.y * s} width={Math.max(2, cw * s)} height={Math.max(2, ch * s)} rx={1.5}
-          fill={r.n && r.n.ein === selEin ? 'var(--win-accent)' : r.n && r.n.ein === raizEin ? 'var(--win-gold)' : 'var(--win-border2)'}/>
-      ))}
-      <rect x={-vista.x / vista.z * s} y={-vista.y / vista.z * s} width={vp.w / vista.z * s} height={vp.h / vista.z * s}
-        fill="rgba(59,130,246,.12)" stroke="var(--win-accent)" strokeWidth={1.5}/>
-    </svg>
-  )
-}
-
 function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPlanAccion }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
-  const { cw, ch, medalla } = genMedidas(isMobile)
-  const tree = useMemo(() => buildTree(afiliados), [afiliados])
-  const nodoPorEin = useMemo(() => {
-    const m = new Map()
-    const walk = n => { m.set(n.ein, n); (n.children || []).forEach(walk) }
-    tree.forEach(walk)
-    return m
-  }, [tree])
-  const principal = tree[0] || null
-  const raiz = (rootEin && nodoPorEin.get(rootEin)) || principal
-
+  const tree = buildTree(afiliados)
   const [q, setQ] = useState('')
   const [drop, setDrop] = useState(false)
+  const [tooltip, setTooltip] = useState(null)
   const [descargando, setDescargando] = useState(false)
-  const descargarArbol = async (raizArbol, filtro, extra) => {
+  const descargarArbol = async (raiz, pasaFiltro, extra) => {
     setDescargando(true)
     try {
-      await window.exportTreeReport(raizArbol, filtro, extra)
+      await window.exportTreeReport(raiz, pasaFiltro, extra)
     } catch (e) {
       console.error(e)
       alert('No se pudo generar el árbol.\n\nDetalle técnico (compártelo para poder arreglarlo):\n' + (e && (e.stack || e.message) ? (e.stack || e.message) : String(e)))
@@ -687,252 +515,61 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
       setDescargando(false)
     }
   }
-  const [selEin, setSelEin] = useState(null)
-  const [ficha, setFicha] = useState(false)
-  const [pila, setPila] = useState([]) // raíces anteriores, para "Regresar"
-  const [expandidos, setExpandidos] = useState(() => new Set(raiz ? [raiz.ein] : []))
-  const [limites, setLimites] = useState({})
-  const [vista, setVista] = useState(() => ({ x: 0, y: 0, z: isMobile ? 0.85 : 1 }))
-  const [vp, setVp] = useState({ w: 800, h: 500 })
-  const [pendiente, setPendiente] = useState(null)
-  const [verFiltros, setVerFiltros] = useState(false)
-  const [completa, setCompleta] = useState(null)
-
+  const [seleccionado, setSeleccionado] = useState(null)
+  const [zoom, setZoom] = useState(() => isMobile ? 0.6 : 1)
+  const [history, setHistory] = useState([]) // pila de EINs anteriores
+  const scrollRef = useRef(null)
   const [filtroRangos, setFiltroRangos] = useState(() => new Set(RANGOS_FILTRO_GEN.map(x => x.id)))
   const toggleFiltro = (id) => setFiltroRangos(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   const [filtroActividad, setFiltroActividad] = useState(() => new Set(['activo', 'inactivo']))
   const toggleActividad = (id) => setFiltroActividad(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   const esActivo = (n) => ((n.pp || 0) + (n.pg || 0)) > 0
   const pasaFiltro = (n) => filtroRangos.has(bucketRangoGen(getRango(n.rango).id)) && filtroActividad.has(esActivo(n) ? 'activo' : 'inactivo')
-  const filtrosActivos = filtroRangos.size < RANGOS_FILTRO_GEN.length || filtroActividad.size < 2
 
-  // Directos y equipo de cada integrante con el mismo cálculo de siempre
-  // (hijos que pasan el filtro y su descendencia filtrada).
-  const conteos = new Map()
-  const contar = n => {
-    const hs = (n.children || []).filter(pasaFiltro)
-    let t = 0
-    for (const c of hs) t += 1 + contar(c)
-    conteos.set(n.ein, { directos: hs.length, equipo: t })
-    return t
-  }
-  tree.forEach(contar)
-  const hijosDe = n => (n.children || []).filter(pasaFiltro)
-  const layout = layoutGenealogia(raiz, expandidos, limites, hijosDe, cw, ch)
-
-  const vpRef = useRef(null)
-  const contRef = useRef(null)
-  const vistaRef = useRef(vista)
-  vistaRef.current = vista
-  const selNodo = selEin ? nodoPorEin.get(selEin) : null
-  const panelAbierto = ficha && !!selNodo && !isMobile
-  const anchoVisible = Math.max(200, vp.w - (panelAbierto ? GEN_PANEL : 0))
-
-  useEffect(() => {
-    const el = vpRef.current
-    if (!el) return
-    const medir = () => setVp({ w: el.clientWidth, h: el.clientHeight })
-    medir()
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', medir)
-      return () => window.removeEventListener('resize', medir)
+  const findInTree = (nodos, ein) => {
+    for (const n of nodos) {
+      if (n.ein === ein) return n
+      const found = n.children?.length ? findInTree(n.children, ein) : null
+      if (found) return found
     }
-    const ro = new ResizeObserver(medir)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+    return null
+  }
+  const raiz = rootEin ? findInTree(tree, rootEin) : null
 
-  // Al cambiar de raíz: solo sus directos abiertos, salvo que una búsqueda
-  // haya preparado qué ramas abrir para llegar a alguien.
-  const preparado = useRef(null)
-  const raizEin = raiz ? raiz.ein : null
-  useEffect(() => {
-    if (!raizEin) return
-    const p = preparado.current
-    preparado.current = null
-    setExpandidos(p ? p.expandidos : new Set([raizEin]))
-    setLimites(p ? p.limites : {})
-    setPendiente(p ? p.pendiente : { ein: raizEin, modo: 'arriba' })
-  }, [raizEin])
+  // breadcrumb: historial + raíz actual
+  const breadcrumb = history
+    .map(ein => { const n = findInTree(tree, ein); return n ? { ein, nombre: n.nombre } : null })
+    .filter(Boolean)
+  if (raiz) breadcrumb.push({ ein: raiz.ein, nombre: raiz.nombre })
 
-  useEffect(() => {
-    if (!pendiente) return
-    const rec = layout.nodos.find(r => r.n && r.n.ein === pendiente.ein)
-    setPendiente(null)
-    if (!rec) return
-    setVista(v => {
-      if (pendiente.modo === 'fijo') return { ...v, x: pendiente.sx - rec.cx * v.z, y: pendiente.sy - rec.y * v.z }
-      if (pendiente.modo === 'arriba') return { ...v, x: anchoVisible / 2 - rec.cx * v.z, y: 20 - rec.y * v.z }
-      const z = Math.max(v.z, 0.8)
-      return { z, x: anchoVisible / 2 - rec.cx * z, y: vp.h / 2 - (rec.y + ch / 2) * z }
-    })
-  }, [pendiente, layout])
-
-  const zoomEn = (f, px, py) => setVista(v => {
-    const z = genClampZoom(typeof f === 'function' ? f(v.z) : f)
-    const k = z / v.z
-    return { z, x: px - (px - v.x) * k, y: py - (py - v.y) * k }
-  })
-  const zoomBoton = (factor) => zoomEn(z => z * factor, anchoVisible / 2, vp.h / 2)
-
-  // Ctrl/⌘ + rueda (o pellizco en touchpad) hace zoom; la rueda sola sigue
-  // desplazando la página, para que nada quede "congelado".
-  useEffect(() => {
-    const el = vpRef.current
-    if (!el) return
-    const onWheel = e => {
-      if (!(e.ctrlKey || e.metaKey)) return
-      e.preventDefault()
-      const rect = el.getBoundingClientRect()
-      const k = rect.width / el.clientWidth || 1
-      zoomEn(z => z * Math.exp(-e.deltaY * 0.0015), (e.clientX - rect.left) / k, (e.clientY - rect.top) / k)
+  // Encuentra la ruta de ancestros (EINs) desde la raíz hasta el EIN dado (sin incluirlo)
+  const findPath = (nodos, ein, acc=[]) => {
+    for (const n of nodos || []) {
+      if (n.ein === ein) return acc
+      const sub = findPath(n.children, ein, [...acc, n.ein])
+      if (sub) return sub
     }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [])
-
-  // Arrastrar el fondo (mouse o dedo) mueve el mapa; dos dedos hacen zoom.
-  // Las coordenadas se corrigen por el zoom de letra de la app (CSS zoom).
-  const punteros = useRef(new Map())
-  const gesto = useRef(null)
-  const arrastro = useRef(false)
-  const local = (e) => {
-    const el = vpRef.current
-    const rect = el.getBoundingClientRect()
-    const k = rect.width / el.clientWidth || 1
-    return { x: (e.clientX - rect.left) / k, y: (e.clientY - rect.top) / k }
-  }
-  const iniciarGesto = () => {
-    const pts = [...punteros.current.values()]
-    const v = vistaRef.current
-    if (pts.length >= 2) {
-      const [a, b] = pts
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
-      gesto.current = { tipo: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: v.z, px: (mx - v.x) / v.z, py: (my - v.y) / v.z }
-    } else if (pts.length === 1) {
-      gesto.current = { tipo: 'pan', sx: pts[0].x, sy: pts[0].y, vx: v.x, vy: v.y }
-    } else {
-      gesto.current = null
-    }
-  }
-  const onPointerDown = e => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return
-    if (e.target.closest && e.target.closest('button,input,a,[data-nopan]')) return
-    if (punteros.current.size === 0) arrastro.current = false
-    punteros.current.set(e.pointerId, local(e))
-    iniciarGesto()
-  }
-  const onPointerMove = e => {
-    if (!punteros.current.has(e.pointerId)) return
-    punteros.current.set(e.pointerId, local(e))
-    const g = gesto.current
-    if (!g) return
-    if (g.tipo === 'pinch') {
-      const [a, b] = [...punteros.current.values()]
-      if (!b) return
-      const z = genClampZoom(g.z0 * Math.hypot(a.x - b.x, a.y - b.y) / g.d0)
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
-      arrastro.current = true
-      setVista({ z, x: mx - g.px * z, y: my - g.py * z })
-      return
-    }
-    const p = punteros.current.get(e.pointerId)
-    const dx = p.x - g.sx, dy = p.y - g.sy
-    if (!arrastro.current) {
-      if (Math.hypot(dx, dy) < 6) return
-      arrastro.current = true
-      try { vpRef.current.setPointerCapture(e.pointerId) } catch (_) {}
-    }
-    setVista(v => ({ ...v, x: g.vx + dx, y: g.vy + dy }))
-  }
-  const onPointerUp = e => {
-    if (!punteros.current.has(e.pointerId)) return
-    punteros.current.delete(e.pointerId)
-    iniciarGesto()
+    return null
   }
 
-  const ajustar = () => {
-    const z = Math.min(1.2, genClampZoom(Math.min(anchoVisible / layout.ancho, vp.h / layout.alto) * 0.96))
-    setVista({ z, x: (anchoVisible - layout.ancho * z) / 2, y: Math.max(8, (vp.h - layout.alto * z) / 2) })
-  }
-  const irA = (px, py) => setVista(v => ({ ...v, x: anchoVisible / 2 - px * v.z, y: vp.h / 2 - py * v.z }))
-
-  // Mantiene fija en pantalla la tarjeta tocada mientras el árbol se reacomoda.
-  const fijar = (ein) => {
-    const rec = layout.nodos.find(r => r.n && r.n.ein === ein)
-    if (rec) setPendiente({ ein, modo: 'fijo', sx: rec.cx * vista.z + vista.x, sy: rec.y * vista.z + vista.y })
-  }
-  const toggleRama = (ein) => {
-    fijar(ein)
-    setExpandidos(prev => { const n = new Set(prev); n.has(ein) ? n.delete(ein) : n.add(ein); return n })
-  }
-  const verMas = (padre) => {
-    fijar(padre)
-    setLimites(l => ({ ...l, [padre]: (l[padre] || GEN_PAGINA) + GEN_PAGINA }))
-  }
-
-  // Cambiar la raíz visible no toca los datos: el patrocinador real sigue igual.
-  const cambiarRaiz = (ein) => {
-    const objetivo = ein && principal && ein === principal.ein ? null : ein
-    const objEin = objetivo || (principal && principal.ein)
-    if (raiz && objEin === raiz.ein) return false
-    setPila(p => [...p, rootEin || null])
-    onChangeRoot(objetivo)
-    return true
+  const navegarA = (ein) => {
+    if (ein === rootEin) return
+    // Siempre reconstruir el historial con la ruta completa de ancestros,
+    // para que el breadcrumb muestre "Árbol principal › ... › NOMBRE"
+    // tanto si se navega por clic como si se selecciona desde el buscador.
+    const path = findPath(tree, ein) || []
+    setHistory(path)
+    onChangeRoot(ein)
   }
   const regresar = () => {
-    if (!pila.length) return
-    const prev = pila[pila.length - 1]
-    setPila(p => p.slice(0, -1))
-    onChangeRoot(prev)
+    setHistory(h => {
+      if (h.length === 0) { onChangeRoot(null); return h }
+      const nuevo = h.slice(0, -1)
+      onChangeRoot(h[h.length - 1])
+      return nuevo
+    })
   }
-  const irPrincipal = () => {
-    if (cambiarRaiz(null) || !raiz) return
-    setExpandidos(new Set([raiz.ein]))
-    setLimites({})
-    setPendiente({ ein: raiz.ein, modo: 'arriba' })
-  }
-  const explorar = (ein) => { if (ein) cambiarRaiz(ein) }
-  const seleccionar = (n) => {
-    if (arrastro.current) return
-    setSelEin(n.ein)
-    setFicha(true)
-  }
-
-  // Abre las ramas necesarias para llegar a alguien y lo centra.
-  const localizar = (ein, abrirFicha) => {
-    if (!nodoPorEin.get(ein) || !principal) return
-    let base = raiz
-    let ruta = rutaEntre(base, ein)
-    let cambia = false
-    if (!ruta) { base = principal; ruta = rutaEntre(principal, ein); cambia = true }
-    if (!ruta) return
-    const filtroOk = ruta.slice(1).every(pasaFiltro)
-    if (!filtroOk) {
-      setFiltroRangos(new Set(RANGOS_FILTRO_GEN.map(x => x.id)))
-      setFiltroActividad(new Set(['activo', 'inactivo']))
-    }
-    const hijosIdx = n => filtroOk ? (n.children || []).filter(pasaFiltro) : (n.children || [])
-    const exp = new Set(cambia ? [] : expandidos)
-    const lims = cambia ? {} : { ...limites }
-    exp.add(base.ein)
-    for (let i = 0; i < ruta.length - 1; i++) {
-      const padre = ruta[i], hijo = ruta[i + 1]
-      exp.add(padre.ein)
-      const idx = hijosIdx(padre).findIndex(h => h.ein === hijo.ein)
-      if (idx >= GEN_PAGINA) lims[padre.ein] = Math.max(lims[padre.ein] || GEN_PAGINA, Math.ceil((idx + 1) / GEN_PAGINA) * GEN_PAGINA)
-    }
-    const pend = { ein, modo: 'centro' }
-    setSelEin(ein)
-    if (abrirFicha) setFicha(true)
-    if (cambia && cambiarRaiz(null)) {
-      preparado.current = { expandidos: exp, limites: lims, pendiente: pend }
-    } else {
-      setExpandidos(exp)
-      setLimites(lims)
-      setPendiente(pend)
-    }
-  }
+  const irPrincipal = () => { setHistory([]); onChangeRoot(null) }
 
   const sugerencias = q.trim()
     ? afiliados.filter(a =>
@@ -940,73 +577,64 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
         String(a.ein).includes(q.trim())
       ).slice(0, 8)
     : []
-  const elegirSugerencia = (a) => {
+
+  const seleccionar = (a) => {
+    // Desde el buscador: reconstruir el breadcrumb con la ruta real de ancestros
+    // para que se vea "Árbol principal › ANCESTRO1 › ... › NOMBRE".
+    const path = findPath(tree, a.ein) || []
+    setHistory(path)
+    if (a.ein !== rootEin) onChangeRoot(a.ein)
     setQ(a.nombre)
     setDrop(false)
-    localizar(a.ein, true)
   }
 
-  const alternarCompleta = () => {
-    if (completa) { setCompleta(null); return }
-    const el = contRef.current
-    const rect = el.getBoundingClientRect()
-    setCompleta({ k: rect.width / el.offsetWidth || 1 })
-  }
+  // centrar árbol al cambiar de raíz
   useEffect(() => {
-    const onKey = e => {
-      if (e.key !== 'Escape') return
-      if (completa) setCompleta(null)
-      else if (ficha) setFicha(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [completa, ficha])
+    if (!scrollRef.current || !raiz) return
+    const el = scrollRef.current
+    requestAnimationFrame(() => {
+      el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
+      el.scrollTop = 0
+    })
+  }, [rootEin, zoom])
 
-  const migas = principal && raiz ? (rutaEntre(principal, raiz.ein) || [raiz]) : []
-  const accionesFicha = selNodo ? [
-    { label: 'Centrar en el árbol', primaria: true, icono: Icons.Target, onClick: () => { if (isMobile) setFicha(false); localizar(selNodo.ein, !isMobile) } },
-    { label: 'Explorar equipo', icono: Icons.Tree, disabled: !(conteos.get(selNodo.ein) || {}).directos || (raiz && selNodo.ein === raiz.ein), title: 'Ver a este integrante y su rama como raíz del árbol', onClick: () => { if (isMobile) setFicha(false); explorar(selNodo.ein) } },
-  ] : []
+  const zoomIn = () => setZoom(z => Math.min(3, +(z + 0.15).toFixed(2)))
+  const zoomOut = () => setZoom(z => Math.max(0.4, +(z - 0.15).toFixed(2)))
+  const zoomReset = () => setZoom(isMobile ? 0.6 : 1)
 
-  const IC12 = { width: 12, height: 12, display: 'inline-flex' }
-  const separador = <span style={{width:1,height:22,background:'var(--win-border)',flexShrink:0}}/>
 
   return (
-    <div ref={contRef} style={completa
-      ? { position:'fixed', top:0, left:0, width:`${100 / completa.k}vw`, height:`${100 / completa.k}vh`, zIndex:400, background:'var(--win-bg)', padding:8, boxSizing:'border-box', display:'flex', flexDirection:'column' }
-      : undefined}>
-
-      {/* Barra de herramientas: búsqueda, navegación, zoom del árbol */}
-      <div data-nopan style={{...S.card, marginBottom: completa ? 8 : 12, flexShrink: 0}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 12px',flexWrap:isMobile?'wrap':'nowrap'}}>
-          <div style={{position:'relative',flex:isMobile?'1 1 100%':'1 1 240px',maxWidth:isMobile?'none':360,minWidth:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,height:isMobile?40:34,padding:'0 10px',border:'1px solid var(--win-border)',borderRadius:8,background:'var(--win-surface2)'}}>
-              <div style={{width:14,height:14,color:'var(--win-muted)',flexShrink:0}}><Icons.Search/></div>
+    <div>
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{...S.cardBody,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <div style={{position:'relative',flex:1,minWidth:240,maxWidth:420}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)'}}>
+              <div style={{width:14,height:14,color:'var(--win-muted)'}}><Icons.Search/></div>
               <input
                 value={q}
-                onChange={e => { setQ(e.target.value); setDrop(true) }}
-                onFocus={() => setDrop(true)}
-                onBlur={() => setTimeout(() => setDrop(false), 150)}
-                placeholder="Buscar integrante por nombre o EIN…"
-                style={{flex:1,minWidth:0,border:'none',background:'transparent',fontSize:13,color:'var(--win-text)',fontFamily:'inherit',outline:'none'}}/>
-              {q && (
-                <button onClick={() => { setQ(''); setDrop(false) }} aria-label="Limpiar búsqueda" style={{border:'none',background:'transparent',color:'var(--win-muted)',cursor:'pointer',fontSize:15,fontWeight:700,padding:'0 2px'}}>×</button>
+                onChange={e=>{setQ(e.target.value); setDrop(true)}}
+                onFocus={()=>setDrop(true)}
+                onBlur={()=>setTimeout(()=>setDrop(false),150)}
+                placeholder="Buscar afiliado por nombre o EIN..."
+                style={{flex:1,border:'none',background:'transparent',fontSize:13,color:'var(--win-text)',fontFamily:'inherit',outline:'none'}}/>
+              {(q || rootEin) && (
+                <button onClick={()=>{setQ(''); irPrincipal(); setDrop(false)}} style={{border:'none',background:'transparent',color:'var(--win-muted)',cursor:'pointer',fontSize:14,fontWeight:700}}>×</button>
               )}
             </div>
-            {drop && sugerencias.length > 0 && (
-              <div style={{position:'absolute',top:'100%',left:0,right:0,marginTop:4,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:8,boxShadow:'var(--shadow-md)',maxHeight:300,overflowY:'auto',zIndex:60}}>
-                {sugerencias.map(a => {
+            {drop && sugerencias.length>0 && (
+              <div style={{position:'absolute',top:'100%',left:0,right:0,marginTop:4,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:6,boxShadow:'var(--shadow-md)',maxHeight:280,overflowY:'auto',zIndex:50}}>
+                {sugerencias.map(a=>{
                   const r = getRango(a.rango)
                   return (
-                    <div key={a.ein} onMouseDown={() => elegirSugerencia(a)} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',cursor:'pointer',borderBottom:'1px solid var(--win-border)'}}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--win-surface2)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <div style={{width:30,height:30,borderRadius:'50%',background:r.bg,border:`1.5px solid ${r.color}66`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        {RANGO_IMG[r.id] ? <img src={RANGO_IMG[r.id]} alt="" style={{width:26,height:26,objectFit:'contain'}}/> : <span style={{fontSize:10,fontWeight:700,color:r.color}}>{getInitials(a.nombre)}</span>}
+                    <div key={a.ein} onMouseDown={()=>seleccionar(a)} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid var(--win-border)'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--win-surface2)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <div style={{width:28,height:28,borderRadius:'50%',background:r.bg,border:`1.5px solid ${r.color}66`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        {RANGO_IMG[r.id]?<img src={RANGO_IMG[r.id]} alt="" style={{width:24,height:24,objectFit:'contain'}}/>:<span style={{fontSize:10,fontWeight:700,color:r.color}}>{getInitials(a.nombre)}</span>}
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12.5,fontWeight:600,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nombre}</div>
-                        <div style={{fontSize:10.5,color:'var(--win-muted)'}}>EIN {a.ein} · {r.label}</div>
+                        <div style={{fontSize:12,fontWeight:600,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nombre}</div>
+                        <div style={{fontSize:10,color:'var(--win-muted)'}}>EIN {a.ein} · {r.label}</div>
                       </div>
                     </div>
                   )
@@ -1014,205 +642,199 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
               </div>
             )}
           </div>
-
-          <div style={{display:'flex',alignItems:'center',gap:6,overflowX:'auto',flex:isMobile?'1 1 100%':'0 1 auto',marginLeft:isMobile?0:'auto',paddingBottom:isMobile?2:0}}>
-            <GenBtn movil={isMobile} title="Regresar a la vista anterior" onClick={regresar} disabled={!pila.length}><span style={GEN_IC}><GenIco.Atras/></span>{!isMobile && 'Regresar'}</GenBtn>
-            <GenBtn movil={isMobile} title="Volver al árbol principal (mi red)" onClick={irPrincipal}><span style={GEN_IC}><Icons.Home/></span>{!isMobile && 'Mi red'}</GenBtn>
-            {separador}
-            <GenBtn movil={isMobile} title="Centrar en el integrante seleccionado" onClick={() => raiz && localizar(selEin || raiz.ein, false)}><span style={GEN_IC}><Icons.Target/></span>{!isMobile && 'Centrar'}</GenBtn>
-            <GenBtn movil={isMobile} title="Ajustar la rama visible a la pantalla" onClick={ajustar}><span style={GEN_IC}><GenIco.Ajustar/></span>{!isMobile && 'Ajustar'}</GenBtn>
-            {separador}
-            <div title="Zoom del árbol — solo acerca o aleja el mapa; el tamaño de letra de la app se cambia con A− / A+" style={{display:'inline-flex',alignItems:'center',gap:2,height:isMobile?40:32,padding:'0 3px',border:'1px solid var(--win-border)',borderRadius:8,background:'var(--win-surface2)',flexShrink:0}}>
-              <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,color:'var(--win-muted)',padding:'0 5px',whiteSpace:'nowrap'}}><span style={IC12}><Icons.Search/></span>{isMobile ? 'Zoom' : 'Zoom del árbol'}</span>
-              <button onClick={() => zoomBoton(1 / 1.2)} aria-label="Alejar el árbol" style={{width:isMobile?34:26,height:isMobile?34:26,border:'none',borderRadius:6,background:'transparent',color:'var(--win-title)',fontSize:17,fontWeight:700,cursor:'pointer',padding:0}}>−</button>
-              <button onClick={() => zoomEn(1, anchoVisible / 2, vp.h / 2)} title="Zoom del árbol al 100%" style={{minWidth:44,height:isMobile?34:26,border:'none',borderRadius:6,background:'transparent',color:'var(--win-title)',fontSize:11,fontWeight:700,cursor:'pointer',fontVariantNumeric:'tabular-nums',fontFamily:'inherit',padding:0}}>{Math.round(vista.z * 100)}%</button>
-              <button onClick={() => zoomBoton(1.2)} aria-label="Acercar el árbol" style={{width:isMobile?34:26,height:isMobile?34:26,border:'none',borderRadius:6,background:'transparent',color:'var(--win-title)',fontSize:17,fontWeight:700,cursor:'pointer',padding:0}}>+</button>
+          <div style={{marginLeft:'auto',fontSize:11,color:'var(--win-muted)'}}>
+            {raiz ? `${raiz.nombre} · ${countDescendants(raiz)+1} afiliados` : 'Selecciona una persona'}
+          </div>
+        </div>
+        <div style={{padding:'14px 16px',borderTop:'1px solid var(--win-border)',background:'var(--win-surface2)',display:'flex',flexDirection:isMobile?'column':'row',gap:isMobile?16:24,alignItems:'stretch'}}>
+          <div style={{flex:isMobile?'none':3,minWidth:0}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Filtrar rangos:</div>
+            <div style={{display:isMobile?'flex':'grid',flexWrap:isMobile?'nowrap':undefined,gridTemplateColumns:isMobile?undefined:`repeat(${RANGOS_FILTRO_GEN.length}, 1fr)`,gap:12,overflowX:isMobile?'auto':'visible',paddingBottom:isMobile?4:0}}>
+              {RANGOS_FILTRO_GEN.map(f => {
+                const rDef = RANGOS.find(rr => rr.id === f.id)
+                const checked = filtroRangos.has(f.id)
+                return (
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:isMobile?0:undefined,width:isMobile?72:'auto'}}>
+                    {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{width:isMobile?36:44,height:isMobile?36:44,objectFit:'contain'}}/>}
+                    <span style={{background:rDef?.bg,color:rDef?.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
+                    <input type="checkbox" checked={checked} onChange={()=>toggleFiltro(f.id)} style={{cursor:'pointer',accentColor:'var(--win-accent)'}}/>
+                  </label>
+                )
+              })}
             </div>
-            <GenBtn movil={isMobile} title={completa ? 'Salir de pantalla completa' : 'Pantalla completa'} onClick={alternarCompleta}><span style={GEN_IC}>{completa ? <GenIco.Salir/> : <GenIco.Completa/>}</span>{!isMobile && (completa ? 'Salir' : 'Pantalla completa')}</GenBtn>
-            <GenBtn movil={isMobile} title="Filtrar por rango y actividad" onClick={() => setVerFiltros(v => !v)} activo={verFiltros}><span style={GEN_IC}><Icons.Sliders/></span>{!isMobile && 'Filtros'}{filtrosActivos && <span style={{width:7,height:7,borderRadius:'50%',background:'var(--win-gold)'}}/>}</GenBtn>
+          </div>
+          <div style={{flex:isMobile?'none':1,minWidth:isMobile?'auto':160,paddingTop:isMobile?14:0,borderTop:isMobile?'1px solid var(--win-border)':'none',paddingLeft:isMobile?0:24,borderLeft:isMobile?'none':'1px solid var(--win-border)'}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Actividad:</div>
+            <div style={{display:'flex',flexWrap:'nowrap',gap:16,overflowX:isMobile?'auto':'visible',paddingBottom:isMobile?4:0}}>
+              {[
+                { id:'activo', label:'Con puntos', color:'#16A34A', relleno:true },
+                { id:'inactivo', label:'Sin puntos', color:'#9CA3AF', relleno:false },
+              ].map(f => {
+                const checked = filtroActividad.has(f.id)
+                return (
+                  <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:0,width:isMobile?72:'auto'}}>
+                    <div style={{width:isMobile?36:44,height:isMobile?36:44,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <div style={{width:isMobile?15:18,height:isMobile?15:18,borderRadius:'50%',background:f.relleno?f.color:'transparent',border:`2px solid ${f.color}`}}/>
+                    </div>
+                    <span style={{background:f.color+'22',color:f.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
+                    <input type="checkbox" checked={checked} onChange={()=>toggleActividad(f.id)} style={{cursor:'pointer',accentColor:f.color}}/>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={S.card}>
+        <div style={{...S.cardHeader, flexWrap: isMobile ? 'wrap' : 'nowrap'}}>
+          <button onClick={regresar} disabled={!rootEin && history.length===0}
+            title="Regresar a la vista anterior"
+            style={{height:28,padding:'0 10px',marginRight:6,border:'1px solid var(--win-border)',borderRadius:6,background:(!rootEin && history.length===0)?'var(--win-surface)':'var(--win-surface2)',cursor:(!rootEin && history.length===0)?'not-allowed':'pointer',fontSize:11,fontWeight:600,color:'var(--win-title)',opacity:(!rootEin && history.length===0)?0.5:1,display:'flex',alignItems:'center',gap:4}}>
+            ← Regresar
+          </button>
+          <button onClick={irPrincipal} disabled={!rootEin && history.length===0}
+            title="Volver al árbol principal"
+            style={{height:28,padding:'0 10px',marginRight:10,border:'1px solid var(--win-border)',borderRadius:6,background:(!rootEin && history.length===0)?'var(--win-surface)':'var(--win-surface2)',cursor:(!rootEin && history.length===0)?'not-allowed':'pointer',fontSize:11,fontWeight:600,color:'var(--win-title)',opacity:(!rootEin && history.length===0)?0.5:1}}>
+            ⌂ Árbol principal
+          </button>
+          <span style={{...S.cardTitle, ...(isMobile ? {order:1, width:'100%', marginTop:6} : {})}}>{raiz ? `Ramificaciones de ${raiz.nombre}` : 'Ramificaciones'}</span>
+          <div style={{marginLeft: isMobile ? 0 : 'auto',display:'flex',alignItems:'center',gap:6}}>
+            <button onClick={zoomOut} title="Alejar" style={{width:isMobile?36:28,height:isMobile?36:28,border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:16,fontWeight:700,color:'var(--win-title)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>−</button>
+            <button onClick={zoomReset} title="Restablecer zoom" style={{minWidth:50,height:isMobile?36:28,padding:'0 8px',border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:11,fontWeight:600,color:'var(--win-title)',fontVariantNumeric:'tabular-nums',flexShrink:0}}>{Math.round(zoom*100)}%</button>
+            <button onClick={zoomIn} title="Acercar" style={{width:isMobile?36:28,height:isMobile?36:28,border:'1px solid var(--win-border)',borderRadius:6,background:'var(--win-surface2)',cursor:'pointer',fontSize:16,fontWeight:700,color:'var(--win-title)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>+</button>
           </div>
         </div>
 
-        {/* Ruta de navegación */}
-        <div style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderTop:'1px solid var(--win-border)',fontSize:12,overflowX:'auto',whiteSpace:'nowrap'}}>
-          {migas.map((m, i) => {
-            const ultimo = i === migas.length - 1
-            const etiqueta = i === 0
-              ? <><span style={IC12}><Icons.Home/></span>Mi red</>
-              : m.nombre.split(' ').slice(0, 2).join(' ')
+        {/* Breadcrumb */}
+        <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:6,padding:'8px 16px',borderBottom:'1px solid var(--win-border)',background:'var(--win-surface2)',fontSize:11}}>
+          <button onClick={irPrincipal} style={{border:'none',background:'transparent',color:rootEin?'var(--win-accent)':'var(--win-title)',cursor:'pointer',fontWeight:700,padding:0,fontSize:11}}>
+            Árbol principal
+          </button>
+          {breadcrumb.map((b, i) => {
+            const esUltimo = i === breadcrumb.length - 1
             return (
-              <React.Fragment key={m.ein}>
-                {i > 0 && <span style={{color:'var(--win-muted)'}}>›</span>}
-                {ultimo
-                  ? <span title={m.nombre} style={{display:'inline-flex',alignItems:'center',gap:5,fontWeight:700,color:'var(--win-title)'}}>{etiqueta}</span>
-                  : <button onClick={() => cambiarRaiz(m.ein)} title={m.nombre} style={{display:'inline-flex',alignItems:'center',gap:5,border:'none',background:'transparent',color:'var(--win-accent)',cursor:'pointer',padding:'4px 0',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{etiqueta}</button>}
-              </React.Fragment>
+              <span key={b.ein+'-'+i} style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{color:'var(--win-muted)'}}>›</span>
+                {esUltimo ? (
+                  <span style={{color:'var(--win-title)',fontWeight:700}}>{b.nombre}</span>
+                ) : (
+                  <button onClick={()=>{
+                    // saltar a un ancestro: recortar history hasta ese índice
+                    setHistory(history.slice(0, i))
+                    onChangeRoot(b.ein)
+                  }} style={{border:'none',background:'transparent',color:'var(--win-accent)',cursor:'pointer',padding:0,fontSize:11,fontWeight:600}}>
+                    {b.nombre}
+                  </button>
+                )}
+              </span>
             )
           })}
         </div>
 
-        {/* Filtros (plegables) */}
-        {verFiltros && (
-          <div style={{padding:'14px 16px',borderTop:'1px solid var(--win-border)',background:'var(--win-surface2)',display:'flex',flexDirection:isMobile?'column':'row',gap:isMobile?16:24,alignItems:'stretch'}}>
-            <div style={{flex:isMobile?'none':3,minWidth:0}}>
-              <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Filtrar rangos:</div>
-              <div style={{display:isMobile?'flex':'grid',flexWrap:isMobile?'nowrap':undefined,gridTemplateColumns:isMobile?undefined:`repeat(${RANGOS_FILTRO_GEN.length}, 1fr)`,gap:12,overflowX:isMobile?'auto':'visible',paddingBottom:isMobile?4:0}}>
-                {RANGOS_FILTRO_GEN.map(f => {
-                  const rDef = RANGOS.find(rr => rr.id === f.id)
-                  const checked = filtroRangos.has(f.id)
-                  return (
-                    <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:isMobile?0:undefined,width:isMobile?72:'auto'}}>
-                      {RANGO_IMG[f.id] && <img src={RANGO_IMG[f.id]} alt={f.label} style={{width:isMobile?36:44,height:isMobile?36:44,objectFit:'contain'}}/>}
-                      <span style={{background:rDef?.bg,color:rDef?.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
-                      <input type="checkbox" checked={checked} onChange={() => toggleFiltro(f.id)} style={{cursor:'pointer',accentColor:'var(--win-accent)'}}/>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-            <div style={{flex:isMobile?'none':1,minWidth:isMobile?'auto':160,paddingTop:isMobile?14:0,borderTop:isMobile?'1px solid var(--win-border)':'none',paddingLeft:isMobile?0:24,borderLeft:isMobile?'none':'1px solid var(--win-border)'}}>
-              <div style={{fontSize:10,fontWeight:700,letterSpacing:'.06em',color:'var(--win-muted)',textTransform:'uppercase',marginBottom:10}}>Actividad:</div>
-              <div style={{display:'flex',flexWrap:'nowrap',gap:16,overflowX:isMobile?'auto':'visible',paddingBottom:isMobile?4:0}}>
-                {[
-                  { id:'activo', label:'Con puntos', color:'#16A34A', relleno:true },
-                  { id:'inactivo', label:'Sin puntos', color:'#9CA3AF', relleno:false },
-                ].map(f => {
-                  const checked = filtroActividad.has(f.id)
-                  return (
-                    <label key={f.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',userSelect:'none',opacity:checked?1:0.5,flexShrink:0,width:isMobile?72:'auto'}}>
-                      <div style={{width:isMobile?36:44,height:isMobile?36:44,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        <div style={{width:isMobile?15:18,height:isMobile?15:18,borderRadius:'50%',background:f.relleno?f.color:'transparent',border:`2px solid ${f.color}`}}/>
-                      </div>
-                      <span style={{background:f.color+'22',color:f.color,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,whiteSpace:'nowrap'}}>{f.label}</span>
-                      <input type="checkbox" checked={checked} onChange={() => toggleActividad(f.id)} style={{cursor:'pointer',accentColor:f.color}}/>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Resumen compacto de la raíz visible */}
-      {raiz && !completa && (() => {
-        const rr = getRango(raiz.rango)
-        const c = conteos.get(raiz.ein) || { directos: 0, equipo: 0 }
-        const pgVis = sumarPGVisible(raiz, pasaFiltro)
-        const marca = filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''
-        return (
-          <div style={{...S.card, marginBottom:12, padding:'10px 14px', display:'flex', alignItems:'center', gap:isMobile?10:16, flexWrap:'wrap'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0,flex:isMobile?'1 1 100%':'1 1 auto'}}>
-              <div style={{width:40,height:40,borderRadius:'50%',background:rr.bg,border:`2px solid ${rr.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                {RANGO_IMG[rr.id] ? <img src={RANGO_IMG[rr.id]} alt={rr.label} style={{width:33,height:33,objectFit:'contain'}}/> : <span style={{fontSize:12,fontWeight:700,color:rr.color}}>{getInitials(raiz.nombre)}</span>}
-              </div>
-              <div style={{minWidth:0}}>
-                <div style={{fontSize:13.5,fontWeight:700,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{raiz.nombre}</div>
-                <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginTop:2}}>
-                  <span style={{background:rr.bg,color:rr.color,padding:'1px 8px',borderRadius:10,fontSize:10,fontWeight:700}}>{rr.label}</span>
-                  <span style={{fontSize:10.5,color:'var(--win-muted)'}}>EIN {raiz.ein}</span>
+        {/* Tarjeta de info de la persona seleccionada */}
+        {raiz && (() => {
+          const rr = getRango(raiz.rango)
+          const directos = (raiz.children || []).filter(c => !pasaFiltro || pasaFiltro(c)).length
+          const total = countDescendantsFiltrado(raiz, pasaFiltro)
+          const pgVis = sumarPGVisible(raiz, pasaFiltro)
+          return (
+            <>
+            <div style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'center',gap:isMobile?12:14,padding:'12px 16px',borderBottom:'1px solid var(--win-border)',background:'var(--win-surface)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:14,minWidth:0}}>
+                <div style={{width:52,height:52,borderRadius:'50%',background:rr.bg,border:`2px solid ${rr.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 0 0 3px rgba(37,99,235,.18)'}}>
+                  {RANGO_IMG[rr.id]
+                    ? <img src={RANGO_IMG[rr.id]} alt={rr.label} style={{width:44,height:44,objectFit:'contain'}}/>
+                    : <span style={{fontSize:14,fontWeight:700,color:rr.color}}>{getInitials(raiz.nombre)}</span>}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:'var(--win-title)'}}>{raiz.nombre}</div>
+                  <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+                    <span style={{background:rr.bg,color:rr.color,padding:'2px 8px',borderRadius:10,fontSize:10,fontWeight:700}}>{rr.label}</span>
+                    <span style={{fontSize:10,color:'var(--win-muted)'}}>EIN {raiz.ein}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:isMobile?12:18,flexWrap:'wrap',fontSize:11}}>
-              <div style={{textAlign:'center',padding:'5px 12px',borderRadius:10,background:'linear-gradient(135deg, rgba(124,58,237,.14), rgba(124,58,237,.05))',border:'1.5px solid rgba(124,58,237,.4)'}}>
-                <div style={{fontSize:18,fontWeight:800,color:'#7C3AED',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{pgVis.pg.toLocaleString()}</div>
-                <div style={{color:'#7C3AED',fontWeight:700,letterSpacing:'.04em',fontSize:9.5,marginTop:2,whiteSpace:'nowrap'}}>PG EN EL ÁRBOL</div>
-              </div>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:17,fontWeight:700,color:'var(--win-title)',lineHeight:1.1}}>{c.directos}</div>
-                <div style={{color:'var(--win-muted)',whiteSpace:'nowrap'}}>Directos{marca}</div>
-              </div>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:17,fontWeight:700,color:'var(--win-accent)',lineHeight:1.1}}>{c.equipo}</div>
-                <div style={{color:'var(--win-muted)',whiteSpace:'nowrap'}}>Total ramificación{marca}</div>
-              </div>
-            </div>
-            <button onClick={() => descargarArbol(raiz, pasaFiltro, { pg: pgVis.pg })} disabled={descargando} title="Descargar el árbol como imagen"
-              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,height:isMobile?40:36,padding:'0 14px',borderRadius:9,background:'var(--win-accent)',border:'none',color:'#fff',fontSize:12.5,fontWeight:600,cursor:descargando?'default':'pointer',fontFamily:'inherit',whiteSpace:'nowrap',marginLeft:isMobile?0:'auto',width:isMobile?'100%':'auto',opacity:descargando?0.7:1}}>
-              <div style={{width:15,height:15,flexShrink:0}}>{descargando ? '⏳' : <Icons.Download/>}</div>
-              {descargando ? 'Generando…' : 'Descargar Árbol'}
-            </button>
-            {marca && (
-              <div style={{flex:'1 1 100%',fontSize:10.5,color:'var(--win-muted)'}}>* Cuenta solo los rangos marcados en "Filtros" — no el total real de tu red.</div>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* Puntos y valor por nivel (plegable) */}
-      {!completa && <NivelesPorRed raiz={raiz} tc={tc} pasaFiltro={pasaFiltro} defaultAbierto={false} />}
-
-      {/* Lienzo del árbol */}
-      <div style={{position:'relative',flex:completa?1:undefined,height:completa?undefined:(isMobile?'calc(100vh - 180px)':'calc(100vh - 200px)'),minHeight:420,borderRadius:14,border:'1px solid var(--win-border)',overflow:'hidden',background:'radial-gradient(circle at 1px 1px, var(--win-border) 1px, transparent 0) 0 0 / 22px 22px, var(--win-bg)'}}>
-        <div ref={vpRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-          style={{position:'absolute',inset:0,overflow:'hidden',touchAction:'none',cursor:'grab'}}>
-          {!raiz ? (
-            <div style={{padding:'48px 16px',textAlign:'center',color:'var(--win-muted)',fontSize:13}}>No hay afiliados cargados.</div>
-          ) : (
-            <div style={{position:'absolute',left:0,top:0,width:layout.ancho,height:layout.alto,transform:`translate(${vista.x}px, ${vista.y}px) scale(${vista.z})`,transformOrigin:'0 0',willChange:'transform'}}>
-              <svg width={layout.ancho} height={layout.alto} style={{position:'absolute',left:0,top:0,overflow:'visible',pointerEvents:'none'}}>
-                {layout.enlaces.map((e, i) => e.hijos.map((cx, j) => (
-                  <path key={i + '-' + j} d={genConector(e.px, e.py, cx, e.cy)} fill="none" stroke="var(--win-link, #7AA7E8)" strokeWidth={2} strokeLinecap="round"/>
-                )))}
-                {layout.toggles.filter(t => !t.abierto).map(t => (
-                  <line key={'s' + t.ein} x1={t.cx} y1={t.y} x2={t.cx} y2={t.y + 8} stroke="var(--win-link, #7AA7E8)" strokeWidth={2}/>
-                ))}
-              </svg>
-              {layout.nodos.map(rec => rec.mas ? (
-                <div key={'mas-' + rec.padre} role="button" tabIndex={0}
-                  onClick={() => { if (!arrastro.current) verMas(rec.padre) }}
-                  onKeyDown={e => { if (e.key === 'Enter') verMas(rec.padre) }}
-                  style={{position:'absolute',left:rec.x,top:rec.y,width:cw,height:ch,boxSizing:'border-box',borderRadius:14,border:'2px dashed var(--win-accent)',background:'var(--win-accent-l)',color:'var(--win-accent)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,cursor:'pointer',fontWeight:700,textAlign:'center',padding:10,userSelect:'none'}}>
-                  <div style={{fontSize:20}}>+{rec.resto}</div>
-                  <div style={{fontSize:11.5}}>Ver más integrantes de esta rama</div>
+              <div style={{display:'flex',alignItems:'center',gap:isMobile?10:14,fontSize:11,flexWrap:'wrap',marginLeft:isMobile?0:'auto',justifyContent:isMobile?'space-between':'flex-start'}}>
+                <div style={{textAlign:'center',padding:isMobile?'6px 12px':'8px 16px',borderRadius:12,background:'linear-gradient(135deg, rgba(124,58,237,.14), rgba(124,58,237,.05))',border:'1.5px solid rgba(124,58,237,.4)',boxShadow:'0 0 0 3px rgba(124,58,237,.07)'}}>
+                  <div style={{fontSize:isMobile?18:24,fontWeight:800,color:'#7C3AED',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-.01em'}}>{pgVis.pg.toLocaleString()}</div>
+                  <div style={{color:'#7C3AED',fontWeight:700,letterSpacing:'.04em',fontSize:10,marginTop:3,whiteSpace:'nowrap'}}>PG EN EL ÁRBOL</div>
                 </div>
-              ) : (
-                <GenTarjeta key={rec.n.ein} rec={rec} conteo={conteos.get(rec.n.ein) || { directos: 0, equipo: 0 }}
-                  seleccionada={rec.n.ein === selEin} esRaiz={rec.n.ein === raiz.ein}
-                  cw={cw} ch={ch} medalla={medalla} onSel={seleccionar} onExplorar={explorar}/>
-              ))}
-              {layout.toggles.map(t => (
-                <button key={'t' + t.ein} onClick={e => { e.stopPropagation(); toggleRama(t.ein) }}
-                  title={t.abierto ? 'Ocultar su equipo (no borra a nadie)' : `Mostrar ${t.total} directo${t.total === 1 ? '' : 's'}`}
-                  style={{position:'absolute',left:t.cx - 20,top:t.y + 6,width:40,height:24,borderRadius:12,border:'1px solid var(--win-accent)',background:'var(--win-surface)',color:'var(--win-accent)',fontSize:11.5,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 6px rgba(0,0,0,.2)',padding:0,fontFamily:'inherit'}}>
-                  {t.abierto ? '−' : `+${t.total}`}
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{directos}</div>
+                  <div style={{color:'var(--win-muted)',whiteSpace:'nowrap'}}>Directos{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
+                </div>
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:18,fontWeight:700,color:'var(--win-accent)'}}>{total}</div>
+                  <div style={{color:'var(--win-muted)',whiteSpace:'nowrap'}}>Total ramificación{filtroRangos.size < RANGOS_FILTRO_GEN.length ? ' *' : ''}</div>
+                </div>
+                <button onClick={()=>descargarArbol(raiz, pasaFiltro, {pg: pgVis.pg})} disabled={descargando} title="Descargar el árbol visible como imagen" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:isMobile?'9px 12px':'9px 16px',borderRadius:9,background:'var(--win-accent)',border:'none',color:'#fff',fontSize:12.5,fontWeight:600,cursor:descargando?'default':'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(37,99,235,.35)',whiteSpace:'nowrap',width:isMobile?'100%':'auto',opacity:descargando?0.7:1}}>
+                  <div style={{width:15,height:15,flexShrink:0}}>{descargando?'⏳':<Icons.Download/>}</div>
+                  {descargando?'Generando…':'Descargar Árbol'}
                 </button>
-              ))}
+              </div>
+            </div>
+            {filtroRangos.size < RANGOS_FILTRO_GEN.length && (
+              <div style={{padding:'6px 16px',background:'var(--win-surface2)',borderBottom:'1px solid var(--win-border)',fontSize:10.5,color:'var(--win-muted)'}}>
+                * Cuenta solo los rangos marcados en "Filtrar rangos" — no el total real de tu red.
+              </div>
+            )}
+          </>
+          )
+        })()}
+
+        {/* ── Puntos y valor por nivel ── */}
+        <NivelesPorRed raiz={raiz} tc={tc} pasaFiltro={pasaFiltro} defaultAbierto={false} />
+
+        <div ref={scrollRef} style={{...S.cardBody,overflow:'auto',padding:'24px 16px',position:'relative'}}>
+          {!raiz ? (
+            <div style={{padding:'48px 16px',textAlign:'center',color:'var(--win-muted)',fontSize:13}}>
+              Selecciona una persona para ver su genealogía.
+              <div style={{marginTop:6,fontSize:11}}>Usa el buscador de arriba o haz clic en un nodo.</div>
+            </div>
+          ) : (
+            <div style={{display:'inline-flex',justifyContent:'center',minWidth:'100%',transform:`scale(${zoom})`,transformOrigin:'top center',transition:'transform .15s ease'}}>
+              <GenealogiaNodo
+                nodo={raiz}
+                pasaFiltro={pasaFiltro}
+                selectedEin={rootEin}
+                onSelect={(n)=>{ setSeleccionado(n); navegarA(n.ein) }}
+                onHover={(n,e)=>setTooltip({a:n,x:e.clientX,y:e.clientY})}
+                onLeave={()=>setTooltip(null)}/>
             </div>
           )}
         </div>
-
-        {raiz && (
-          <div data-nopan style={{position:'absolute',left:10,bottom:10,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:10,padding:6,boxShadow:'0 4px 14px rgba(0,0,0,.2)',zIndex:4}}>
-            {!isMobile && <div style={{fontSize:10,fontWeight:700,color:'var(--win-muted)',margin:'0 2px 4px'}}>Vista general</div>}
-            <GenMinimapa layout={layout} vista={vista} vp={vp} cw={cw} ch={ch} selEin={selEin} raizEin={raiz.ein}
-              w={isMobile ? 112 : 180} h={isMobile ? 70 : 110} onIr={irA}/>
-          </div>
-        )}
-
-        {!isMobile && raiz && (
-          <div style={{position:'absolute',right:panelAbierto?GEN_PANEL+10:10,bottom:10,fontSize:10.5,color:'var(--win-muted)',background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:8,padding:'4px 9px',zIndex:3,pointerEvents:'none'}}>
-            Arrastra el fondo para moverte · Ctrl + rueda para zoom
-          </div>
-        )}
-
-        {panelAbierto && (
-          <aside data-nopan style={{position:'absolute',top:0,right:0,bottom:0,width:GEN_PANEL,boxSizing:'border-box',background:'var(--win-surface)',borderLeft:'1px solid var(--win-border)',overflowY:'auto',zIndex:5,padding:'12px 18px 20px',boxShadow:'-8px 0 24px -12px rgba(0,0,0,.35)'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-              <span style={{fontSize:13.5,fontWeight:700,color:'var(--win-title)'}}>Integrante seleccionado</span>
-              <button onClick={() => setFicha(false)} aria-label="Cerrar ficha" style={{background:'var(--win-surface2)',border:'none',borderRadius:'50%',width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--win-muted)',cursor:'pointer',padding:0}}>
-                <div style={{width:12,height:12}}><Icons.X/></div>
-              </button>
-            </div>
-            <FichaContenido nodo={selNodo} afiliados={afiliados} periodos={periodos} onClose={() => setFicha(false)} onPlanAccion={onPlanAccion} acciones={accionesFicha}/>
-          </aside>
-        )}
       </div>
 
-      <ArbolDetalle nodo={isMobile && ficha ? selNodo : null} afiliados={afiliados} periodos={periodos} onClose={() => setFicha(false)} onPlanAccion={onPlanAccion} acciones={accionesFicha}/>
+      <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onPlanAccion={onPlanAccion}/>
+
+      {tooltip && (
+        <div style={{
+          position:'fixed',zIndex:999,pointerEvents:'none',
+          left:Math.min(tooltip.x+10,window.innerWidth-150),
+          top:Math.max(tooltip.y-60,8),
+          background:'var(--win-tooltip-bg)',color:'var(--win-tooltip-fg)',
+          borderRadius:6,padding:'6px 10px',
+          fontSize:10,minWidth:110,maxWidth:160,
+          boxShadow:'0 3px 12px rgba(0,0,0,.3)'
+        }}>
+          <div style={{fontWeight:700,fontSize:11,marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{tooltip.a.nombre}</div>
+          <div style={{opacity:.75,marginBottom:2}}>EIN {tooltip.a.ein}</div>
+          <div><b style={{color:'var(--win-gold)'}}>{tooltip.a.pp}</b> PP</div>
+        </div>
+      )}
     </div>
   )
+}
+
+function countDescendants(nodo) {
+  if (!nodo.children?.length) return 0
+  return nodo.children.reduce((acc,c)=>acc+1+countDescendants(c),0)
+}
+
+// Igual que countDescendants pero solo cuenta ramas que pasan el filtro de rangos
+function countDescendantsFiltrado(nodo, pasaFiltro) {
+  const hijos = (nodo.children || []).filter(c => !pasaFiltro || pasaFiltro(c))
+  return hijos.reduce((acc,c)=>acc+1+countDescendantsFiltrado(c, pasaFiltro),0)
 }
 
 // Suma los PG de la rama visible según el filtro de rangos (incluye la raíz)
