@@ -929,7 +929,7 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <button onClick={onClose} aria-label="Cerrar pantalla completa" title="Cerrar" style={btn}><span style={{width:18,height:18,display:'inline-flex'}}><FsIco.Cerrar/></span></button>
             <div style={{flex:1,minWidth:0,textAlign:'center'}}>
-              <img src="./assets/logo-red-nice.png" alt="Red NICE Analizer" style={{height:32,width:'auto',maxWidth:'100%',objectFit:'contain'}}/>
+              <img src="./assets/logo-horizontal.jpg" alt="Red NICE Analizer" style={{height:38,width:'auto',maxWidth:'100%',objectFit:'contain',borderRadius:8,verticalAlign:'middle'}}/>
             </div>
             <button onClick={() => setBuscando(v => !v)} aria-label="Buscar" title="Buscar nombre o EIN" style={{...btn,background:buscando?'var(--win-accent)':'var(--win-surface)',color:buscando?'#fff':'var(--win-title)',borderColor:buscando?'var(--win-accent)':'var(--win-border)'}}><span style={{width:18,height:18,display:'inline-flex'}}><Icons.Search/></span></button>
             <button onClick={() => setCab(v => !v)} aria-label={cab ? 'Ocultar el resumen' : 'Mostrar el resumen'} title={cab ? 'Ocultar resumen' : 'Mostrar resumen'} style={btn}><span style={{width:18,height:18,display:'inline-flex',transform:cab?'none':'rotate(180deg)',transition:'transform .15s'}}><FsIco.Flecha/></span></button>
@@ -942,7 +942,7 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
         <div style={{flexShrink:0,padding:'10px 18px 10px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',position:'relative',zIndex:5}}>
           <div style={{display:'flex',alignItems:'center',gap:16}}>
             <button onClick={onClose} title="Cerrar (Esc)" style={{...btn,padding:'0 16px'}}><span style={{width:16,height:16,display:'inline-flex'}}><FsIco.Cerrar/></span>Cerrar</button>
-            <img src="./assets/logo-red-nice.png" alt="Red NICE Analizer" style={{height:36,width:'auto',objectFit:'contain',flexShrink:0}}/>
+            <img src="./assets/logo-horizontal.jpg" alt="Red NICE Analizer" style={{height:44,width:'auto',objectFit:'contain',flexShrink:0,borderRadius:8}}/>
             <div style={{position:'relative',flex:'0 1 400px',minWidth:200}}>{campoBusqueda}{listaSug}</div>
             <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
               <div style={{textAlign:'center',padding:'5px 14px',borderRadius:10,background:'linear-gradient(135deg, rgba(124,58,237,.22), rgba(124,58,237,.08))',border:'1.5px solid rgba(124,58,237,.5)'}}>

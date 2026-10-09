@@ -874,8 +874,8 @@ async function exportNetworkReport(afiliados) {
   const img=await loadImgReport(fondoRedSrc())
   if(img){ const ar=img.width/img.height, tr=W/hH; let sw,sh,sx,sy; if(ar>tr){sh=img.height;sw=sh*tr;sx=(img.width-sw)/2;sy=0}else{sw=img.width;sh=sw/tr;sx=0;sy=(img.height-sh)/2}; ctx.drawImage(img,sx,sy,sw,sh,0,0,W,hH) }
   const g=ctx.createLinearGradient(0,0,0,hH); g.addColorStop(0,'rgba(11,26,46,.45)'); g.addColorStop(1,'rgba(11,26,46,.95)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,hH)
-  const logo=await loadImgReport('./assets/logo-red-nice.png')
-  if(logo){ const lw=300; ctx.drawImage(logo,52,44,lw,lw*logo.height/logo.width) }
+  const logo=await loadImgReport('./assets/logo-horizontal.jpg')
+  if(logo){ const lw=300, lh=lw*logo.height/logo.width; ctx.save(); rrect(ctx,52,44,lw,lh,14); ctx.clip(); ctx.drawImage(logo,52,44,lw,lh); ctx.restore() }
   else { ctx.fillStyle=REP.text; ctx.font='700 38px DM Sans, sans-serif'; ctx.textBaseline='middle'; ctx.fillText('RedNICE', 62, 96) }
   ctx.textBaseline='middle'
   ctx.fillStyle=REP.cyan; ctx.font='600 17px DM Sans, sans-serif'; ctx.fillText('REPORTE DE RED', 62, 168)
@@ -3301,7 +3301,7 @@ function App() {
       {/* Siempre visible (no se desplaza con el contenido). El logo se oculta en la pantalla de bienvenida, que ya lo muestra en grande. */}
       <div className="rn-panel-head" style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
         {!(!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes')&&(
-          <div className="rn-head-logo"><img src="./assets/logo-red-nice.png" alt="Red NICE Analizer"/></div>
+          <div className="rn-head-logo"><img src="./assets/logo-horizontal.jpg" alt="Red NICE Analizer"/></div>
         )}
         <div className="rn-panel-head__info">
         <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{curTab.l}</div>
@@ -3334,7 +3334,7 @@ function App() {
                 <div className="rn-logo-stage">
                   <div className="rn-logo-stage__orbit"/>
                   <div className="rn-logo-plate">
-                    <img src="./assets/logo-red-nice.png" alt="Red NICE Analizer" className="rn-logo-img"/>
+                    <img src="./assets/logo-horizontal.jpg" alt="Red NICE Analizer" className="rn-logo-img"/>
                   </div>
                 </div>
                 <div className="rn-wl__title">Visualiza y haz crecer<br/>tu red de mercadeo</div>

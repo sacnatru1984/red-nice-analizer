@@ -203,7 +203,7 @@
       position: relative;
       background: radial-gradient(120% 140% at 30% 20%, rgba(20,52,92,.72) 0%, rgba(6,16,30,.82) 100%);
       border: 1px solid rgba(120,200,255,.28);
-      border-radius: 22px; padding: 18px 22px;
+      border-radius: 22px; padding: 0; overflow: hidden;
       backdrop-filter: blur(10px);
       box-shadow: 0 18px 50px rgba(0,0,0,.5), 0 0 60px rgba(56,170,245,.25), inset 0 1px 0 rgba(160,220,255,.18);
     }
@@ -315,7 +315,7 @@
       .rn-wl { grid-template-columns: 1fr; gap: 28px; padding: 28px 16px; text-align: center; }
       .rn-wl__brand { align-items: center; }
       .rn-logo-stage { max-width: 340px; margin-bottom: 22px; }
-      .rn-logo-plate { padding: 16px 20px; border-radius: 18px; }
+      .rn-logo-plate { border-radius: 18px; }
       .rn-wl__title { font-size: 26px; }
       .rn-wl__sub { font-size: 14px; }
       .rn-start { padding: 16px; text-align: left; }
@@ -566,14 +566,14 @@
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
       background: linear-gradient(160deg, #10284A 0%, #071426 100%);
       border: 1px solid rgba(120,200,255,.3); border-radius: 12px;
-      padding: 4px 12px;
+      padding: 0; overflow: hidden;
       box-shadow: 0 4px 18px rgba(0,0,0,.25), 0 0 22px rgba(56,170,245,.22);
       pointer-events: none;
     }
-    .rn-head-logo img { display: block; height: 46px; width: auto; }
+    .rn-head-logo img { display: block; height: 52px; width: auto; }
     @media (max-width: 720px) {
-      .rn-head-logo { position: static; transform: none; order: 2; flex-shrink: 0; padding: 4px 8px; border-radius: 10px; }
-      .rn-head-logo img { height: 30px; }
+      .rn-head-logo { position: static; transform: none; order: 2; flex-shrink: 0; padding: 0; border-radius: 10px; }
+      .rn-head-logo img { height: 36px; }
     }
 
     ::-webkit-scrollbar { width: 10px; height: 10px; }
