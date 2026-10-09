@@ -496,6 +496,513 @@ function NivelesPorRed({ raiz, tc, pasaFiltro, defaultAbierto = true }) {
   )
 }
 
+// ── Árbol en pantalla completa (celular): tarjetas grandes, ramas con "+", buscador,
+// ruta, resumen y tarjeta de la persona abajo con "Ver ficha" / "Explorar equipo".
+// Es una vista aparte: la Genealogía de siempre no se modifica. ──
+const FS_PAD = 24, FS_GX = 18, FS_GY = 60, FS_PAG = 6, FS_CW = 148, FS_CH = 172, FS_MED = 64, FS_SHEET = 214
+const fsClamp = z => Math.min(2, Math.max(0.3, z))
+const FsIco = {
+  Cerrar: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Ajustar: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>,
+  Flecha: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><polyline points="6 15 12 9 18 15"/></svg>,
+  Dedo: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M9 11V5a1.5 1.5 0 0 1 3 0v5l4.2 1a2 2 0 0 1 1.5 2.3L16.6 20H9.8L6 14.5a1.6 1.6 0 0 1 2.7-1.7L9 13.2"/><path d="M3 6h3M18 6h3M4.5 4.5 3 6l1.5 1.5M19.5 4.5 21 6l-1.5 1.5"/></svg>,
+}
+
+function fsRuta(origen, ein) {
+  if (!origen) return null
+  if (origen.ein === ein) return [origen]
+  for (const c of origen.children || []) {
+    const sub = fsRuta(c, ein)
+    if (sub) return [origen, ...sub]
+  }
+  return null
+}
+
+// Acomodo "tidy tree": cada hoja ocupa una tarjeta y cada padre se centra sobre sus
+// hijos visibles, así nunca se enciman. Solo recorre las ramas abiertas.
+function fsLayout(raiz, expandidos, limites, hijosDe) {
+  const nodos = [], enlaces = [], toggles = []
+  let maxX = 0, maxY = 0
+  const colocar = (n, depth, x0) => {
+    const y = FS_PAD + depth * (FS_CH + FS_GY)
+    maxY = Math.max(maxY, y + FS_CH + 24)
+    const hijos = hijosDe(n)
+    if (!hijos.length || !expandidos.has(n.ein)) {
+      const cx = x0 + FS_CW / 2
+      nodos.push({ n, x: x0, y, cx })
+      if (hijos.length) toggles.push({ ein: n.ein, cx, y: y + FS_CH, abierto: false, total: hijos.length })
+      maxX = Math.max(maxX, x0 + FS_CW)
+      return { w: FS_CW, cx }
+    }
+    const vis = hijos.slice(0, limites[n.ein] || FS_PAG)
+    const resto = hijos.length - vis.length
+    const centros = []
+    let x = x0
+    vis.forEach((c, i) => {
+      if (i > 0) x += FS_GX
+      const r = colocar(c, depth + 1, x)
+      centros.push(r.cx)
+      x += r.w
+    })
+    if (resto > 0) {
+      x += FS_GX
+      const cxm = x + FS_CW / 2
+      nodos.push({ mas: true, padre: n.ein, resto, x, y: y + FS_CH + FS_GY, cx: cxm })
+      centros.push(cxm)
+      maxX = Math.max(maxX, x + FS_CW)
+      x += FS_CW
+    }
+    const cx = (centros[0] + centros[centros.length - 1]) / 2
+    nodos.push({ n, x: cx - FS_CW / 2, y, cx })
+    enlaces.push({ px: cx, py: y + FS_CH, hijos: centros, cy: y + FS_CH + FS_GY })
+    toggles.push({ ein: n.ein, cx, y: y + FS_CH, abierto: true, total: hijos.length })
+    return { w: x - x0, cx }
+  }
+  if (raiz) colocar(raiz, 0, FS_PAD)
+  return { nodos, enlaces, toggles, ancho: maxX + FS_PAD, alto: maxY + FS_PAD }
+}
+
+// Conector con esquinas redondeadas que corre por el hueco entre filas.
+function fsConector(px, py, cx, cy) {
+  if (Math.abs(cx - px) < 1) return `M${px} ${py} V${cy}`
+  const mid = py + (cy - py) / 2
+  const r = Math.min(12, Math.abs(cx - px) / 2, (cy - py) / 4)
+  const s = cx > px ? 1 : -1
+  return `M${px} ${py} V${mid - r} Q${px} ${mid} ${px + s * r} ${mid} H${cx - s * r} Q${cx} ${mid} ${cx} ${mid + r} V${cy}`
+}
+
+function FsTarjeta({ rec, seleccionada, esRaiz, onSel }) {
+  const n = rec.n
+  const r = getRango(n.rango)
+  const activo = ((n.pp || 0) + (n.pg || 0)) > 0
+  return (
+    <div role="button" tabIndex={0} title={n.nombre}
+      onClick={() => onSel(n)} onKeyDown={e => { if (e.key === 'Enter') onSel(n) }}
+      style={{position:'absolute',left:rec.x,top:rec.y,width:FS_CW,height:FS_CH,boxSizing:'border-box',padding:'12px 8px 18px',borderRadius:18,background:'var(--win-surface)',border:seleccionada?'2px solid var(--win-accent)':esRaiz?'1.5px solid var(--win-accent)':'1px solid var(--win-border)',boxShadow:seleccionada?'0 0 0 4px rgba(59,130,246,.28), 0 0 26px rgba(59,130,246,.45)':'0 8px 20px -12px rgba(0,0,0,.55)',display:'flex',flexDirection:'column',alignItems:'center',gap:6,textAlign:'center',userSelect:'none',WebkitUserSelect:'none',cursor:'pointer'}}>
+      <div style={{position:'relative',width:FS_MED,height:FS_MED,borderRadius:'50%',background:r.bg,border:`2px solid ${r.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxSizing:'border-box',boxShadow:`0 0 14px ${r.color}55`}}>
+        {RANGO_IMG[r.id]
+          ? <img src={RANGO_IMG[r.id]} alt={r.label} draggable={false} style={{width:FS_MED-8,height:FS_MED-8,objectFit:'contain'}}/>
+          : <span style={{fontSize:18,fontWeight:700,color:r.color}}>{getInitials(n.nombre)}</span>}
+        <span title={activo?'Con puntos este periodo':'Sin puntos este periodo'} style={{position:'absolute',right:-1,bottom:-1,width:13,height:13,borderRadius:'50%',background:activo?'#16A34A':'#E5E7EB',border:'2px solid var(--win-surface)'}}/>
+      </div>
+      <span style={{padding:'1px 10px',borderRadius:20,background:r.bg,color:r.color,fontSize:11,fontWeight:700,whiteSpace:'nowrap',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis'}}>{r.label}</span>
+      <div style={{fontSize:12.5,fontWeight:800,color:'var(--win-title)',lineHeight:1.2,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',wordBreak:'normal',overflowWrap:'normal'}}>{n.nombre.split(' ').slice(0, 2).join(' ')}</div>
+      <div style={{fontSize:10,color:'var(--win-muted)'}}>EIN {n.ein}</div>
+    </div>
+  )
+}
+
+function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, pasaFiltro, raizInicial, onClose }) {
+  ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
+  const principal = tree[0] || null
+  const nodoPorEin = useMemo(() => {
+    const m = new Map()
+    const walk = n => { m.set(n.ein, n); (n.children || []).forEach(walk) }
+    tree.forEach(walk)
+    return m
+  }, [tree])
+
+  const [rootEin, setRootEin] = useState((raizInicial || principal || {}).ein || null)
+  const [pila, setPila] = useState([])
+  const [selEin, setSelEin] = useState(rootEin)
+  const [sheet, setSheet] = useState(true)
+  const [ficha, setFicha] = useState(null)
+  const [expandidos, setExpandidos] = useState(() => new Set(rootEin ? [rootEin] : []))
+  const [limites, setLimites] = useState({})
+  const [vista, setVista] = useState({ x: 0, y: 0, z: 1 })
+  const [vp, setVp] = useState({ w: 390, h: 600 })
+  const [pendiente, setPendiente] = useState(null)
+  const [cab, setCab] = useState(true)
+  const [pista, setPista] = useState(true)
+  const [q, setQ] = useState('')
+  const [drop, setDrop] = useState(false)
+  const [sinFiltro, setSinFiltro] = useState(false)
+
+  const filtro = sinFiltro ? null : pasaFiltro
+  const hijosDe = n => (n.children || []).filter(c => !filtro || filtro(c))
+  const raiz = (rootEin && nodoPorEin.get(rootEin)) || principal
+  const raizEin = raiz ? raiz.ein : null
+
+  const conteos = useMemo(() => {
+    const m = new Map()
+    const contar = n => {
+      const hs = (n.children || []).filter(c => !filtro || filtro(c))
+      let t = 0
+      for (const c of hs) t += 1 + contar(c)
+      m.set(n.ein, { directos: hs.length, equipo: t })
+      return t
+    }
+    tree.forEach(contar)
+    return m
+  }, [tree, sinFiltro, pasaFiltro])
+  const layout = useMemo(() => fsLayout(raiz, expandidos, limites, n => (n.children || []).filter(c => !filtro || filtro(c))), [raiz, expandidos, limites, sinFiltro, pasaFiltro])
+
+  const vpRef = useRef(null)
+  const vistaRef = useRef(vista)
+  vistaRef.current = vista
+  const selNodo = selEin ? nodoPorEin.get(selEin) : null
+  const altoVisible = Math.max(160, vp.h - (sheet && selNodo ? FS_SHEET : 0))
+
+  // Bloquea el scroll de la página de fondo y cierra con Escape.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = e => { if (e.key === 'Escape') { if (ficha) setFicha(null); else onClose() } }
+    window.addEventListener('keydown', onKey)
+    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey) }
+  }, [ficha])
+
+  useEffect(() => {
+    const el = vpRef.current
+    if (!el) return
+    const medir = () => setVp({ w: el.clientWidth, h: el.clientHeight })
+    medir()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', medir)
+      return () => window.removeEventListener('resize', medir)
+    }
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Al cambiar de raíz: solo se abre su primer nivel, salvo que una búsqueda
+  // haya dejado preparadas las ramas necesarias para llegar a alguien.
+  const preparado = useRef(null)
+  useEffect(() => {
+    if (!raizEin) return
+    const p = preparado.current
+    preparado.current = null
+    setExpandidos(p ? p.expandidos : new Set([raizEin]))
+    setLimites(p ? p.limites : {})
+    setPendiente(p ? p.pendiente : { ein: raizEin, modo: 'arriba' })
+    if (!p) setSelEin(raizEin)
+  }, [raizEin])
+
+  useEffect(() => {
+    if (!pendiente) return
+    const rec = layout.nodos.find(r => r.n && r.n.ein === pendiente.ein)
+    setPendiente(null)
+    if (!rec) return
+    setVista(v => {
+      if (pendiente.modo === 'fijo') return { ...v, x: pendiente.sx - rec.cx * v.z, y: pendiente.sy - rec.y * v.z }
+      if (pendiente.modo === 'arriba') return { ...v, x: vp.w / 2 - rec.cx * v.z, y: 16 - rec.y * v.z }
+      const z = Math.max(v.z, 0.9)
+      return { z, x: vp.w / 2 - rec.cx * z, y: altoVisible / 2 - (rec.y + FS_CH / 2) * z }
+    })
+  }, [pendiente, layout])
+
+  const zoomEn = (f, px, py) => setVista(v => {
+    const z = fsClamp(typeof f === 'function' ? f(v.z) : f)
+    const k = z / v.z
+    return { z, x: px - (px - v.x) * k, y: py - (py - v.y) * k }
+  })
+  const zoomBoton = f => zoomEn(z => z * f, vp.w / 2, altoVisible / 2)
+
+  // Arrastrar el fondo (dedo o mouse) mueve el mapa; dos dedos hacen zoom.
+  const punteros = useRef(new Map())
+  const gesto = useRef(null)
+  const arrastro = useRef(false)
+  const local = e => {
+    const rect = vpRef.current.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+  const iniciarGesto = () => {
+    const pts = [...punteros.current.values()]
+    const v = vistaRef.current
+    if (pts.length >= 2) {
+      const [a, b] = pts
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+      gesto.current = { tipo: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: v.z, px: (mx - v.x) / v.z, py: (my - v.y) / v.z }
+    } else if (pts.length === 1) {
+      gesto.current = { tipo: 'pan', sx: pts[0].x, sy: pts[0].y, vx: v.x, vy: v.y }
+    } else {
+      gesto.current = null
+    }
+  }
+  const onPointerDown = e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    if (e.target.closest && e.target.closest('button,input,a,[data-nopan]')) return
+    if (punteros.current.size === 0) arrastro.current = false
+    punteros.current.set(e.pointerId, local(e))
+    iniciarGesto()
+  }
+  const onPointerMove = e => {
+    if (!punteros.current.has(e.pointerId)) return
+    punteros.current.set(e.pointerId, local(e))
+    const g = gesto.current
+    if (!g) return
+    if (g.tipo === 'pinch') {
+      const [a, b] = [...punteros.current.values()]
+      if (!b) return
+      const z = fsClamp(g.z0 * Math.hypot(a.x - b.x, a.y - b.y) / g.d0)
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+      arrastro.current = true
+      setPista(false)
+      setVista({ z, x: mx - g.px * z, y: my - g.py * z })
+      return
+    }
+    const p = punteros.current.get(e.pointerId)
+    const dx = p.x - g.sx, dy = p.y - g.sy
+    if (!arrastro.current) {
+      if (Math.hypot(dx, dy) < 6) return
+      arrastro.current = true
+      setPista(false)
+      try { vpRef.current.setPointerCapture(e.pointerId) } catch (_) {}
+    }
+    setVista(v => ({ ...v, x: g.vx + dx, y: g.vy + dy }))
+  }
+  const onPointerUp = e => {
+    if (!punteros.current.has(e.pointerId)) return
+    punteros.current.delete(e.pointerId)
+    iniciarGesto()
+  }
+  useEffect(() => {
+    const el = vpRef.current
+    if (!el) return
+    const onWheel = e => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      zoomEn(z => z * Math.exp(-e.deltaY * 0.0015), e.clientX - rect.left, e.clientY - rect.top)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  const ajustar = () => {
+    const z = fsClamp(Math.min(vp.w / layout.ancho, altoVisible / layout.alto) * 0.96)
+    setVista({ z, x: (vp.w - layout.ancho * z) / 2, y: 10 })
+  }
+  // Mantiene fija en pantalla la tarjeta tocada mientras el árbol se reacomoda.
+  const fijar = ein => {
+    const rec = layout.nodos.find(r => r.n && r.n.ein === ein)
+    if (rec) setPendiente({ ein, modo: 'fijo', sx: rec.cx * vista.z + vista.x, sy: rec.y * vista.z + vista.y })
+  }
+  const toggleRama = ein => {
+    fijar(ein)
+    setExpandidos(prev => { const n = new Set(prev); n.has(ein) ? n.delete(ein) : n.add(ein); return n })
+  }
+  const verMas = padre => {
+    fijar(padre)
+    setLimites(l => ({ ...l, [padre]: (l[padre] || FS_PAG) + FS_PAG }))
+  }
+
+  // Cambiar la raíz solo cambia lo que se muestra: el patrocinador real no se toca.
+  const cambiarRaiz = ein => {
+    if (!ein || ein === raizEin) return false
+    setPila(p => [...p, raizEin])
+    setRootEin(ein)
+    return true
+  }
+  const irPrincipal = () => { if (principal) { if (!cambiarRaiz(principal.ein)) { setExpandidos(new Set([raizEin])); setLimites({}); setPendiente({ ein: raizEin, modo: 'arriba' }) } } }
+  const explorar = ein => { setSheet(true); cambiarRaiz(ein) }
+  const seleccionar = n => {
+    if (arrastro.current) return
+    setSelEin(n.ein)
+    setSheet(true)
+  }
+
+  // Abre las ramas necesarias para llegar a alguien, lo centra y lo resalta.
+  const localizar = ein => {
+    if (!nodoPorEin.get(ein) || !principal) return
+    let base = raiz
+    let ruta = fsRuta(base, ein)
+    let cambia = false
+    if (!ruta) { base = principal; ruta = fsRuta(principal, ein); cambia = true }
+    if (!ruta) return
+    const oculto = !!filtro && !ruta.slice(1).every(filtro)
+    if (oculto) setSinFiltro(true)
+    const hijosIdx = n => (oculto || !filtro) ? (n.children || []) : (n.children || []).filter(filtro)
+    const exp = new Set(cambia ? [] : expandidos)
+    const lims = cambia ? {} : { ...limites }
+    exp.add(base.ein)
+    for (let i = 0; i < ruta.length - 1; i++) {
+      const padre = ruta[i], hijo = ruta[i + 1]
+      exp.add(padre.ein)
+      const idx = hijosIdx(padre).findIndex(h => h.ein === hijo.ein)
+      if (idx >= FS_PAG) lims[padre.ein] = Math.max(lims[padre.ein] || FS_PAG, Math.ceil((idx + 1) / FS_PAG) * FS_PAG)
+    }
+    const pend = { ein, modo: 'centro' }
+    setSelEin(ein)
+    setSheet(true)
+    if (cambia && base.ein !== raizEin) {
+      preparado.current = { expandidos: exp, limites: lims, pendiente: pend }
+      setPila(p => [...p, raizEin])
+      setRootEin(base.ein)
+    } else {
+      setExpandidos(exp)
+      setLimites(lims)
+      setPendiente(pend)
+    }
+  }
+  const sugerencias = q.trim()
+    ? afiliados.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase()) || String(a.ein).includes(q.trim())).slice(0, 8)
+    : []
+
+  const pgVis = raiz ? sumarPGVisible(raiz, filtro) : { pg: 0 }
+  const cr = raiz ? (conteos.get(raiz.ein) || { directos: 0, equipo: 0 }) : { directos: 0, equipo: 0 }
+  const cs = selNodo ? (conteos.get(selNodo.ein) || { directos: 0, equipo: 0 }) : { directos: 0, equipo: 0 }
+  const rs = selNodo ? getRango(selNodo.rango) : null
+  const migas = principal && raiz ? (fsRuta(principal, raiz.ein) || [raiz]) : []
+  const listaRuta = migas.length > 1 ? migas.slice(1) : migas
+  const btn = { minHeight: 44, minWidth: 44, borderRadius: 12, border: '1px solid var(--win-border)', background: 'var(--win-surface)', color: 'var(--win-title)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '0 12px', flexShrink: 0 }
+
+  const nodo = (
+    <div style={{position:'fixed',inset:0,zIndex:300,background:'var(--win-bg)',display:'flex',flexDirection:'column',overscrollBehavior:'contain',touchAction:'none'}}>
+      {/* Encabezado */}
+      <div style={{flexShrink:0,padding:'calc(10px + env(safe-area-inset-top)) 14px 8px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',position:'relative',zIndex:5}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button onClick={onClose} aria-label="Cerrar pantalla completa" title="Cerrar" style={{...btn,width:44,padding:0}}><span style={{width:18,height:18,display:'inline-flex'}}><FsIco.Cerrar/></span></button>
+          <div style={{flex:1,minWidth:0,textAlign:'center'}}>
+            <img src="./assets/logo-red-nice.png" alt="Red NICE Analizer" style={{height:34,width:'auto',maxWidth:'100%',objectFit:'contain'}}/>
+          </div>
+          <button onClick={() => setCab(v => !v)} aria-label={cab ? 'Ocultar el panel superior' : 'Mostrar el panel superior'} title={cab ? 'Ocultar panel superior' : 'Mostrar panel superior'} style={{...btn,width:44,padding:0}}><span style={{width:18,height:18,display:'inline-flex',transform:cab?'none':'rotate(180deg)',transition:'transform .15s'}}><FsIco.Flecha/></span></button>
+        </div>
+        {cab && (
+          <>
+            <div style={{marginTop:8}}>
+              <div style={{fontSize:22,fontWeight:800,color:'var(--win-title)',lineHeight:1.1}}>Genealogía</div>
+              <div style={{fontSize:12,color:'var(--win-muted)',marginTop:2}}>Genealogía visual ramificada · {afiliados.length} afiliados</div>
+            </div>
+            <div style={{position:'relative',marginTop:10}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,height:46,padding:'0 14px',border:'1px solid var(--win-border2)',borderRadius:14,background:'var(--win-surface2)'}}>
+                <div style={{width:18,height:18,color:'var(--win-muted)',flexShrink:0}}><Icons.Search/></div>
+                <input value={q} onChange={e => { setQ(e.target.value); setDrop(true) }} onFocus={() => setDrop(true)} onBlur={() => setTimeout(() => setDrop(false), 150)}
+                  placeholder="Buscar nombre o EIN" style={{flex:1,minWidth:0,border:'none',background:'transparent',fontSize:15,color:'var(--win-text)',fontFamily:'inherit',outline:'none'}}/>
+                {q && <button onClick={() => { setQ(''); setDrop(false) }} aria-label="Limpiar búsqueda" style={{border:'none',background:'transparent',color:'var(--win-muted)',cursor:'pointer',fontSize:18,fontWeight:700,padding:'0 4px'}}>×</button>}
+              </div>
+              {drop && sugerencias.length > 0 && (
+                <div style={{position:'absolute',top:'100%',left:0,right:0,marginTop:6,background:'var(--win-surface)',border:'1px solid var(--win-border)',borderRadius:12,boxShadow:'0 12px 30px rgba(0,0,0,.4)',maxHeight:'40vh',overflowY:'auto',zIndex:20,touchAction:'pan-y'}}>
+                  {sugerencias.map(a => {
+                    const r = getRango(a.rango)
+                    return (
+                      <div key={a.ein} onMouseDown={() => { setQ(a.nombre); setDrop(false); localizar(a.ein) }} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--win-border)'}}>
+                        <div style={{width:34,height:34,borderRadius:'50%',background:r.bg,border:`1.5px solid ${r.color}66`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          {RANGO_IMG[r.id] ? <img src={RANGO_IMG[r.id]} alt="" style={{width:28,height:28,objectFit:'contain'}}/> : <span style={{fontSize:10,fontWeight:700,color:r.color}}>{getInitials(a.nombre)}</span>}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13.5,fontWeight:600,color:'var(--win-title)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.nombre}</div>
+                          <div style={{fontSize:11,color:'var(--win-muted)'}}>EIN {a.ein} · {r.label}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,padding:'0 10px',minHeight:40,border:'1px solid var(--win-border)',borderRadius:12,background:'var(--win-surface2)',overflowX:'auto',whiteSpace:'nowrap',touchAction:'pan-x'}}>
+              <button onClick={irPrincipal} aria-label="Ir a mi red" style={{border:'none',background:'transparent',color:'var(--win-accent)',cursor:'pointer',padding:'6px 2px',display:'inline-flex',alignItems:'center'}}><span style={{width:20,height:20,display:'inline-flex'}}><Icons.Home/></span></button>
+              <button onClick={irPrincipal} style={{border:'none',background:'transparent',color:'var(--win-accent)',cursor:'pointer',padding:'6px 2px',fontSize:13,fontWeight:700,fontFamily:'inherit'}}>← Árbol principal</button>
+              {listaRuta.map((m, i) => (
+                <React.Fragment key={m.ein}>
+                  <span style={{color:'var(--win-muted)'}}>›</span>
+                  {i === listaRuta.length - 1
+                    ? <span style={{fontSize:13,fontWeight:800,color:'var(--win-title)'}}>{m.nombre}</span>
+                    : <button onClick={() => cambiarRaiz(m.ein)} style={{border:'none',background:'transparent',color:'var(--win-accent)',cursor:'pointer',padding:'6px 2px',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>{m.nombre.split(' ').slice(0, 2).join(' ')}</button>}
+                </React.Fragment>
+              ))}
+            </div>
+            <div style={{display:'flex',alignItems:'center',marginTop:8,padding:'8px 6px',border:'1px solid var(--win-border)',borderRadius:14,background:'var(--win-surface2)'}}>
+              <div style={{textAlign:'center',padding:'6px 12px',borderRadius:12,background:'linear-gradient(135deg, rgba(124,58,237,.22), rgba(124,58,237,.08))',border:'1.5px solid rgba(124,58,237,.5)'}}>
+                <div style={{fontSize:22,fontWeight:800,color:'#7C3AED',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>{pgVis.pg.toLocaleString()}</div>
+                <div style={{fontSize:9.5,fontWeight:700,color:'#7C3AED',marginTop:3,whiteSpace:'nowrap'}}>PG EN EL ÁRBOL</div>
+              </div>
+              <div style={{flex:1,textAlign:'center',borderLeft:'1px solid var(--win-border)',marginLeft:10}}>
+                <div style={{fontSize:20,fontWeight:800,color:'var(--win-title)',lineHeight:1.1}}>{cr.directos}</div>
+                <div style={{fontSize:11,color:'var(--win-muted)'}}>Directos</div>
+              </div>
+              <div style={{flex:1.3,textAlign:'center',borderLeft:'1px solid var(--win-border)'}}>
+                <div style={{fontSize:20,fontWeight:800,color:'var(--win-accent)',lineHeight:1.1}}>{cr.equipo}</div>
+                <div style={{fontSize:11,color:'var(--win-muted)'}}>Total ramificación</div>
+              </div>
+            </div>
+            {sinFiltro && (
+              <div style={{marginTop:6,fontSize:11,color:'var(--win-muted)'}}>Se desactivaron los filtros para mostrar esa búsqueda. <button onClick={() => setSinFiltro(false)} style={{border:'none',background:'transparent',color:'var(--win-accent)',fontWeight:700,cursor:'pointer',padding:0,fontFamily:'inherit',fontSize:11}}>Restaurar</button></div>
+            )}
+          </>
+        )}
+        {/* Controles */}
+        <div style={{display:'flex',alignItems:'center',gap:8,marginTop:cab?10:8}}>
+          <button onClick={() => localizar(selEin || (raiz && raiz.ein))} style={btn}><span style={{width:18,height:18,display:'inline-flex'}}><Icons.Target/></span>Centrar</button>
+          <div style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',border:'1px solid var(--win-border)',borderRadius:12,background:'var(--win-surface)',height:44}}>
+            <button onClick={() => zoomBoton(1 / 1.25)} aria-label="Alejar el árbol" style={{width:44,height:44,border:'none',background:'transparent',color:'var(--win-title)',fontSize:22,fontWeight:700,cursor:'pointer'}}>−</button>
+            <button onClick={() => zoomEn(1, vp.w / 2, altoVisible / 2)} title="Zoom del árbol al 100%" style={{minWidth:52,height:44,border:'none',borderLeft:'1px solid var(--win-border)',borderRight:'1px solid var(--win-border)',background:'transparent',color:'var(--win-title)',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{Math.round(vista.z * 100)}%</button>
+            <button onClick={() => zoomBoton(1.25)} aria-label="Acercar el árbol" style={{width:44,height:44,border:'none',background:'transparent',color:'var(--win-title)',fontSize:22,fontWeight:700,cursor:'pointer'}}>+</button>
+          </div>
+          <button onClick={ajustar} aria-label="Ajustar el árbol a la pantalla" title="Ajustar a la pantalla" style={{...btn,width:44,padding:0}}><span style={{width:18,height:18,display:'inline-flex'}}><FsIco.Ajustar/></span></button>
+        </div>
+      </div>
+
+      {/* Lienzo */}
+      <div style={{position:'relative',flex:1,minHeight:0,overflow:'hidden',background:'radial-gradient(circle at 1px 1px, var(--win-border) 1px, transparent 0) 0 0 / 22px 22px, var(--win-bg)'}}>
+        <div ref={vpRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+          style={{position:'absolute',inset:0,overflow:'hidden',touchAction:'none',cursor:'grab'}}>
+          {raiz && (
+            <div style={{position:'absolute',left:0,top:0,width:layout.ancho,height:layout.alto,transform:`translate(${vista.x}px, ${vista.y}px) scale(${vista.z})`,transformOrigin:'0 0',willChange:'transform'}}>
+              <svg width={layout.ancho} height={layout.alto} style={{position:'absolute',left:0,top:0,overflow:'visible',pointerEvents:'none'}}>
+                {layout.enlaces.map((e, i) => e.hijos.map((cx, j) => (
+                  <path key={i + '-' + j} d={fsConector(e.px, e.py, cx, e.cy)} fill="none" stroke="var(--win-accent)" strokeOpacity={0.75} strokeWidth={2.5} strokeLinecap="round"/>
+                )))}
+              </svg>
+              {layout.nodos.map(rec => rec.mas ? (
+                <div key={'mas-' + rec.padre} role="button" tabIndex={0}
+                  onClick={() => { if (!arrastro.current) verMas(rec.padre) }} onKeyDown={e => { if (e.key === 'Enter') verMas(rec.padre) }}
+                  style={{position:'absolute',left:rec.x,top:rec.y,width:FS_CW,height:FS_CH,boxSizing:'border-box',borderRadius:18,border:'2px dashed var(--win-accent)',background:'var(--win-accent-l)',color:'var(--win-accent)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:6,cursor:'pointer',fontWeight:800,textAlign:'center',padding:10,userSelect:'none'}}>
+                  <div style={{fontSize:26}}>+{rec.resto}</div>
+                  <div style={{fontSize:12}}>Ver más de esta rama</div>
+                </div>
+              ) : (
+                <FsTarjeta key={rec.n.ein} rec={rec} seleccionada={rec.n.ein === selEin} esRaiz={rec.n.ein === raiz.ein} onSel={seleccionar}/>
+              ))}
+              {layout.toggles.map(t => (
+                <button key={'t' + t.ein} onClick={e => { e.stopPropagation(); toggleRama(t.ein) }}
+                  aria-label={t.abierto ? 'Ocultar su equipo' : `Mostrar ${t.total} directos`} title={t.abierto ? 'Ocultar su equipo (no borra a nadie)' : `Mostrar ${t.total} directo${t.total === 1 ? '' : 's'}`}
+                  style={{position:'absolute',left:t.cx - 19,top:t.y - 19,width:38,height:38,borderRadius:'50%',border:'2.5px solid var(--win-accent)',background:'var(--win-surface)',color:'var(--win-accent)',fontSize:t.abierto?20:12.5,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 12px rgba(0,0,0,.35)',padding:0,fontFamily:'inherit',zIndex:2}}>
+                  {t.abierto ? '−' : `+${t.total}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {pista && (
+          <div style={{position:'absolute',left:'50%',transform:'translateX(-50%)',bottom:(sheet && selNodo ? FS_SHEET : 0) + 14,display:'inline-flex',alignItems:'center',gap:10,padding:'9px 18px',borderRadius:24,border:'1px solid var(--win-border2)',background:'var(--win-surface)',color:'var(--win-title)',fontSize:13.5,pointerEvents:'none',whiteSpace:'nowrap',boxShadow:'0 6px 18px rgba(0,0,0,.3)'}}>
+            <span style={{width:22,height:22,display:'inline-flex',color:'var(--win-muted)'}}><FsIco.Dedo/></span>Desliza para explorar
+          </div>
+        )}
+
+        {/* Tarjeta de la persona seleccionada */}
+        {sheet && selNodo && (
+          <div data-nopan style={{position:'absolute',left:0,right:0,bottom:0,height:FS_SHEET,boxSizing:'border-box',background:'var(--win-surface)',borderTopLeftRadius:22,borderTopRightRadius:22,border:'1px solid var(--win-border)',borderBottom:'none',padding:'8px 16px calc(14px + env(safe-area-inset-bottom))',boxShadow:'0 -10px 30px rgba(0,0,0,.35)',zIndex:6,touchAction:'none'}}>
+            <div style={{width:44,height:5,borderRadius:3,background:'var(--win-border2)',margin:'0 auto 8px'}}/>
+            <button onClick={() => setSheet(false)} aria-label="Cerrar la tarjeta" style={{position:'absolute',top:10,right:10,width:44,height:44,border:'none',background:'transparent',color:'var(--win-title)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{width:20,height:20,display:'inline-flex'}}><FsIco.Cerrar/></span></button>
+            <div style={{display:'flex',alignItems:'center',gap:14,paddingRight:44}}>
+              <div style={{position:'relative',width:68,height:68,borderRadius:'50%',background:rs.bg,border:`2px solid ${rs.color}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxSizing:'border-box'}}>
+                {RANGO_IMG[rs.id] ? <img src={RANGO_IMG[rs.id]} alt={rs.label} style={{width:60,height:60,objectFit:'contain'}}/> : <span style={{fontSize:18,fontWeight:700,color:rs.color}}>{getInitials(selNodo.nombre)}</span>}
+              </div>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:16,fontWeight:800,color:'var(--win-title)',lineHeight:1.2,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',wordBreak:'normal',overflowWrap:'normal'}}>{selNodo.nombre}</div>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginTop:5,flexWrap:'wrap'}}>
+                  <span style={{padding:'2px 11px',borderRadius:20,background:rs.bg,color:rs.color,fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>{rs.label}</span>
+                  <span style={{fontSize:12.5,color:'var(--win-muted)'}}>EIN {selNodo.ein}</span>
+                </div>
+                <div style={{fontSize:11.5,color:'var(--win-muted)',marginTop:4}}>{cs.directos} directo{cs.directos === 1 ? '' : 's'} · {cs.equipo} en su equipo</div>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10,marginTop:12}}>
+              <button onClick={() => setFicha(selNodo.ein)} style={{...btn,flex:1,minHeight:48}}><span style={{width:16,height:16,display:'inline-flex'}}><Icons.File/></span>Ver ficha</button>
+              <button onClick={() => explorar(selNodo.ein)} disabled={!cs.directos || selNodo.ein === raizEin} style={{...btn,flex:1.25,minHeight:48,background:'var(--win-accent)',borderColor:'var(--win-accent)',color:'#fff',opacity:(!cs.directos || selNodo.ein === raizEin) ? 0.45 : 1,cursor:(!cs.directos || selNodo.ein === raizEin) ? 'not-allowed' : 'pointer'}}><span style={{width:17,height:17,display:'inline-flex'}}><Icons.Network/></span>Explorar equipo</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <ArbolDetalle nodo={ficha ? nodoPorEin.get(ficha) : null} afiliados={afiliados} periodos={periodos} onClose={() => setFicha(null)} onPlanAccion={onPlanAccion}/>
+    </div>
+  )
+  return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
+}
+
 function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPlanAccion }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
@@ -504,6 +1011,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
   const [drop, setDrop] = useState(false)
   const [tooltip, setTooltip] = useState(null)
   const [descargando, setDescargando] = useState(false)
+  const [pantallaCompleta, setPantallaCompleta] = useState(false)
   const descargarArbol = async (raiz, pasaFiltro, extra) => {
     setDescargando(true)
     try {
@@ -605,6 +1113,16 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
 
   return (
     <div>
+      {isMobile && (
+        <button onClick={() => setPantallaCompleta(true)} style={{width:'100%',minHeight:52,marginBottom:14,borderRadius:14,border:'1px solid var(--win-accent)',background:'var(--win-accent)',color:'#fff',fontSize:15,fontWeight:800,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:10,boxShadow:'0 6px 18px rgba(37,99,235,.35)'}}>
+          <span style={{width:20,height:20,display:'inline-flex'}}><FsIco.Ajustar/></span>
+          Ver el árbol en pantalla completa
+        </button>
+      )}
+      {pantallaCompleta && (
+        <GenealogiaPantallaCompleta tree={tree} afiliados={afiliados} periodos={periodos} onPlanAccion={onPlanAccion}
+          pasaFiltro={pasaFiltro} raizInicial={raiz} onClose={() => setPantallaCompleta(false)}/>
+      )}
       <div style={{...S.card,marginBottom:14}}>
         <div style={{...S.cardBody,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
           <div style={{position:'relative',flex:1,minWidth:240,maxWidth:420}}>
