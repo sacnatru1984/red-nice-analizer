@@ -282,10 +282,10 @@
         radial-gradient(70% 50% at 50% 42%, rgba(56,140,240,.28), transparent 70%),
         linear-gradient(180deg, #0B1E3D 0%, #0A1730 100%);
     }
-    .rn-splash__icon {
+    .rn-splash__img {
       position: relative; z-index: 1; display: block;
-      width: min(300px, 62vw); height: auto;
-      filter: drop-shadow(0 24px 50px rgba(0,0,0,.45)) drop-shadow(0 0 40px rgba(56,150,245,.25));
+      width: min(92vw, 58vh, 520px); height: auto; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 28px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5), 0 0 50px rgba(56,150,245,.28);
       animation: rnIconIn .6s cubic-bezier(.2,.8,.2,1) both;
     }
     @keyframes rnIconIn { from { opacity: 0; transform: scale(.92) translateY(8px); } to { opacity: 1; transform: none; } }
@@ -306,7 +306,7 @@
     .rn-splash__btn-txt { display: flex; flex-direction: column; align-items: flex-start; font-size: 20px; font-weight: 600; line-height: 1.15; }
     .rn-splash__btn-txt small { font-size: 12.5px; font-weight: 400; color: #6B7286; letter-spacing: .02em; }
     @keyframes rnSplashIn { from { opacity: 0; } to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { .rn-splash, .rn-splash__icon { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .rn-splash, .rn-splash__img { animation: none; } }
     @media (max-width: 720px) {
       .rn-splash { gap: 44px; }
       .rn-splash__btn { min-width: 0; width: calc(100% - 64px); max-width: 320px; font-size: 17px; }

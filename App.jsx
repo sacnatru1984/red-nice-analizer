@@ -3227,7 +3227,7 @@ function App() {
       {splash&&(
         <div className="rn-splash" role="dialog" aria-label="Bienvenida Red NICE Analizer">
           <div className="rn-splash__bg"/>
-          <img className="rn-splash__icon" src="./assets/icono-app.png" alt="Red NICE Analizer"/>
+          <img className="rn-splash__img" src="./assets/splash-entrada.jpg" alt="Red NICE Analizer"/>
           <button className="rn-splash__btn" onClick={()=>setSplash(false)} autoFocus>
             <span className="rn-splash__btn-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'100%',height:'100%'}}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
             <span className="rn-splash__btn-txt">Acceder<small>Red NICE Analizer</small></span>
