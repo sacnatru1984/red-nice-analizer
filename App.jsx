@@ -1577,9 +1577,11 @@ function ChequeModal({ afiliados, onClose }) {
   if (rVenta && rVenta.id !== 'SIN' && rVenta.id !== r.id) medallas.push({ r: rVenta, tipo: 'Rango de venta' })
   const tramoTxt = c.propios >= 2000 ? '5/4/4%' : c.propios >= 1500 ? '3%' : c.propios >= 1000 ? '2%' : c.propios >= 500 ? '1%' : '0%'
   const personasPagan = c.dd.personas + c.niveles.reduce((s2, n) => s2 + n.personas, 0)
+  // El cheque se gana por DOS vías: Reembolsos por Diferencial (DD) y Descuentos por Red (DR, "residuales")
+  const ganaDD = c.dd.mxn > 0, ganaDR = c.drMXN > 0
   const filas = [
-    { k: 'DD', t: 'Diferencial (DD)', d: 'Tu grupo que aún no es Oro', personas: c.dd.personas, puntos: c.dd.puntos, pct: c.dd.personas ? [...new Set(c.dd.detalle.map(x => Math.round(x.pct * 100)))].join('/') + '%' : '—', mxn: c.dd.mxn },
-    ...c.niveles.map(n => ({ k: 'N' + n.nivel, t: 'Nivel ' + n.nivel, d: n.nivel === 1 ? 'Primer Oro de cada línea + su grupo' : 'Siguiente Oro + su grupo', personas: n.personas, puntos: n.puntos, pct: (n.pct * 100).toFixed(0) + '%', mxn: n.mxn })),
+    { k: 'DD', t: 'Reembolsos por Diferencial (DD)', d: 'Tu grupo que aún no es Oro', personas: c.dd.personas, puntos: c.dd.puntos, pct: c.dd.personas ? [...new Set(c.dd.detalle.map(x => Math.round(x.pct * 100)))].join('/') + '%' : '—', mxn: c.dd.mxn },
+    ...c.niveles.map(n => ({ k: 'N' + n.nivel, t: 'Descuentos por Red · Nivel ' + n.nivel, d: n.nivel === 1 ? 'Primer Oro de cada línea + su grupo' : 'Siguiente Oro + su grupo', personas: n.personas, puntos: n.puntos, pct: (n.pct * 100).toFixed(0) + '%', mxn: n.mxn })),
   ]
   const nodo = (
     <div className="rn-chq-overlay" onClick={onClose}>
@@ -1620,7 +1622,13 @@ function ChequeModal({ afiliados, onClose }) {
                   return (
                     <div key={a.ein} className="rn-chq__opt" onClick={() => elegir(a)}>
                       <span className="rn-chq__opt-img">{RANGO_IMG[ar.id] ? <img src={RANGO_IMG[ar.id]} alt=""/> : getInitials(a.nombre)}</span>
-                      <span style={{ minWidth: 0 }}><b>{a.nombre}</b><small>EIN {a.ein} · {ar.label}</small></span>
+                      <span style={{ minWidth: 0, flex: 1 }}><b>{a.nombre}</b><small>EIN {a.ein} · {ar.label}</small></span>
+                      {(() => { const ca = calcularChequeNICE(a, afiliados); return (
+                        <span className="rn-via-chips">
+                          <span className={'rn-via' + (ca.dd.mxn > 0 ? ' on' : '')} title="Reembolsos por Diferencial de Descuento">DD</span>
+                          <span className={'rn-via' + (ca.drMXN > 0 ? ' on' : '')} title="Descuentos por Red (residuales)">DR</span>
+                        </span>
+                      ) })()}
                     </div>
                   )
                 })}
@@ -1632,7 +1640,7 @@ function ChequeModal({ afiliados, onClose }) {
             <div className="rn-sumcard">
               <div className="rn-sumcard__t">Puntos del mes</div>
               <NiceRing value={c.propios} max={2000} unidad={isMobile ? '' : 'pts'} size={isMobile ? 84 : 92}/>
-              <div className="rn-sumcard__l">Descuento por Red</div>
+              <div className="rn-sumcard__l">% de Descuento por Red</div>
               <span className="rn-pill">{tramoTxt}</span>
             </div>
             <div className="rn-sumcard rn-chq__total">
@@ -1654,9 +1662,31 @@ function ChequeModal({ afiliados, onClose }) {
         <div className="rn-chq__body">
           {!c.califica && (
             <div className="rn-chq__alert">
-              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+: los Niveles 1-3 no aplican. Solo se calcula el Diferencial de su grupo.
+              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+: los <b>Descuentos por Red (residuales)</b> empiezan al llegar a Oro. Por ahora solo gana por <b>Reembolsos por Diferencial</b> de su grupo.
             </div>
           )}
+
+          {/* ¿Por cuál vía se gana el cheque? */}
+          <div className="rn-chq__sec" style={{ marginTop: 0 }}>{esUnoMismo ? 'Tu cheque se gana por' : `El cheque de ${nombreCorto} se gana por`} <span>dos vías que se suman</span></div>
+          <div className="rn-vias">
+            <div className={'rn-via-card' + (ganaDD ? ' on' : '')}>
+              <div className="rn-via-card__top"><span className="rn-via-card__ico">{ganaDD ? '✓' : '—'}</span><b>Reembolsos por Diferencial de Descuento</b><em>DD</em></div>
+              <div className="rn-via-card__amt">{fmtMXN(c.dd.mxn)}</div>
+              <div className="rn-via-card__d">{ganaDD ? `${c.dd.personas} persona${c.dd.personas !== 1 ? 's' : ''} de tu grupo que aún no es Oro` : 'Sin compras de grupo no-Oro este mes'}</div>
+            </div>
+            <div className="rn-via-plus">+</div>
+            <div className={'rn-via-card' + (ganaDR ? ' on' : '')}>
+              <div className="rn-via-card__top"><span className="rn-via-card__ico">{ganaDR ? '✓' : '—'}</span><b>Descuentos por Red</b><em>DR · residuales</em></div>
+              <div className="rn-via-card__amt">{fmtMXN(c.drMXN)}</div>
+              <div className="rn-via-card__d">{ganaDR ? `Niveles Oro 1-3 · ${c.niveles.reduce((s2, n) => s2 + n.personas, 0)} personas` : (c.califica ? 'Sin compras en niveles Oro este mes' : 'Empieza al llegar a Oro')}</div>
+            </div>
+            <div className="rn-via-plus">=</div>
+            <div className="rn-via-card rn-via-card--tot on">
+              <div className="rn-via-card__top"><b>Cheque estimado</b></div>
+              <div className="rn-via-card__amt">{fmtMXN(c.totalBrutoMXN)}</div>
+              <div className="rn-via-card__d">{ganaDD && ganaDR ? 'Gana por ambas vías' : ganaDD ? 'Gana solo por Diferencial' : ganaDR ? 'Gana solo por Descuentos por Red' : 'Sin cheque este mes'}</div>
+            </div>
+          </div>
 
           {/* Meta de puntos */}
           <div className="rn-chq__card">
@@ -1692,7 +1722,7 @@ function ChequeModal({ afiliados, onClose }) {
           </div>
 
           <div className="rn-chq__how">
-            <strong>Cómo se calcula</strong> (igual que el estado de cuenta de NICE): <b>Diferencial (DD)</b> = compras de {esUnoMismo ? 'tu' : 'su'} grupo no-Oro × la diferencia de descuento (ej. Oro 45% − Plata 40% = 5%). <b>Niveles 1-3</b> = el primer Oro de cada línea + todo su grupo no-Oro (Nivel 1), el siguiente Oro + su grupo (Nivel 2), y así; se suman los puntos de cada persona × $12.06 × el % del nivel, que depende de {esUnoMismo ? 'tus' : 'sus'} PP+PG (2,000+ → 5/4/4%, 1,500 → 3%, 1,000 → 2%, 500 → 1%). No incluye reconocimientos fijos (ej. $250) ni pedidos de kits/paquetes, así que puede variar ±5%. No es el pago oficial — es una estimación para planear.
+            <strong>Cómo se calcula</strong> (igual que el estado de cuenta de NICE): <b>Reembolsos por Diferencial (DD)</b> = compras de {esUnoMismo ? 'tu' : 'su'} grupo no-Oro × la diferencia de descuento (ej. Oro 45% − Plata 40% = 5%). <b>Descuentos por Red (DR, "residuales") = Niveles 1-3</b>: el primer Oro de cada línea + todo su grupo no-Oro (Nivel 1), el siguiente Oro + su grupo (Nivel 2), y así; se suman los puntos de cada persona × $12.06 × el % del nivel, que depende de {esUnoMismo ? 'tus' : 'sus'} PP+PG (2,000+ → 5/4/4%, 1,500 → 3%, 1,000 → 2%, 500 → 1%). No incluye reconocimientos fijos (ej. $250) ni pedidos de kits/paquetes, así que puede variar ±5%. No es el pago oficial — es una estimación para planear.
           </div>
         </div>
       </div>
@@ -1785,7 +1815,7 @@ function PanelMiRed({ afiliados, tc }) {
               <div className="rn-sumcard">
                 <div className="rn-sumcard__t">Puntos del mes</div>
                 <NiceRing value={propios} max={2000} unidad="pts"/>
-                <div className="rn-sumcard__l">Descuento por Red</div>
+                <div className="rn-sumcard__l">% de Descuento por Red</div>
                 <span className="rn-pill">{propios >= 2000 ? '5/4/4%' : propios >= 1500 ? '3%' : propios >= 1000 ? '2%' : propios >= 500 ? '1%' : '0%'}</span>
               </div>
               <div className="rn-sumcard">
@@ -1799,6 +1829,10 @@ function PanelMiRed({ afiliados, tc }) {
                 <div className="rn-sumcard__star"><span><Icons.Star/></span><b>{cheque.dd.personas + cheque.niveles.reduce((s2, n) => s2 + n.personas, 0)}</b><small>personas</small></div>
                 <div className="rn-sumcard__l">Monto estimado</div>
                 <span className="rn-pill">{cheque.totalBrutoMXN.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })}</span>
+                <span className="rn-via-chips" style={{ marginTop: 6 }}>
+                  <span className={'rn-via' + (cheque.dd.mxn > 0 ? ' on' : '')} title="Reembolsos por Diferencial de Descuento">DD {cheque.dd.mxn.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })}</span>
+                  <span className={'rn-via' + (cheque.drMXN > 0 ? ' on' : '')} title="Descuentos por Red (residuales)">DR {cheque.drMXN.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })}</span>
+                </span>
               </button>
             </div>
           </div>
