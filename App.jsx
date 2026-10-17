@@ -1661,8 +1661,8 @@ function ChequeModal({ afiliados, onClose }) {
 
         <div className="rn-chq__body">
           {!c.califica && (
-            <div className="rn-chq__alert">
-              {esUnoMismo ? 'Tu rango actual' : `El rango actual de ${nombreCorto}`} ({r.label}) todavía no es Oro+: los <b>Descuentos por Red (residuales)</b> empiezan al llegar a Oro. Por ahora solo gana por <b>Reembolsos por Diferencial</b> de su grupo.
+            <div className="rn-chq__alert" style={{ background: 'var(--nice-tile)', color: 'var(--win-text)', fontWeight: 500 }}>
+              Con cualquier rango se cobra por <b>Reembolsos por Diferencial</b>: la diferencia entre {esUnoMismo ? 'tu' : 'su'} descuento ({r.label} {Math.round(descuentoPct(getRango(self.rango).id) * 100)}%) y el de quienes compran en {esUnoMismo ? 'tu' : 'su'} grupo. Los <b>Descuentos por Red (residuales)</b> se activan al llegar a Oro.
             </div>
           )}
 
@@ -1672,7 +1672,7 @@ function ChequeModal({ afiliados, onClose }) {
             <div className={'rn-via-card' + (ganaDD ? ' on' : '')}>
               <div className="rn-via-card__top"><span className="rn-via-card__ico">{ganaDD ? '✓' : '—'}</span><b>Reembolsos por Diferencial de Descuento</b><em>DD</em></div>
               <div className="rn-via-card__amt">{fmtMXN(c.dd.mxn)}</div>
-              <div className="rn-via-card__d">{ganaDD ? `${c.dd.personas} persona${c.dd.personas !== 1 ? 's' : ''} de tu grupo que aún no es Oro` : 'Sin compras de grupo no-Oro este mes'}</div>
+              <div className="rn-via-card__d">{ganaDD ? `${c.dd.personas} persona${c.dd.personas !== 1 ? 's' : ''} con descuento menor al ${esUnoMismo ? 'tuyo' : 'suyo'} (${Math.round(descuentoPct(getRango(self.rango).id) * 100)}%)` : `Sin diferencial este mes: nadie del grupo compró con un descuento menor al ${esUnoMismo ? 'tuyo' : 'suyo'}`}</div>
             </div>
             <div className="rn-via-plus">+</div>
             <div className={'rn-via-card' + (ganaDR ? ' on' : '')}>
