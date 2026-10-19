@@ -82,9 +82,15 @@ function getSiguienteRango(rangoId) {
   return RANGOS.find(r => r.id === ORDEN_DESC[idx + 1])
 }
 
+// Frontales Oro que CUENTAN para los rangos de equipo (Ejecutivo → Doble Diamante):
+// según el plan NICE son los que generan $200 USD en Descuento por Red (mismo cálculo
+// que "Líneas de Oro"). Ver computeFrontalesOro. Si el afiliado aún no trae ese cálculo
+// (frontalesOro200 sin definir), se usa el conteo de Oro activos como respaldo.
+function frontalesQueCuentan(a) { return a.frontalesOro200 != null ? a.frontalesOro200 : (a.frontalesOro || 0) }
+
 // ¿El afiliado ya cumple por completo un rango de equipo?
 function cumpleRangoEquipo(afiliado, rango) {
-  const tieneF = afiliado.frontalesOro || 0
+  const tieneF = frontalesQueCuentan(afiliado)
   if ((rango.frontalesOro || 0) > tieneF) return false
   if (['DIAMANTE', 'DIAMANTE_MASTER', 'DOBLE_DIAMANTE'].includes(rango.id)) {
     if (((afiliado.pp || 0) + (afiliado.pg || 0)) < 2000) return false
@@ -136,7 +142,7 @@ function getProgresoPct(afiliado, siguiente) {
   if (siguiente.id === 'ORO') return Math.min(100, Math.round((combinado / 3000) * 100))
   if (siguiente.tipo === 'personal') return Math.min(100, Math.round((pp / siguiente.ppReq) * 100))
   if (siguiente.tipo === 'equipo') {
-    const frontalesActivos = afiliado.frontalesOro || 0
+    const frontalesActivos = frontalesQueCuentan(afiliado)
     return Math.min(100, Math.round((frontalesActivos / siguiente.frontalesOro) * 100))
   }
   return 0
@@ -330,9 +336,16 @@ function computeFrontalesOro(afiliados, tc, volBase, umbral) {
   enrichDescRed(afiliados, volBase)
   const childrenOf = {}
   afiliados.forEach(a => { if (a.einPresentador) { (childrenOf[a.einPresentador] = childrenOf[a.einPresentador] || []).push(a) } })
+  // ¿Este Oro+ genera los $200 USD de Descuento por Red? (se calcula una vez por persona)
+  const cumple200 = {}
+  const genera200 = (k) => {
+    if (cumple200[k.ein] === undefined) cumple200[k.ein] = esOroPlus(k) && calcularReembolsoNivelOro(k, afiliados, tc, umbral).cumple200
+    return cumple200[k.ein]
+  }
   afiliados.forEach(a => {
     const kids = childrenOf[a.ein] || []
-    a.frontalesOro = kids.filter(k => frontalOroCalifica(k)).length
+    a.frontalesOro = kids.filter(k => frontalOroCalifica(k)).length     // Oro+ con movimiento este mes
+    a.frontalesOro200 = kids.filter(k => genera200(k)).length           // los que cuentan para el rango
   })
   return afiliados
 }
@@ -419,10 +432,15 @@ function getPlanAccion(afiliado, siguiente, afiliados, tc, umbral) {
     ]
   }
 
-  // Rangos por esfuerzo con equipo (Oro Ejecutivo → Doble Diamante): frontales Oro activos
+  // Rangos por esfuerzo con equipo (Oro Ejecutivo → Doble Diamante): frontales Oro que
+  // generan $200 USD de Descuento por Red (plan de carrera NICE)
   if (siguiente.tipo === 'equipo') {
     const { orosActivos, orosInactivos, candidatos } = analizarFrontales(afiliado, afiliados, tc, umbral)
-    const tiene = orosActivos.length
+    const todasLineas = calcularLineasOro(afiliado, afiliados, tc, umbral).lineas   // de mayor a menor USD
+    const cuentan = todasLineas.filter(l => l.cumple200)
+    const cercanas = todasLineas.filter(l => !l.cumple200 && frontalOroCalifica(l.frontal))
+    const corto = (a) => a.nombre.split(' ').slice(0, 2).join(' ')
+    const tiene = cuentan.length
     const req = siguiente.frontalesOro
     const faltan = Math.max(0, req - tiene)
     const top = candidatos[0]
@@ -436,21 +454,30 @@ function getPlanAccion(afiliado, siguiente, afiliados, tc, umbral) {
       DIAMANTE_MASTER: '3% del 4° y 5° Nivel Oro',
       DOBLE_DIAMANTE: 'Cheque de $100,000 pesos',
     }[siguiente.id]
-    const detalleActivos = orosActivos.slice(0, 3).map(a => a.nombre.split(' ').slice(0, 2).join(' ')).join(', ') + (orosActivos.length > 3 ? ` y ${orosActivos.length - 3} más` : '')
+    const detalleActivos = cuentan.slice(0, 3).map(l => corto(l.frontal)).join(', ') + (cuentan.length > 3 ? ` y ${cuentan.length - 3} más` : '')
+    const aclaracion = orosActivos.length > tiene ? ` (${orosActivos.length} son Oro con movimiento, pero solo ${tiene} ${tiene === 1 ? 'genera' : 'generan'} los $200 USD que pide el plan.)` : ''
     const pasos = [{
       num: 1, color: '#DC2626',
-      title: faltan > 0 ? `Objetivo: ${faltan} frontal${faltan > 1 ? 'es' : ''} Oro más · vas ${tiene}/${req}` : `Mantén tus ${req} frontal${req > 1 ? 'es' : ''} Oro activos · ${tiene}/${req}`,
+      title: faltan > 0 ? `Objetivo: ${faltan} frontal${faltan > 1 ? 'es' : ''} Oro más con $200 USD · vas ${tiene}/${req}` : `Mantén tus ${req} frontal${req > 1 ? 'es' : ''} Oro con $200 USD · ${tiene}/${req}`,
       desc: faltan > 0
-        ? (top
-          ? `Tu mejor candidato es ${top.a.nombre} (${getRango(top.a.rango).label}, ${top.pts.toLocaleString()} pts) — le faltan ${top.falta.toLocaleString()} pts para ser Oro y contar como tu frontal.`
-          : `Necesitas ${req} frontal${req > 1 ? 'es' : ''} Oro activo${req > 1 ? 's' : ''} en tu gen.1. Invita y activa nuevas líneas directas.`)
-        : `${detalleActivos} ${orosActivos.length > 1 ? 'ya son Oro activos' : 'ya es Oro activo'}. Recompensa al llegar a ${siguiente.label}: ${recompensa}.`
+        ? (cercanas[0]
+          ? (cercanas[0].usd < 1 ? `${corto(cercanas[0].frontal)} es Oro pero aún no genera Descuento por Red (USD $0 de $200). Es tu línea con más posibilidades de empezar.${aclaracion}` : `${corto(cercanas[0].frontal)} es Oro y genera USD $${cercanas[0].usd.toFixed(0)} de $200 — es tu línea más cercana a contar como frontal.${aclaracion}`)
+          : (top
+            ? `Tu mejor candidato es ${top.a.nombre} (${getRango(top.a.rango).label}, ${top.pts.toLocaleString()} pts) — le faltan ${top.falta.toLocaleString()} pts para ser Oro y contar como tu frontal.${aclaracion}`
+            : `Necesitas ${req} frontal${req > 1 ? 'es' : ''} Oro que generen $200 USD en tu gen.1. Invita y activa nuevas líneas directas.${aclaracion}`))
+        : `${detalleActivos} ${cuentan.length > 1 ? 'ya generan' : 'ya genera'} los $200 USD. Recompensa al llegar a ${siguiente.label}: ${recompensa}.`
     }]
     if (orosInactivos.length > 0) {
       pasos.push({
         num: 2, color: '#EA580C',
         title: `Reactiva ${orosInactivos.length} frontal${orosInactivos.length > 1 ? 'es' : ''} Oro sin movimiento`,
         desc: `${orosInactivos.slice(0, 2).map(a => a.nombre.split(' ').slice(0, 2).join(' ')).join(', ')}${orosInactivos.length > 2 ? ` y ${orosInactivos.length - 2} más` : ''} ${orosInactivos.length > 1 ? 'son Oro' : 'es Oro'} pero no ${orosInactivos.length > 1 ? 'registran' : 'registra'} PP/PG este mes, así que no ${orosInactivos.length > 1 ? 'cuentan' : 'cuenta'} como frontal Oro.`
+      })
+    } else if (faltan > 0 && cercanas[1]) {
+      pasos.push({
+        num: 2, color: '#EA580C',
+        title: `Tu 2ª línea más cercana: ${corto(cercanas[1].frontal)}`,
+        desc: `${cercanas[1].usd < 1 ? 'Aún no genera Descuento por Red (USD $0 de $200).' : `Genera USD $${cercanas[1].usd.toFixed(0)} de $200.`} Trabaja 2 líneas en paralelo para no depender de una sola.`
       })
     } else if (faltan > 0 && segundo) {
       pasos.push({
@@ -1694,7 +1721,7 @@ function ChequeModal({ afiliados, onClose }) {
               <span className="rn-chq__tile"><Icons.Target/></span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="rn-chq__card-t">{esUnoMismo ? 'Mi meta de puntos' : `Meta de puntos de ${nombreCorto}`}</div>
-                <div className="rn-chq__card-d">Mueve la meta y mira cómo cambia el cheque · lleva{esUnoMismo ? 's' : ''} {propiosReales.toLocaleString()} pts</div>
+                <div className="rn-chq__card-d">Mueve la meta y mira cómo cambia el cheque · lleva{esUnoMismo ? 's' : ''} {propiosReales.toLocaleString()} pts ({(self.pp || 0).toLocaleString()} PP + {(self.pg || 0).toLocaleString()} PG)</div>
               </div>
               <input className="rn-chq__num" type="number" min={0} value={meta} onChange={e => setMeta(Math.max(0, Number(e.target.value) || 0))}/>
               {esSimulado && <button className="rn-chq__reset" onClick={() => setMeta(propiosReales)}>Restablecer</button>}
@@ -1735,6 +1762,7 @@ function PanelMiRed({ afiliados, tc }) {
   const isMobile = useIsMobile()
   const [showDB, setShowDB] = useState(false)
   const [showCheque, setShowCheque] = useState(false)
+  const [verPuntos, setVerPuntos] = useState(false)
   const total = afiliados.length
   const activos = afiliados.filter(a => (a.pp||0)+(a.pg||0)>0).length
   const totalPP = afiliados.reduce((s,a) => s+(a.pp||0), 0)
@@ -1774,7 +1802,7 @@ function PanelMiRed({ afiliados, tc }) {
       {self && (() => {
         const propios = (self.pp || 0) + (self.pg || 0)
         const sig = getSiguienteRangoObjetivo(self)
-        const metaFrontales = sig && sig.tipo === 'equipo' ? sig.frontalesOro : Math.max(1, self.frontalesOro || 0)
+        const metaFrontales = sig && sig.tipo === 'equipo' ? sig.frontalesOro : Math.max(1, frontalesQueCuentan(self))
         const cheque = calcularChequeNICE(self, afiliados)
         const hoyMes = new Date()
         const mes = MESES_ES[hoyMes.getMonth()] + ' ' + hoyMes.getFullYear()
@@ -1817,11 +1845,12 @@ function PanelMiRed({ afiliados, tc }) {
                 <NiceRing value={propios} max={2000} unidad="pts"/>
                 <div className="rn-sumcard__l">% de Descuento por Red</div>
                 <span className="rn-pill">{propios >= 2000 ? '5/4/4%' : propios >= 1500 ? '3%' : propios >= 1000 ? '2%' : propios >= 500 ? '1%' : '0%'}</span>
+                <span className="rn-info-link" onClick={() => setVerPuntos(v => !v)}>{verPuntos ? '▾ ocultar' : 'ⓘ ¿qué cuenta?'}</span>
               </div>
               <div className="rn-sumcard">
-                <div className="rn-sumcard__t">Frontales Oro</div>
-                <NiceRing value={self.frontalesOro || 0} max={metaFrontales} unidad="Oro"/>
-                <div className="rn-sumcard__l">Meta</div>
+                <div className="rn-sumcard__t">Frontales Oro con $200 USD</div>
+                <NiceRing value={frontalesQueCuentan(self)} max={metaFrontales} unidad="Oro"/>
+                <div className="rn-sumcard__l">{(self.frontalesOro || 0) > frontalesQueCuentan(self) ? `${self.frontalesOro} Oro con movimiento · Meta` : 'Meta'}</div>
                 <span className="rn-pill rn-pill--indigo">{sig && sig.tipo === 'equipo' ? sig.label : rSelf.label}</span>
               </div>
               <button className="rn-sumcard rn-sumcard--btn" onClick={() => setShowCheque(true)}>
@@ -1839,6 +1868,18 @@ function PanelMiRed({ afiliados, tc }) {
         )
       })()}
 
+      {verPuntos && self && (
+        <div className="rn-puntos-info">
+          <b>¿Qué cuenta en mis puntos del mes?</b>
+          <div className="rn-puntos-info__eq"><span><b>{(self.pp || 0).toLocaleString()}</b> PP</span> + <span><b>{(self.pg || 0).toLocaleString()}</b> PG</span> = <span className="tot"><b>{((self.pp || 0) + (self.pg || 0)).toLocaleString()}</b> puntos</span></div>
+          <ul>
+            <li><b>PP</b> son tus compras personales del mes.</li>
+            <li><b>PG</b> son las compras de tu grupo que todavía no es Oro (la línea entre 25% y 40% de descuento).</li>
+            <li>Con 2,000 puntos ganas el mejor % de Descuento por Red (5/4/4%).</li>
+          </ul>
+          <div className="rn-puntos-info__red">Tu <b>red completa</b> suma <b>{totalPP.toLocaleString()} PP</b>, pero esos puntos no cuentan para esta meta: cada Oro de tu red cobra por los suyos.</div>
+        </div>
+      )}
       <div className="rn-actions-list">
         <NiceAction icon={Icons.Calc} sub="Calculadora de cheque" titulo="Simula el cheque de este mes" onClick={() => setShowCheque(true)}/>
         <NiceAction icon={Icons.Grid} sub="Toda tu red" titulo="Base de datos de afiliados" onClick={() => setShowDB(true)}/>

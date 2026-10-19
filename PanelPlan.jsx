@@ -1,8 +1,8 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
-let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro
+let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro, frontalesQueCuentan
 
 function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
-  ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro } = window)
+  ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro, frontalesQueCuentan } = window)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
@@ -74,7 +74,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   const getReqText = () => {
     if (!sig) return ''
     if (sig.tipo === 'personal') return sel.pp + ' de ' + sig.ppReq.toLocaleString() + ' PP × 3 meses consecutivos'
-    if (sig.tipo === 'equipo') return (sel.frontalesOro || 0) + ' de ' + sig.frontalesOro + ' frontales Oro activos'
+    if (sig.tipo === 'equipo') return frontalesQueCuentan(sel) + ' de ' + sig.frontalesOro + ' frontales Oro con $200 USD'
     const req = sig.id === 'COBRE' ? 700 : sig.id === 'BRONCE' ? 1000 : sig.id === 'PLATA' ? 2000 : 3000
     return (sel.pp + sel.pg).toLocaleString() + ' de ' + req.toLocaleString() + ' PP/PG combinados'
   }
@@ -92,9 +92,9 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
     }
     if (sig.tipo === 'personal') checks.push({ ok: sel.pp >= sig.ppReq, txt: 'Alcanzar ' + sig.ppReq.toLocaleString() + ' PP × 3 meses consecutivos', sub: 'Este mes: ' + sel.pp + ' PP de ' + sig.ppReq.toLocaleString() + ' requeridos' })
     if (sig.tipo === 'equipo') {
-      const tieneF = sel.frontalesOro || 0
+      const tieneF = frontalesQueCuentan(sel)
       const faltanF = Math.max(0, sig.frontalesOro - tieneF)
-      checks.push({ ok: tieneF >= sig.frontalesOro, txt: sig.frontalesOro + ' frontal' + (sig.frontalesOro > 1 ? 'es' : '') + ' Oro activo' + (sig.frontalesOro > 1 ? 's' : '') + ' en tu gen.1', sub: 'Tienes ' + tieneF + ' de ' + sig.frontalesOro + ' frontal' + (sig.frontalesOro > 1 ? 'es' : '') + ' Oro (rango Oro+ y con movimiento este mes)' + (faltanF > 0 ? ' · te ' + (faltanF > 1 ? 'faltan ' : 'falta ') + faltanF : ' · completo') })
+      checks.push({ ok: tieneF >= sig.frontalesOro, txt: sig.frontalesOro + ' frontal' + (sig.frontalesOro > 1 ? 'es' : '') + ' Oro con $200 USD' + ' en tu gen.1', sub: 'Tienes ' + tieneF + ' de ' + sig.frontalesOro + ' frontal' + (sig.frontalesOro > 1 ? 'es' : '') + ' Oro que generan $200 USD de Descuento por Red' + ((sel.frontalesOro || 0) > tieneF ? ' · hay ' + sel.frontalesOro + ' Oro con movimiento, pero solo ' + tieneF + ' llegan a $200' : '') + (faltanF > 0 ? ' · te ' + (faltanF > 1 ? 'faltan ' : 'falta ') + faltanF : ' · completo') })
     }
     return checks
   }
@@ -214,7 +214,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                       <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--win-accent-l)', border: '1px solid var(--win-accent)40', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                         <span style={{ fontSize: 15, lineHeight: 1 }}>🚀</span>
                         <div style={{ fontSize: 12, color: 'var(--win-title)', lineHeight: 1.5 }}>
-                          <b>Potencial: {potencial.label}.</b> Con {pos.suyos} frontales Oro activos, {esUnoMismo ? 'ya cumples' : `${nombreCorto} ya cumple`} los requisitos de equipo para llegar hasta ahí — en cuanto NICE actualice {pos.suyo} rango oficial paso a paso, ese sería {esUnoMismo ? 'tu' : 'su'} siguiente nivel real.
+                          <b>Potencial: {potencial.label}.</b> Con {pos.suyos} {frontalesQueCuentan(sel)} frontal{frontalesQueCuentan(sel) === 1 ? '' : 'es'} Oro que genera{frontalesQueCuentan(sel) === 1 ? '' : 'n'} $200 USD, {esUnoMismo ? 'ya cumples' : `${nombreCorto} ya cumple`} los requisitos de equipo para llegar hasta ahí — en cuanto NICE actualice {pos.suyo} rango oficial paso a paso, ese sería {esUnoMismo ? 'tu' : 'su'} siguiente nivel real.
                         </div>
                       </div>
                     )}
