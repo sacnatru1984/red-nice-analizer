@@ -592,7 +592,7 @@ function FsTarjeta({ rec, seleccionada, esRaiz, onSel }) {
   )
 }
 
-function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, pasaFiltro, raizInicial, onClose }) {
+function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, pasaFiltro, filtroRangos, toggleFiltro, filtroActividad, toggleActividad, onRestaurar, raizInicial, onClose }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const principal = tree[0] || null
   const esMovil = useIsMobile()
@@ -996,6 +996,41 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
           )}
         </div>
 
+        {/* Filtro de rangos: columna a la izquierda, mismo estilo que los controles de la derecha */}
+        {filtroRangos && toggleFiltro && (() => {
+          const hayFiltro = filtroRangos.size < RANGOS_FILTRO_GEN.length || (filtroActividad && filtroActividad.size < 2)
+          const corto = { ORO_EJECUTIVO: 'Ejec.', ORO: 'Oro', PLATA: 'Plata', BRONCE: 'Bronce', COBRE: 'Cobre', EIN: 'Empr.' }
+          const tocar = (fn) => () => { setSinFiltro(false); fn() }
+          const fb = (on) => ({...flot, flexDirection:'column', gap:1, width:48, minHeight:50, padding:'4px 2px', flexShrink:0, border:on?'2px solid var(--win-accent)':'1px dashed var(--win-border)', opacity:on?1:0.45, filter:on?'none':'grayscale(1)'})
+          return (
+            <div data-nopan style={{position:'absolute',left:esMovil?4:8,bottom:esMovil?abajo + 6:64,display:'flex',flexDirection:'column',gap:6,zIndex:4,maxHeight:Math.max(120, altoVisible - (esMovil ? 150 : 130)),overflowY:'auto',scrollbarWidth:'none',padding:'6px 8px 6px 6px'}}>
+              {hayFiltro && onRestaurar && (
+                <button onClick={() => { setSinFiltro(false); onRestaurar() }} title="Mostrar todos los rangos y toda la actividad" aria-label="Mostrar todos" style={{...flot,minHeight:34,width:48,flexShrink:0,fontSize:10.5,padding:'0 2px'}}>Todos</button>
+              )}
+              {RANGOS_FILTRO_GEN.map(r => {
+                const on = filtroRangos.has(r.id)
+                return (
+                  <button key={r.id} onClick={tocar(() => toggleFiltro(r.id))} aria-pressed={on} aria-label={(on ? 'Ocultar ' : 'Mostrar ') + r.label} title={(on ? 'Ocultar ' : 'Mostrar ') + r.label} style={fb(on)}>
+                    {RANGO_IMG[r.id] ? <img src={RANGO_IMG[r.id]} alt="" style={{width:28,height:28,objectFit:'contain',pointerEvents:'none'}}/> : <span style={{width:28,height:28}}/>}
+                    <span style={{fontSize:8.5,fontWeight:700,lineHeight:1,color:'var(--win-title)'}}>{corto[r.id] || r.label}</span>
+                  </button>
+                )
+              })}
+              {filtroActividad && toggleActividad && [
+                { id:'activo', label:'Con pts', color:'#16A34A', relleno:true },
+                { id:'inactivo', label:'Sin pts', color:'#9CA3AF', relleno:false },
+              ].map(a => {
+                const on = filtroActividad.has(a.id)
+                return (
+                  <button key={a.id} onClick={tocar(() => toggleActividad(a.id))} aria-pressed={on} aria-label={(on ? 'Ocultar ' : 'Mostrar ') + (a.id === 'activo' ? 'afiliados con puntos' : 'afiliados sin puntos')} title={(on ? 'Ocultar ' : 'Mostrar ') + (a.id === 'activo' ? 'afiliados con puntos' : 'afiliados sin puntos')} style={{...fb(on), minHeight:44}}>
+                    <span style={{width:14,height:14,borderRadius:'50%',background:a.relleno?a.color:'transparent',border:'2px solid ' + a.color,display:'inline-block'}}/>
+                    <span style={{fontSize:8.5,fontWeight:700,lineHeight:1,color:'var(--win-title)'}}>{a.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })()}
         {/* Controles flotando sobre el árbol (celular: columna a la derecha; computadora: fila abajo a la izquierda) */}
         <div data-nopan style={esMovil
           ? {position:'absolute',right:10,bottom:abajo + 12,display:'flex',flexDirection:'column',gap:6,zIndex:4}
@@ -1112,6 +1147,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
   const toggleFiltro = (id) => setFiltroRangos(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   const [filtroActividad, setFiltroActividad] = useState(() => new Set(['activo', 'inactivo']))
   const toggleActividad = (id) => setFiltroActividad(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const restaurarFiltros = () => { setFiltroRangos(new Set(RANGOS_FILTRO_GEN.map(x => x.id))); setFiltroActividad(new Set(['activo', 'inactivo'])) }
   const esActivo = (n) => ((n.pp || 0) + (n.pg || 0)) > 0
   const pasaFiltro = (n) => filtroRangos.has(bucketRangoGen(getRango(n.rango).id)) && filtroActividad.has(esActivo(n) ? 'activo' : 'inactivo')
 
@@ -1202,7 +1238,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
       )}
       {pantallaCompleta && (
         <GenealogiaPantallaCompleta tree={tree} afiliados={afiliados} periodos={periodos} onPlanAccion={onPlanAccion}
-          pasaFiltro={pasaFiltro} raizInicial={raiz} onClose={() => setPantallaCompleta(false)}/>
+          pasaFiltro={pasaFiltro} filtroRangos={filtroRangos} toggleFiltro={toggleFiltro} filtroActividad={filtroActividad} toggleActividad={toggleActividad} onRestaurar={restaurarFiltros} raizInicial={raiz} onClose={() => setPantallaCompleta(false)}/>
       )}
       <div style={{...S.card,marginBottom:14}}>
         <div style={{...S.cardBody,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
