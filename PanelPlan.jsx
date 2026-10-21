@@ -3,6 +3,8 @@ let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEqu
 
 function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro, frontalesQueCuentan } = window)
+  // Respaldo: si el runtime aún no expone la función de App.jsx, se usa la misma regla aquí.
+  if (typeof frontalesQueCuentan !== 'function') frontalesQueCuentan = (a) => a.frontalesOro200 != null ? a.frontalesOro200 : (a.frontalesOro || 0)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)

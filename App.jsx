@@ -3511,4 +3511,5 @@ window.getSiguienteRangoVenta = getSiguienteRangoVenta
 window.esOroPlus = esOroPlus
 window.calcularReembolsoNivelOro = calcularReembolsoNivelOro
 window.calcularLineasOro = calcularLineasOro
+window.frontalesQueCuentan = frontalesQueCuentan
 window.App = App
