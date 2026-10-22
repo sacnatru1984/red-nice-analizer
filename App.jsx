@@ -1463,14 +1463,25 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto adicional, sin markdo
   "hashtags": ${incluyeHashtags ? '"lista de 6-10 hashtags relevantes separados por espacio, cada uno con #"' : '""'}
 }`
     try {
-      const raw = await window.claude.complete({ messages: [{ role: 'user', content: prompt }] })
-      let txt = (raw || '').trim()
+      const resp = await fetch('/api/generar-anuncio', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      })
+      const body = await resp.json().catch(() => ({}))
+      if (!resp.ok || body.error) throw new Error(body.error || `Error ${resp.status}`)
+      let txt = (body.texto || '').trim()
       const a = txt.indexOf('{'), b = txt.lastIndexOf('}')
       if (a >= 0 && b > a) txt = txt.slice(a, b + 1)
       const data = JSON.parse(txt)
       setResult(data)
     } catch (e) {
-      setError('No se pudo generar el anuncio. Verifica tu conexión e inténtalo de nuevo. (La generación con IA funciona estando en línea.)')
+      console.error('Error al generar anuncio:', e)
+      setError(
+        (e?.message || '').includes('ANTHROPIC_API_KEY')
+          ? 'Falta configurar la clave de IA en el servidor (ANTHROPIC_API_KEY en Vercel). Avísale a quien administra la app.'
+          : 'No se pudo generar el anuncio. Verifica tu conexión e inténtalo de nuevo.'
+      )
     }
     setLoading(false)
   }
