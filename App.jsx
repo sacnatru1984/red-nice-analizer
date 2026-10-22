@@ -1634,6 +1634,7 @@ function ChequeModal({ afiliados, onClose }) {
               <div className="rn-chq__chips">
                 <span className="rn-chq__chip">No. de empresario <b>{self.ein}</b></span>
                 <span className="rn-chq__chip">{c.propios.toLocaleString()} pts{esSimulado ? ' (meta)' : ''} · <b>{tramoTxt}</b></span>
+                <span className="rn-chq__chip">{(self.pp || 0).toLocaleString()} PP + {(self.pg || 0).toLocaleString()} PG</span>
               </div>
             </div>
           </div>
