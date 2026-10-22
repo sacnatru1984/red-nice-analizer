@@ -3463,7 +3463,7 @@ function App() {
           <>
             {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc} tc={tc}/>}
             {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia} onPlanAccion={irAPlan} periodos={periodos}/>:<PanelCargando/>)}
-            {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc} periodos={periodos} onPlanAccion={irAPlan}/>:<PanelCargando/>)}
+            {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc} periodos={periodos} onPlanAccion={irAPlan} onSalir={()=>setTab('red')}/>:<PanelCargando/>)}
             {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} umbralUSD={umbralUSD} preselectEin={planEin} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='rangos'&&<PanelRangos afiliados={afiliadosCalc}/>}
             {tab==='anuncios'&&<PanelAnuncios/>}

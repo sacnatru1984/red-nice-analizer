@@ -1119,7 +1119,7 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
   return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
 }
 
-function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPlanAccion }) {
+function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPlanAccion, onSalir }) {
   ;({ getRango, valorPuntoDe, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S } = window)
   const isMobile = useIsMobile()
   const tree = buildTree(afiliados)
@@ -1127,7 +1127,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
   const [drop, setDrop] = useState(false)
   const [tooltip, setTooltip] = useState(null)
   const [descargando, setDescargando] = useState(false)
-  const [pantallaCompleta, setPantallaCompleta] = useState(false)
+  const [pantallaCompleta, setPantallaCompleta] = useState(true)
   const descargarArbol = async (raiz, pasaFiltro, extra) => {
     setDescargando(true)
     try {
@@ -1230,7 +1230,9 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
 
   return (
     <div>
-      {(
+      {/* La vista embebida (no pantalla completa) queda oculta a propósito: Genealogía
+          siempre abre directo en pantalla completa. No se borra por si se reactiva. */}
+      {!pantallaCompleta && (
         <button onClick={() => setPantallaCompleta(true)} style={{width:'100%',maxWidth:isMobile?'none':420,minHeight:52,marginBottom:14,borderRadius:14,border:'1px solid var(--win-accent)',background:'var(--win-accent)',color:'#fff',fontSize:15,fontWeight:800,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:10,boxShadow:'0 6px 18px rgba(37,99,235,.35)'}}>
           <span style={{width:20,height:20,display:'inline-flex'}}><FsIco.Ajustar/></span>
           Ver el árbol en pantalla completa
@@ -1238,8 +1240,9 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
       )}
       {pantallaCompleta && (
         <GenealogiaPantallaCompleta tree={tree} afiliados={afiliados} periodos={periodos} onPlanAccion={onPlanAccion}
-          pasaFiltro={pasaFiltro} filtroRangos={filtroRangos} toggleFiltro={toggleFiltro} filtroActividad={filtroActividad} toggleActividad={toggleActividad} onRestaurar={restaurarFiltros} raizInicial={raiz} onClose={() => setPantallaCompleta(false)}/>
+          pasaFiltro={pasaFiltro} filtroRangos={filtroRangos} toggleFiltro={toggleFiltro} filtroActividad={filtroActividad} toggleActividad={toggleActividad} onRestaurar={restaurarFiltros} raizInicial={raiz} onClose={onSalir || (() => setPantallaCompleta(false))}/>
       )}
+      {!pantallaCompleta && (<>
       <div style={{...S.card,marginBottom:14}}>
         <div style={{...S.cardBody,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
           <div style={{position:'relative',flex:1,minWidth:240,maxWidth:420}}>
@@ -1439,6 +1442,7 @@ function PanelGenealogia({ afiliados, rootEin, onChangeRoot, tc, periodos, onPla
           )}
         </div>
       </div>
+      </>)}
 
       <ArbolDetalle nodo={seleccionado} afiliados={afiliados} periodos={periodos} onClose={()=>setSeleccionado(null)} onPlanAccion={onPlanAccion}/>
 
