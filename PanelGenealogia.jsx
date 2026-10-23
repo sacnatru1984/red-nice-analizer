@@ -640,10 +640,14 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
     const m = new Map()
     const contar = n => {
       const hs = (n.children || []).filter(c => !filtro || filtro(c))
-      let t = 0
-      for (const c of hs) t += 1 + contar(c)
-      m.set(n.ein, { directos: hs.length, equipo: t })
-      return t
+      let t = 0, act = 0
+      for (const c of hs) {
+        const r = contar(c)
+        t += 1 + r.equipo
+        act += (((c.pp || 0) + (c.pg || 0)) > 0 ? 1 : 0) + r.activos
+      }
+      m.set(n.ein, { directos: hs.length, equipo: t, activos: act })
+      return { equipo: t, activos: act }
     }
     tree.forEach(contar)
     return m
@@ -861,7 +865,7 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
 
   const pgVis = raiz ? sumarPGVisible(raiz, filtro) : { pg: 0 }
   const cr = raiz ? (conteos.get(raiz.ein) || { directos: 0, equipo: 0 }) : { directos: 0, equipo: 0 }
-  const cs = selNodo ? (conteos.get(selNodo.ein) || { directos: 0, equipo: 0 }) : { directos: 0, equipo: 0 }
+  const cs = selNodo ? (conteos.get(selNodo.ein) || { directos: 0, equipo: 0, activos: 0 }) : { directos: 0, equipo: 0, activos: 0 }
   const rs = selNodo ? getRango(selNodo.rango) : null
   const migas = principal && raiz ? (fsRuta(principal, raiz.ein) || [raiz]) : []
   const listaRuta = migas.length > 1 ? migas.slice(1) : migas
@@ -1153,6 +1157,27 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
             <button onClick={() => localizar(selNodo.ein)} style={{...btn,width:'100%',marginTop:16,background:'var(--win-accent)',borderColor:'var(--win-accent)',color:'#fff'}}><span style={{width:17,height:17,display:'inline-flex'}}><Icons.Target/></span>Centrar en el árbol</button>
             <button onClick={() => explorar(selNodo.ein)} disabled={sinDirectos} title="Ver a esta persona y su rama como inicio del árbol" style={{...btn,width:'100%',marginTop:10,opacity:sinDirectos ? 0.45 : 1,cursor:sinDirectos ? 'not-allowed' : 'pointer'}}><span style={{width:17,height:17,display:'inline-flex'}}><Icons.Network/></span>Explorar equipo</button>
             <button onClick={() => setFicha(selNodo.ein)} style={{...btn,width:'100%',marginTop:10}}><span style={{width:16,height:16,display:'inline-flex'}}><Icons.File/></span>Ver ficha completa</button>
+            {cs.equipo > 0 && (
+              <div style={{marginTop:18,paddingTop:16,borderTop:'1px solid var(--win-border)'}}>
+                <div style={{fontSize:12.5,fontWeight:700,color:'var(--win-title)',marginBottom:10}}>Actividad de su equipo</div>
+                <div style={{display:'flex',alignItems:'center',gap:14}}>
+                  <svg width="80" height="80" viewBox="0 0 88 88" style={{flexShrink:0}}>
+                    <circle cx="44" cy="44" r="34" fill="none" stroke="var(--win-border)" strokeWidth="13"/>
+                    <circle cx="44" cy="44" r="34" fill="none" stroke="#16A34A" strokeWidth="13" strokeDasharray={`${(cs.activos / cs.equipo) * 213.6} 213.6`} strokeDashoffset="53" strokeLinecap="round"/>
+                    <text x="44" y="48" textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--win-title)">{Math.round(cs.activos / cs.equipo * 100)}%</text>
+                  </svg>
+                  <div style={{minWidth:0}}>
+                    {[{ l: 'Con PP/PG', n: cs.activos, c: '#16A34A' }, { l: 'Sin movimiento', n: cs.equipo - cs.activos, c: '#9CA3AF' }].map(item => (
+                      <div key={item.l} style={{display:'flex',alignItems:'center',gap:7,marginBottom:6,fontSize:11.5}}>
+                        <div style={{width:9,height:9,borderRadius:'50%',background:item.c,flexShrink:0}}/>
+                        <span style={{color:'var(--win-text)'}}>{item.l}</span>
+                        <span style={{marginLeft:'auto',fontWeight:700,color:'var(--win-title)'}}>{item.n}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </aside>
         )}
       </div>
