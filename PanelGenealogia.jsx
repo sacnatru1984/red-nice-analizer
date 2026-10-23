@@ -620,11 +620,21 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
   const [q, setQ] = useState('')
   const [drop, setDrop] = useState(false)
   const [sinFiltro, setSinFiltro] = useState(false)
+  // Línea ascendente del nodo raíz actual: EINs de quien lo presentó, revelados
+  // uno a la vez con el botón "+" de arriba. Índice 0 = su presentador directo.
+  const [ascendientes, setAscendientes] = useState([])
 
   const filtro = sinFiltro ? null : pasaFiltro
   const hijosDe = n => (n.children || []).filter(c => !filtro || filtro(c))
   const raiz = (rootEin && nodoPorEin.get(rootEin)) || principal
   const raizEin = raiz ? raiz.ein : null
+  const topeAscendente = ascendientes.length ? nodoPorEin.get(ascendientes[ascendientes.length - 1]) : raiz
+  const siguienteAscendente = topeAscendente && topeAscendente.einPresentador ? nodoPorEin.get(topeAscendente.einPresentador) : null
+  const subirNivel = () => {
+    if (!siguienteAscendente) return
+    setAscendientes(prev => [...prev, siguienteAscendente.ein])
+    setVista(v => ({ ...v, y: v.y + (FS_CH + FS_GY) * v.z }))
+  }
 
   const conteos = useMemo(() => {
     const m = new Map()
@@ -682,6 +692,7 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
     if (!raizEin) return
     const p = preparado.current
     preparado.current = null
+    setAscendientes([])
     setExpandidos(p ? p.expandidos : new Set([raizEin]))
     setLimites(p ? p.limites : {})
     setPendiente(p ? p.pendiente : { ein: raizEin, modo: 'arriba' })
@@ -992,6 +1003,39 @@ function GenealogiaPantallaCompleta({ tree, afiliados, periodos, onPlanAccion, p
                   {t.abierto ? '−' : `+${t.total}`}
                 </button>
               ))}
+              {/* Línea ascendente: quién presentó a la raíz actual, revelada hacia arriba
+                  un nivel a la vez con el botón "+". Usa el mismo cx que la raíz para
+                  quedar centrada, y coordenadas y negativas (el lienzo no recorta hacia
+                  arriba, solo el viewport con scroll/zoom). */}
+              {(() => {
+                const raizRec = layout.nodos.find(rc => rc.n && rc.n.ein === raizEin)
+                if (!raizRec) return null
+                const cxAsc = raizRec.cx
+                const nivelY = i => raizRec.y - i * (FS_CH + FS_GY)
+                return (
+                  <React.Fragment>
+                    <svg width={layout.ancho} height={layout.alto} style={{position:'absolute',left:0,top:0,overflow:'visible',pointerEvents:'none'}}>
+                      {ascendientes.map((ein, i) => (
+                        <path key={'ascl-' + ein} d={`M${cxAsc} ${nivelY(i)} V${nivelY(i + 1) + FS_CH}`} fill="none" stroke="var(--win-accent)" strokeOpacity={0.75} strokeWidth={2.5} strokeLinecap="round"/>
+                      ))}
+                    </svg>
+                    {ascendientes.map((ein, i) => {
+                      const n = nodoPorEin.get(ein)
+                      if (!n) return null
+                      const y = nivelY(i + 1)
+                      return <FsTarjeta key={'asc-tj-' + ein} rec={{ n, x: cxAsc - FS_CW / 2, y, cx: cxAsc }} seleccionada={n.ein === selEin} esRaiz={false} onSel={seleccionar}/>
+                    })}
+                    {siguienteAscendente && (
+                      <button onClick={e => { e.stopPropagation(); subirNivel() }}
+                        aria-label={`Ver quién presentó a ${topeAscendente.nombre.split(' ')[0]}`}
+                        title={`Ver línea ascendente de ${topeAscendente.nombre.split(' ')[0]}`}
+                        style={{position:'absolute',left:cxAsc - 19,top:nivelY(ascendientes.length) - 19,width:38,height:38,borderRadius:'50%',border:'2.5px solid var(--win-gold)',background:'var(--win-surface)',color:'var(--win-gold)',fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 12px rgba(0,0,0,.35)',padding:0,fontFamily:'inherit',zIndex:2}}>
+                        +
+                      </button>
+                    )}
+                  </React.Fragment>
+                )
+              })()}
             </div>
           )}
         </div>
