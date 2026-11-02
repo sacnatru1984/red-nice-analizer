@@ -624,6 +624,13 @@ const RETO4X4_ACUM_COL = 36
 function parseReto4x4Excel(data) {
   if (!data || data.length < 3) return { filas: [], semanaLabels: [] }
   const headerRow = data[0] || []
+  const subHeaderRow = data[1] || []
+  // Validación de formato: este es el Excel de "Revisión de Metas" (Mis Metas
+  // Promoción 4X4), NO el Excel normal de la red (Generación/EIN/Nombre...).
+  // Si no trae estas columnas exactas, es el archivo equivocado — no inventar
+  // datos a partir de columnas que no corresponden.
+  const esFormatoValido = str(headerRow[0]) === 'CustomerID' && str(subHeaderRow[11]) === 'Puntos Personales'
+  if (!esFormatoValido) return { filas: [], semanaLabels: [] }
   const semanaLabels = RETO4X4_SEMANA_COLS.map(c => str(headerRow[c]))
   const bloque = (r, c) => ({
     pp: num(r[c]), meta: num(r[c + 1]), faltante: num(r[c + 2]),
@@ -1826,11 +1833,12 @@ function ChequeModal({ afiliados, onClose }) {
   return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
 }
 
-// ── Modal de seguimiento del Reto 4x4 — mismo estilo visual que la Calculadora
-// de Cheque (franja navy, tarjetas blancas rn-sumcard, pills) para que se sienta
-// parte de la misma app. Muestra, semana por semana, quién cumplió su meta
-// personal del Reto 4x4 (datos tal cual los calcula NICE en Revisión de Metas).
-function Reto4x4Modal({ data, setData, onClose }) {
+// ── Sección propia del menú: seguimiento del Reto 4x4 — mismo estilo visual
+// que la bienvenida de Mi Red (franja navy rn-welcomebar, tarjetas rn-sumcard,
+// pills) para que se sienta parte de la misma app. Muestra, semana por semana,
+// quién cumplió su meta personal del Reto 4x4 (datos tal cual los calcula
+// NICE en Revisión de Metas).
+function PanelReto4x4({ data, setData }) {
   const isMobile = useIsMobile()
   const fileRef = useRef()
   const [q, setQ] = useState('')
@@ -1841,7 +1849,7 @@ function Reto4x4Modal({ data, setData, onClose }) {
     const f = e.target.files[0]; if (!f) return
     setError('')
     parseReto4x4File(f).then((parsed) => {
-      if (!parsed.filas.length) setError('No se reconoció el formato. Usa el Excel del botón "Excel" en Mi Red → Mis Metas Promoción 4X4.')
+      if (!parsed.filas.length) setError('Ese no es el Excel del Reto 4x4 (parece el Excel normal de tu red). En el backoffice ve a Mi Red → Mis Metas Promoción 4X4 → botón "Excel" y sube ese archivo.')
       else setData(parsed)
     }).catch(() => setError('No se pudo leer el archivo.'))
     e.target.value = ''
@@ -1869,9 +1877,10 @@ function Reto4x4Modal({ data, setData, onClose }) {
   let filtradas = filas.filter(f => !q || f.nombre.toLowerCase().includes(q.toLowerCase()) || f.ein.includes(q))
   if (soloRiesgo) filtradas = filtradas.filter(f => !vaAlDia(f))
   filtradas = [...filtradas].sort((a, b) => {
+    // Primero quienes van cumpliendo (motiva verlos arriba), luego los que no.
     const aOk = vaAlDia(a) ? 1 : 0
     const bOk = vaAlDia(b) ? 1 : 0
-    if (aOk !== bOk) return aOk - bOk
+    if (aOk !== bOk) return bOk - aOk
     return premioGanado(b) - premioGanado(a)
   })
 
@@ -1884,37 +1893,35 @@ function Reto4x4Modal({ data, setData, onClose }) {
 
   const fmtMXN = v => v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
 
-  const nodo = (
-    <div className="rn-chq-overlay" onClick={onClose}>
-      <div className="rn-chq" onClick={e => e.stopPropagation()}>
-        <div className="rn-chq__head" style={{ marginBottom: data ? 70 : 24 }}>
-          <div className="rn-chq__bar">
-            <span className="rn-chq__kicker">RETO 4X4 · SEGUIMIENTO{rango() ? ' · ' + rango() : ''}</span>
-            <button className="rn-chq__close" onClick={onClose} aria-label="Cerrar">✕</button>
+  return (
+    <div>
+      <div className="rn-welcomebar">
+        <div className="rn-welcomebar__top" style={{ justifyContent: 'space-between' }}>
+          <div className="rn-welcomebar__info">
+            <div className="rn-welcomebar__hola">Reto 4x4 🎯</div>
+            <div className="rn-welcomebar__nombre">SEGUIMIENTO SEMANAL</div>
+            <div className="rn-welcomebar__sub">{data ? `${total} personas en seguimiento${rango() ? ' · ' + rango() : ''}` : 'Sube el Excel del backoffice para empezar'}</div>
           </div>
-          <div className="rn-chq__who">
-            <div style={{ minWidth: 0 }}>
-              <div className="rn-chq__title">Seguimiento del Reto 4x4</div>
-              <div className="rn-chq__name">{data ? `${total} personas en seguimiento` : 'Sube el Excel para empezar'}</div>
-            </div>
-            <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFile}/>
-              <button onClick={() => fileRef.current.click()} style={{ padding: '9px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,.3)', background: 'rgba(255,255,255,.12)', color: '#fff', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
-                {data ? 'Actualizar Excel' : 'Cargar Excel'}
-              </button>
-            </div>
+          <div style={{ flexShrink: 0 }}>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFile}/>
+            <button onClick={() => fileRef.current.click()} style={{ padding: '9px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,.3)', background: 'rgba(255,255,255,.12)', color: '#fff', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+              {data ? 'Actualizar Excel' : 'Cargar Excel'}
+            </button>
           </div>
-          {data && (
-            <div className="rn-chq__sum">
+        </div>
+        {data && (
+          <>
+            <div className="rn-welcomebar__head">Esta semana <span>Semana {ultimaIdx + 1} de {semanaLabels.length}</span></div>
+            <div className="rn-sumgrid">
               <div className="rn-sumcard">
                 <div className="rn-sumcard__t">Con al menos 1 semana</div>
                 <NiceRing value={conAlMenos1} max={total || 1} unidad="" size={isMobile ? 84 : 92}/>
                 <div className="rn-sumcard__l">De {total} en seguimiento</div>
                 <span className="rn-pill">{total ? Math.round(conAlMenos1 / total * 100) : 0}%</span>
               </div>
-              <div className="rn-sumcard rn-chq__total">
+              <div className="rn-sumcard">
                 <div className="rn-sumcard__t">Premio ya ganado por tu red</div>
-                <div className="rn-chq__amount">{fmtMXN(premioTotal)}</div>
+                <div className="rn-chq__amount" style={{ fontSize: 24 }}>{fmtMXN(premioTotal)}</div>
                 <div className="rn-sumcard__l">Racha perfecta (todas las semanas)</div>
                 <span className="rn-pill rn-pill--indigo">{rachaPerfecta} persona{rachaPerfecta !== 1 ? 's' : ''}</span>
               </div>
@@ -1925,79 +1932,75 @@ function Reto4x4Modal({ data, setData, onClose }) {
                 <span className="rn-pill" style={{ background: 'var(--win-red-l)', color: 'var(--win-red)' }}>Semana {ultimaIdx + 1} de {semanaLabels.length}</span>
               </div>
             </div>
-          )}
-        </div>
-
-        <div className="rn-chq__body">
-          {!data && (
-            <div className="rn-chq__card" style={{ textAlign: 'center', padding: '34px 20px' }}>
-              <span className="rn-chq__tile" style={{ margin: '0 auto 14px' }}><Icons.Target/></span>
-              <div className="rn-chq__card-t" style={{ fontSize: 17, marginBottom: 6 }}>Sube el Excel del Reto 4x4</div>
-              <div className="rn-chq__card-d" style={{ maxWidth: 420, margin: '0 auto 16px' }}>
-                En el backoffice NICE: <b>Mi Red → Mis Metas Promoción 4X4 → botón Excel</b>. Súbelo aquí cada semana para ver quién va cumpliendo.
-              </div>
-              <button onClick={() => fileRef.current.click()} style={{ padding: '10px 22px', borderRadius: 12, border: 'none', background: 'var(--win-accent)', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Elegir archivo</button>
-              {error && <div style={{ marginTop: 14, color: 'var(--win-red)', fontSize: 12.5, fontWeight: 600 }}>{error}</div>}
-            </div>
-          )}
-
-          {data && (
-            <>
-              <div className="rn-chq__search" style={{ margin: '0 0 14px' }}>
-                <span className="rn-chq__search-ico"><Icons.Search/></span>
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o EIN…"/>
-                <button onClick={() => setSoloRiesgo(v => !v)} style={soloRiesgo ? { background: 'var(--win-red)' } : undefined}>
-                  {soloRiesgo ? 'Viendo: no cumplieron' : 'Solo los que no cumplieron'}
-                </button>
-              </div>
-
-              <div className="rn-r4-grid">
-                <div className="rn-r4-row rn-r4-row--head">
-                  <span>Socio</span>
-                  <span>Meta sem.</span>
-                  {semanaLabels.map((l, i) => <span key={i} title={l}>S{i + 1}</span>)}
-                  <span>Premio</span>
-                </div>
-                {filtradas.map(f => {
-                  const semanal = esSemanal(f)
-                  return (
-                    <div key={f.ein} className="rn-r4-row">
-                      <span className="rn-r4-nombre">
-                        <b>{f.nombre.split(' ').filter(Boolean).slice(0, 3).join(' ')}</b>
-                        <small>EIN {f.ein}{f.ciudad ? ' · ' + f.ciudad : ''}{!semanal ? ' · nuevo afiliado' : ''}</small>
-                      </span>
-                      <span className="rn-r4-meta">{semanal ? `${f.metaSemanal.toLocaleString()} pp` : 'Acum.'}</span>
-                      {semanal ? f.semanas.map((s, i) => (
-                        <span key={i} className={'rn-r4-dot' + (s.conseguido ? ' on' : (s.pp > 0 ? ' mid' : ''))} title={`Semana ${i + 1}: ${s.pp.toLocaleString()} de ${s.meta.toLocaleString()} pts`}>
-                          {s.conseguido ? '✓' : (s.pp > 0 ? '·' : '✗')}
-                        </span>
-                      )) : f.semanas.map((s, i) => (
-                        <span key={i} className="rn-r4-dot" title="Nuevo afiliado: su meta es acumulada de sus primeros días, no semanal">–</span>
-                      ))}
-                      <span className="rn-r4-premio">{fmtMXN(premioGanado(f))}</span>
-                    </div>
-                  )
-                })}
-                {filtradas.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: 'var(--win-muted)', fontSize: 13 }}>Sin resultados.</div>}
-              </div>
-
-              <div className="rn-chq__how">
-                Datos tal cual los calcula NICE en <b>Revisión de Metas</b> (Puntos Personales, Meta y Conseguido). El <b>Premio</b> de la tabla solo cuenta semanas o metas ya marcadas <b>Conseguido ✓</b> — NICE a veces muestra un premio en semanas aún abiertas que todavía no se gana, así que no lo sumamos. El punto gris (·) es una semana en curso con puntos parciales; el guion (–) es un <b>nuevo afiliado</b> cuya meta es acumulada de sus primeros días, no semanal. Vuelve a subir el Excel cada semana para mantener esto al día.
-              </div>
-            </>
-          )}
-        </div>
+          </>
+        )}
       </div>
+
+      {!data && (
+        <div className="rn-chq__card" style={{ textAlign: 'center', padding: '34px 20px', maxWidth: 460, margin: '0 auto' }}>
+          <span className="rn-chq__tile" style={{ margin: '0 auto 14px' }}><Icons.Target/></span>
+          <div className="rn-chq__card-t" style={{ fontSize: 17, marginBottom: 6 }}>Sube el Excel del Reto 4x4</div>
+          <div className="rn-chq__card-d" style={{ maxWidth: 420, margin: '0 auto 16px' }}>
+            En el backoffice NICE: <b>Mi Red → Mis Metas Promoción 4X4 → botón Excel</b>. Súbelo aquí cada semana para ver quién va cumpliendo.
+          </div>
+          <button onClick={() => fileRef.current.click()} style={{ padding: '10px 22px', borderRadius: 12, border: 'none', background: 'var(--win-accent)', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Elegir archivo</button>
+          {error && <div style={{ marginTop: 14, color: 'var(--win-red)', fontSize: 12.5, fontWeight: 600 }}>{error}</div>}
+        </div>
+      )}
+
+      {data && (
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div className="rn-chq__search" style={{ margin: '0 0 14px' }}>
+            <span className="rn-chq__search-ico"><Icons.Search/></span>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o EIN…"/>
+            <button onClick={() => setSoloRiesgo(v => !v)} style={soloRiesgo ? { background: 'var(--win-red)' } : undefined}>
+              {soloRiesgo ? 'Viendo: no cumplieron' : 'Solo los que no cumplieron'}
+            </button>
+          </div>
+
+          <div className="rn-r4-grid">
+            <div className="rn-r4-row rn-r4-row--head">
+              <span>Socio</span>
+              <span>Meta sem.</span>
+              {semanaLabels.map((l, i) => <span key={i} title={l}>S{i + 1}</span>)}
+              <span>Premio</span>
+            </div>
+            {filtradas.map(f => {
+              const semanal = esSemanal(f)
+              return (
+                <div key={f.ein} className="rn-r4-row">
+                  <span className="rn-r4-nombre">
+                    <b>{f.nombre.split(' ').filter(Boolean).slice(0, 3).join(' ')}</b>
+                    <small>EIN {f.ein}{f.ciudad ? ' · ' + f.ciudad : ''}{!semanal ? ' · nuevo afiliado' : ''}</small>
+                  </span>
+                  <span className="rn-r4-meta">{semanal ? `${f.metaSemanal.toLocaleString()} pp` : 'Acum.'}</span>
+                  {semanal ? f.semanas.map((s, i) => (
+                    <span key={i} className={'rn-r4-dot' + (s.conseguido ? ' on' : (s.pp > 0 ? ' mid' : ''))} title={`Semana ${i + 1}: ${s.pp.toLocaleString()} de ${s.meta.toLocaleString()} pts`}>
+                      {s.conseguido ? '✓' : (s.pp > 0 ? '·' : '✗')}
+                    </span>
+                  )) : f.semanas.map((s, i) => (
+                    <span key={i} className="rn-r4-dot" title="Nuevo afiliado: su meta es acumulada de sus primeros días, no semanal">–</span>
+                  ))}
+                  <span className="rn-r4-premio">{fmtMXN(premioGanado(f))}</span>
+                </div>
+              )
+            })}
+            {filtradas.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: 'var(--win-muted)', fontSize: 13 }}>Sin resultados.</div>}
+          </div>
+
+          <div className="rn-chq__how" style={{ marginTop: 16 }}>
+            Datos tal cual los calcula NICE en <b>Revisión de Metas</b> (Puntos Personales, Meta y Conseguido). El <b>Premio</b> de la tabla solo cuenta semanas o metas ya marcadas <b>Conseguido ✓</b> — NICE a veces muestra un premio en semanas aún abiertas que todavía no se gana, así que no lo sumamos. El punto gris (·) es una semana en curso con puntos parciales; el guion (–) es un <b>nuevo afiliado</b> cuya meta es acumulada de sus primeros días, no semanal. Vuelve a subir el Excel cada semana para mantener esto al día.
+          </div>
+        </div>
+      )}
     </div>
   )
-  return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
 }
 
-function PanelMiRed({ afiliados, tc, reto4x4, setReto4x4 }) {
+function PanelMiRed({ afiliados, tc }) {
   const isMobile = useIsMobile()
   const [showDB, setShowDB] = useState(false)
   const [showCheque, setShowCheque] = useState(false)
-  const [showReto4x4, setShowReto4x4] = useState(false)
   const [verPuntos, setVerPuntos] = useState(false)
   const total = afiliados.length
   const activos = afiliados.filter(a => (a.pp||0)+(a.pg||0)>0).length
@@ -2033,7 +2036,6 @@ function PanelMiRed({ afiliados, tc, reto4x4, setReto4x4 }) {
     <div>
       {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
       {showCheque && <ChequeModal afiliados={afiliados} onClose={()=>setShowCheque(false)}/>}
-      {showReto4x4 && <Reto4x4Modal data={reto4x4} setData={setReto4x4} onClose={()=>setShowReto4x4(false)}/>}
 
       {/* Bienvenida estilo app NICE: franja azul marino + resumen con anillos */}
       {self && (() => {
@@ -2120,7 +2122,6 @@ function PanelMiRed({ afiliados, tc, reto4x4, setReto4x4 }) {
       <div className="rn-actions-list">
         <NiceAction icon={Icons.Calc} sub="Calculadora de cheque" titulo="Simula el cheque de este mes" onClick={() => setShowCheque(true)}/>
         <NiceAction icon={Icons.Grid} sub="Toda tu red" titulo="Base de datos de afiliados" onClick={() => setShowDB(true)}/>
-        <NiceAction icon={Icons.Target} sub="Promoción activa" titulo="Seguimiento Reto 4x4" onClick={() => setShowReto4x4(true)}/>
       </div>
 
       {NivelesPorRed && raizMiRed && <NivelesPorRed raiz={raizMiRed} tc={tc}/>}
@@ -3530,7 +3531,7 @@ function App() {
     })
   }
 
-  const TABS = [{id:'red',l:'Mi Red',I:Icons.Home},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
+  const TABS = [{id:'red',l:'Mi Red',I:Icons.Home},{id:'reto4x4',l:'Reto 4x4',I:Icons.Target},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
   // Las pestañas 'arbol' y 'semana' se ocultan a propósito (no se borran) — 'arbol' sigue en
   // PanelGenealogia.jsx y 'semana' en PanelSemana.jsx, por si se reactivan más adelante.
   const curTab = TABS.find(t=>t.id===tab)||TABS[0]
@@ -3614,19 +3615,20 @@ function App() {
       {/* Panel header */}
       {/* Siempre visible (no se desplaza con el contenido). El logo se oculta en la pantalla de bienvenida, que ya lo muestra en grande. */}
       <div className="rn-panel-head" style={{padding:'14px 24px 12px',background:'var(--win-surface)',borderBottom:'1px solid var(--win-border)',flexShrink:0}}>
-        {!(!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes')&&(
+        {!(!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&tab!=='reto4x4')&&(
           <div className="rn-head-logo"><img src="./assets/logo-horizontal.jpg" alt="Red NICE Analizer"/></div>
         )}
         <div className="rn-panel-head__info">
         <div style={{fontSize:18,fontWeight:700,color:'var(--win-title)'}}>{curTab.l}</div>
         <div style={{fontSize:12,color:'var(--win-muted)',marginTop:2}}>
-          {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&'Carga un archivo Excel del portal NICE para comenzar'}
+          {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&tab!=='reto4x4'&&'Carga un archivo Excel del portal NICE para comenzar'}
           {cargado&&tab==='red'&&`${afiliados.length} afiliados · ${archivos[0]?.fecha}`}
           {cargado&&tab==='arbol'&&`Árbol jerárquico · ${afiliados.length} afiliados`}
           {cargado&&tab==='genealogia'&&`Genealogía visual ramificada · ${afiliados.length} afiliados`}
           {(cargado||tab==='plan')&&tab==='plan'&&'Plan personalizado según el plan de carrera oficial NICE 2025'}
           {tab==='rangos'&&'Plan de carrera NICE oficial · Actualización Enero 2025'}
           {tab==='anuncios'&&'Generador de anuncios con IA · vende más joyería NICE'}
+          {tab==='reto4x4'&&(reto4x4?`${reto4x4.filas.length} personas en seguimiento`:'Promoción activa · sube el Excel de Revisión de Metas')}
           {tab==='archivos'&&`${archivos.length} archivo${archivos.length!==1?'s':''} cargado${archivos.length!==1?'s':''}`}
           {tab==='reportes'&&`Análisis comparativo multi-período · ${periodos.length} período${periodos.length!==1?'s':''} cargado${periodos.length!==1?'s':''}`}
           {tab==='semana'&&'Metas y planeación semanal · progreso guardado automáticamente'}
@@ -3638,7 +3640,7 @@ function App() {
       <div className="rn-body" style={{flex:1,overflowY:'auto',background:'var(--win-bg)'}}>
         {tab==='reportes'&&(PanelReportes?<PanelReportes periodos={periodos} onAgregarPeriodo={onAgregarPeriodo} onEliminarPeriodo={onEliminarPeriodo} tc={tc}/>:<PanelCargando/>)}
         {tab==='semana'&&(PanelSemana?<PanelSemana afiliados={afiliadosCalc}/>:<PanelCargando/>)}
-        {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&(
+        {!cargado&&tab!=='rangos'&&tab!=='archivos'&&tab!=='anuncios'&&tab!=='reportes'&&tab!=='reto4x4'&&(
           <div className="rn-welcome">
             <div className="rn-welcome__bg"/>
             <div className="rn-welcome__scrim"/>
@@ -3688,9 +3690,10 @@ function App() {
             </div>
           </div>
         )}
-        {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios')&&tab!=='reportes'&&(
+        {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios'||tab==='reto4x4')&&tab!=='reportes'&&(
           <>
-            {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc} tc={tc} reto4x4={reto4x4} setReto4x4={setReto4x4}/>}
+            {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc} tc={tc}/>}
+            {tab==='reto4x4'&&<PanelReto4x4 data={reto4x4} setData={setReto4x4}/>}
             {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia} onPlanAccion={irAPlan} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc} periodos={periodos} onPlanAccion={irAPlan} onSalir={()=>setTab('red')}/>:<PanelCargando/>)}
             {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} umbralUSD={umbralUSD} preselectEin={planEin} periodos={periodos}/>:<PanelCargando/>)}
