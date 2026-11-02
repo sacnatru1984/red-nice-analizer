@@ -1838,12 +1838,21 @@ function ChequeModal({ afiliados, onClose }) {
 // pills) para que se sienta parte de la misma app. Muestra, semana por semana,
 // quién cumplió su meta personal del Reto 4x4 (datos tal cual los calcula
 // NICE en Revisión de Metas).
-function PanelReto4x4({ data, setData }) {
+function PanelReto4x4({ data, setData, afiliados }) {
   const isMobile = useIsMobile()
   const fileRef = useRef()
   const [q, setQ] = useState('')
   const [soloRiesgo, setSoloRiesgo] = useState(false)
   const [error, setError] = useState('')
+  const [dropAbierto, setDropAbierto] = useState(false)
+
+  // El Excel del Reto 4x4 no trae el rango — lo cruzamos por EIN con la red
+  // ya cargada (si la hay) para mostrarlo en el buscador, igual que en Genealogía.
+  const byEinRed = useMemo(() => {
+    const m = {}
+    ;(afiliados || []).forEach(a => { m[a.ein] = a })
+    return m
+  }, [afiliados])
 
   const handleFile = (e) => {
     const f = e.target.files[0]; if (!f) return
@@ -1874,7 +1883,10 @@ function PanelReto4x4({ data, setData }) {
   const rachaPerfecta = filas.filter(f => esSemanal(f) ? (f.semanas.length && f.semanas.every(s => s.conseguido)) : f.acumulado.conseguido).length
   const fallaronUltima = filas.filter(f => !vaAlDia(f)).length
 
-  let filtradas = filas.filter(f => !q || f.nombre.toLowerCase().includes(q.toLowerCase()) || f.ein.includes(q))
+  const coincide = f => f.nombre.toLowerCase().includes(q.toLowerCase()) || f.ein.includes(q)
+  const sugerencias = q.trim() ? filas.filter(coincide).slice(0, 8) : []
+
+  let filtradas = filas.filter(f => !q || coincide(f))
   if (soloRiesgo) filtradas = filtradas.filter(f => !vaAlDia(f))
   filtradas = [...filtradas].sort((a, b) => {
     // Primero quienes van cumpliendo (motiva verlos arriba), luego los que no.
@@ -1952,10 +1964,24 @@ function PanelReto4x4({ data, setData }) {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div className="rn-chq__search" style={{ margin: '0 0 14px' }}>
             <span className="rn-chq__search-ico"><Icons.Search/></span>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o EIN…"/>
+            <input value={q} onChange={e => { setQ(e.target.value); setDropAbierto(true) }} onFocus={() => setDropAbierto(true)} onBlur={() => setTimeout(() => setDropAbierto(false), 150)} placeholder="Buscar por nombre o EIN…"/>
             <button onClick={() => setSoloRiesgo(v => !v)} style={soloRiesgo ? { background: 'var(--win-red)' } : undefined}>
               {soloRiesgo ? 'Viendo: no cumplieron' : 'Solo los que no cumplieron'}
             </button>
+            {dropAbierto && sugerencias.length > 0 && (
+              <div className="rn-chq__drop">
+                {sugerencias.map(f => {
+                  const red = byEinRed[f.ein]
+                  const ar = red ? getRango(red.rango) : null
+                  return (
+                    <div key={f.ein} className="rn-chq__opt" onMouseDown={() => { setQ(f.nombre); setDropAbierto(false) }}>
+                      <span className="rn-chq__opt-img">{ar && RANGO_IMG[ar.id] ? <img src={RANGO_IMG[ar.id]} alt=""/> : getInitials(f.nombre)}</span>
+                      <span style={{ minWidth: 0, flex: 1 }}><b>{f.nombre}</b><small>EIN {f.ein}{ar ? ' · ' + ar.label : ''}</small></span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="rn-r4-grid">
@@ -3693,7 +3719,7 @@ function App() {
         {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios'||tab==='reto4x4')&&tab!=='reportes'&&(
           <>
             {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc} tc={tc}/>}
-            {tab==='reto4x4'&&<PanelReto4x4 data={reto4x4} setData={setReto4x4}/>}
+            {tab==='reto4x4'&&<PanelReto4x4 data={reto4x4} setData={setReto4x4} afiliados={afiliadosCalc}/>}
             {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia} onPlanAccion={irAPlan} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc} periodos={periodos} onPlanAccion={irAPlan} onSalir={()=>setTab('red')}/>:<PanelCargando/>)}
             {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} umbralUSD={umbralUSD} preselectEin={planEin} periodos={periodos}/>:<PanelCargando/>)}
