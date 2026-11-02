@@ -1857,6 +1857,10 @@ function PanelReto4x4({ data, setData, afiliados }) {
   const [soloRiesgo, setSoloRiesgo] = useState(false)
   const [error, setError] = useState('')
   const [dropAbierto, setDropAbierto] = useState(false)
+  const [metaSel, setMetaSel] = useState(null)       // filtro por meta semanal (50 pp, 100 pp…)
+  const [lineaSel, setLineaSel] = useState(null)     // filtro por línea (Liga de líneas)
+  const [verTodos, setVerTodos] = useState({})       // listas de "A quién escribirle hoy" expandidas
+  const [copiado, setCopiado] = useState(false)
 
   // El Excel del Reto 4x4 no trae el rango — lo cruzamos por EIN con la red
   // ya cargada (si la hay) para mostrarlo en el buscador, igual que en Genealogía.
@@ -1895,11 +1899,108 @@ function PanelReto4x4({ data, setData, afiliados }) {
   const rachaPerfecta = filas.filter(f => esSemanal(f) ? (f.semanas.length && f.semanas.every(s => s.conseguido)) : f.acumulado.conseguido).length
   const fallaronUltima = filas.filter(f => !vaAlDia(f)).length
 
+  // ── "A quién escribirle hoy": 3 listas cortas con WhatsApp y el mensaje ya escrito ──
+  const titleCase = s => String(s || '').toLowerCase().replace(/(^|\s)\S/g, m => m.toUpperCase())
+  const primerNombre = f => titleCase(f.nombre.split(' ')[0])
+  const nombreCorto = f => titleCase(f.nombre.split(' ').filter(Boolean).slice(0, 2).join(' '))
+  const ult = f => f.semanas[ultimaIdx] || { pp: 0, meta: 0, faltante: 0, conseguido: false, premio: 0 }
+  const rachaActual = f => { let n = 0; for (let i = ultimaIdx; i >= 0; i--) { if (f.semanas[i].conseguido) n++; else break } return n }
+  const rachaPrevia = f => { let n = 0; for (let i = ultimaIdx - 1; i >= 0; i--) { if (f.semanas[i].conseguido) n++; else break } return n }
+  const semanales = filas.filter(esSemanal)
+  // Casi lo logran: compraron algo en la última semana pero no llegaron a su meta (los más cerca primero)
+  const casi = semanales.filter(f => ultimaIdx >= 0 && !ult(f).conseguido && ult(f).pp > 0 && ult(f).meta > 0).sort((x, y) => ult(x).faltante - ult(y).faltante)
+  // Se cayeron: cumplían la semana anterior y la última no compraron nada
+  const cayeron = semanales.filter(f => ultimaIdx >= 1 && !ult(f).conseguido && ult(f).pp === 0 && rachaPrevia(f) >= 1).sort((x, y) => rachaPrevia(y) - rachaPrevia(x))
+  // Racha viva: 2 o más semanas seguidas cumpliendo, hasta la última
+  const rachaViva = semanales.filter(f => rachaActual(f) >= 2).sort((x, y) => rachaActual(y) - rachaActual(x))
+  // Referencia del dinero en juego: lo que ganó cada quien en su mejor semana anterior (aprox.)
+  const mejorPremio = f => Math.max(0, ...f.semanas.filter(s => s.conseguido).map(s => s.premio))
+  const enJuego = [...casi, ...cayeron].reduce((sum, f) => sum + mejorPremio(f), 0)
+  const waLink = (f, msg) => {
+    const d = String(f.telefono || '').replace(/\D/g, '')
+    if (d.length < 10) return null
+    return 'https://wa.me/' + (d.length === 10 ? '52' + d : d) + '?text=' + encodeURIComponent(msg)
+  }
+  const mensajeCasi = f => `Hola ${primerNombre(f)} 😊 vi que en tu meta del Reto 4x4 llevabas ${ult(f).pp.toLocaleString()} de ${ult(f).meta.toLocaleString()} puntos y te faltaron ${ult(f).faltante.toLocaleString()}. ¡Estás muy cerca! ¿Te ayudo a cerrarla esta semana? ¿Platicamos hoy o mañana?`
+  const mensajeCayo = f => `Hola ${primerNombre(f)} 💪 llevabas ${rachaPrevia(f)} semana${rachaPrevia(f) > 1 ? 's' : ''} cumpliendo tu meta del Reto 4x4 y la última se te escapó. ¡Se puede retomar! ¿Te ayudo a armar tu semana: hoy o mañana?`
+  const mensajeRacha = f => `¡${primerNombre(f)}, felicidades! 🔥 Llevas ${rachaActual(f)} semanas seguidas cumpliendo tu meta del Reto 4x4. ¡Sigue así, eres ejemplo para el equipo! 🙌`
+  const grupo = (clave, emoji, titulo, ayuda, lista, mensaje, detalle) => {
+    const vis = verTodos[clave] ? lista : lista.slice(0, 4)
+    return (
+      <div className="rn-r4-acc__col" key={clave}>
+        <div className="rn-r4-acc__t">{emoji} {titulo} <em>{lista.length}</em></div>
+        <div className="rn-r4-acc__d">{ayuda}</div>
+        {lista.length === 0 && <div className="rn-r4-acc__vacio">Nadie por ahora 👌</div>}
+        {vis.map(f => {
+          const w = waLink(f, mensaje(f))
+          return (
+            <div className="rn-r4-acc__row" key={f.ein}>
+              <span><b>{nombreCorto(f)}</b><small>{detalle(f)}</small></span>
+              {w ? <a className="rn-r4-wa" href={w} target="_blank" rel="noopener noreferrer">WhatsApp</a> : <span className="rn-r4-wa off">Sin teléfono</span>}
+            </div>
+          )
+        })}
+        {lista.length > 4 && <button className="rn-r4-mas" onClick={() => setVerTodos(v => ({ ...v, [clave]: !v[clave] }))}>{verTodos[clave] ? 'Ver menos' : `Ver los ${lista.length}`}</button>}
+      </div>
+    )
+  }
+
+  // ── Liga de equipos: cumplimiento por equipo (necesita la red cargada). Cada participante
+  // cuenta para su líder Oro más cercano hacia arriba; si no hay ninguno, para tu equipo directo. ──
+  const lineaDe = ein => {
+    let x = byEinRed[ein], pasos = 0
+    while (x && pasos++ < 30) {
+      if ((x.gen || 0) === 0) return 'Tu equipo directo'
+      if (esOroPlus(x)) return 'Equipo de ' + titleCase(String(x.nombre).replace(/\s+/g, ' ').split(' ').slice(0, 2).join(' '))
+      x = byEinRed[x.einPresentador]
+    }
+    return null
+  }
+  const ligaMap = {}
+  filas.forEach(f => {
+    const l = lineaDe(f.ein); if (!l) return
+    const L = (ligaMap[l] = ligaMap[l] || { linea: l, n: 0, conCompras: 0, cumplieron: 0 })
+    L.n++
+    if (f.semanas.some(s => s.pp > 0)) L.conCompras++
+    if (vaAlDia(f)) L.cumplieron++
+  })
+  const liga = Object.values(ligaMap).filter(l => l.n >= 3).sort((x, y) => y.cumplieron - x.cumplieron || y.conCompras - x.conCompras).slice(0, 6)
+  const metas = [...new Set(semanales.map(f => f.metaSemanal))].filter(Boolean).sort((x, y) => x - y)
+
+  // ── Resumen para pegar en el grupo de WhatsApp ──
+  const copiarViejo = (t, ok) => {
+    const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'
+    document.body.appendChild(ta); ta.select()
+    try { document.execCommand('copy'); ok() } catch (e) { /* sin permiso: no pasa nada */ }
+    document.body.removeChild(ta)
+  }
+  const resumenGrupo = () => {
+    const nombres = (arr, n = 5) => arr.slice(0, n).map(primerNombre).join(', ') + (arr.length > n ? ` y ${arr.length - n} más` : '')
+    const l = []
+    l.push(`🏆 RETO 4X4${rango() ? ' · ' + rango() : ''}`, '')
+    if (rachaViva.length) l.push(`🔥 Racha viva (${rachaViva.length}): ${nombres(rachaViva)}`)
+    l.push(`✅ Cumplieron la última semana: ${semanales.filter(vaAlDia).length} de ${semanales.length}`)
+    if (casi.length) l.push(`🎯 Muy cerca (${casi.length}): ${casi.slice(0, 5).map(f => `${primerNombre(f)} ${ult(f).pp}/${ult(f).meta}`).join(', ')}`)
+    if (premioTotal > 0) l.push(`💰 Premio ganado por la red: ${fmtMXN(premioTotal)}`)
+    l.push('', '¡Vamos por más, equipo! 💪')
+    return l.join('\n')
+  }
+  const copiarResumen = () => {
+    const t = resumenGrupo()
+    const listo = () => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(listo).catch(() => copiarViejo(t, listo))
+      else copiarViejo(t, listo)
+    } catch (e) { copiarViejo(t, listo) }
+  }
+
   const coincide = f => f.nombre.toLowerCase().includes(q.toLowerCase()) || f.ein.includes(q)
   const sugerencias = q.trim() ? filas.filter(coincide).slice(0, 8) : []
 
   let filtradas = filas.filter(f => !q || coincide(f))
   if (soloRiesgo) filtradas = filtradas.filter(f => !vaAlDia(f))
+  if (metaSel != null) filtradas = filtradas.filter(f => f.metaSemanal === metaSel)
+  if (lineaSel) filtradas = filtradas.filter(f => lineaDe(f.ein) === lineaSel)
   filtradas = [...filtradas].sort((a, b) => {
     // Primero quienes van cumpliendo (motiva verlos arriba), luego los que no.
     const aOk = vaAlDia(a) ? 1 : 0
@@ -1988,6 +2089,30 @@ function PanelReto4x4({ data, setData, afiliados }) {
 
       {data && (
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div className="rn-chq__sec" style={{ marginTop: 0 }}>A quién escribirle hoy <span>{periodoTerminado ? 'el reto ya terminó: úsalo para felicitar y motivar al siguiente' : 'un toque y se abre WhatsApp con el mensaje listo'}</span></div>
+          <div className="rn-r4-acc">
+            {grupo('casi', '🎯', 'Casi lo logran', 'Les faltó poco: un empujón y cumplen.', casi, mensajeCasi, f => `${ult(f).pp.toLocaleString()} de ${ult(f).meta.toLocaleString()} · faltan ${ult(f).faltante.toLocaleString()}`)}
+            {grupo('cayeron', '🔁', 'Se cayeron', 'Venían cumpliendo y esta semana no.', cayeron, mensajeCayo, f => rachaPrevia(f) > 1 ? `${rachaPrevia(f)} semanas seguidas antes` : 'Cumplió la semana anterior')}
+            {grupo('racha', '🔥', 'Racha viva', 'Felicítalos: la constancia se contagia.', rachaViva, mensajeRacha, f => `${rachaActual(f)} semanas seguidas`)}
+          </div>
+          <div className="rn-r4-pie">
+            <span>{enJuego > 0 ? <>💰 Si retoman, hasta ≈ <b>{fmtMXN(enJuego)}</b> por semana <small style={{ color: 'var(--win-muted)' }}>(según lo que ganaron antes)</small></> : ''}</span>
+            <button className="rn-r4-copiar" onClick={copiarResumen}>{copiado ? '¡Copiado! ✓' : '📋 Copiar resumen para el grupo'}</button>
+          </div>
+          {liga.length >= 2 && (
+            <div className="rn-r4-liga">
+              <div className="rn-r4-acc__t">🏁 Liga de equipos <small>toca uno para ver solo a esa gente</small></div>
+              {liga.map(l => (
+                <button key={l.linea} className={'rn-r4-liga__row' + (lineaSel === l.linea ? ' on' : '')} onClick={() => setLineaSel(lineaSel === l.linea ? null : l.linea)}>
+                  <b>{l.linea}</b>
+                  <span>{l.n} participan · {l.conCompras} con compras</span>
+                  <i><u style={{ width: Math.round(l.cumplieron / l.n * 100) + '%' }}/></i>
+                  <em>{l.cumplieron} cumplieron</em>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="rn-chq__search" style={{ margin: '0 0 14px' }}>
             <span className="rn-chq__search-ico"><Icons.Search/></span>
             <input value={q} onChange={e => { setQ(e.target.value); setDropAbierto(true) }} onFocus={() => setDropAbierto(true)} onBlur={() => setTimeout(() => setDropAbierto(false), 150)} placeholder="Buscar por nombre o EIN…"/>
@@ -2010,7 +2135,14 @@ function PanelReto4x4({ data, setData, afiliados }) {
             )}
           </div>
 
-          <div className="rn-r4-grid">
+          {(metas.length > 1 || lineaSel) && (
+            <div className="rn-r4-chips">
+              {metas.length > 1 && <button className={metaSel == null ? 'on' : ''} onClick={() => setMetaSel(null)}>Todas las metas</button>}
+              {metas.length > 1 && metas.map(m => <button key={m} className={metaSel === m ? 'on' : ''} onClick={() => setMetaSel(metaSel === m ? null : m)}>{m} pp</button>)}
+              {lineaSel && <button className="on" onClick={() => setLineaSel(null)}>{lineaSel} ✕</button>}
+            </div>
+          )}
+          <div className="rn-r4-grid" style={{ '--r4n': semanaLabels.length }}>
             <div className="rn-r4-row rn-r4-row--head">
               <span>Socio</span>
               <span>Meta sem.</span>
@@ -2022,13 +2154,14 @@ function PanelReto4x4({ data, setData, afiliados }) {
               return (
                 <div key={f.ein} className="rn-r4-row">
                   <span className="rn-r4-nombre">
-                    <b>{f.nombre.split(' ').filter(Boolean).slice(0, 3).join(' ')}</b>
+                    <b>{f.nombre.split(' ').filter(Boolean).slice(0, 3).join(' ')}{semanal && rachaActual(f) >= 2 && <span className="rn-r4-fire">🔥{rachaActual(f)}</span>}</b>
                     <small>EIN {f.ein}{f.ciudad ? ' · ' + f.ciudad : ''}{!semanal ? ' · nuevo afiliado' : ''}</small>
                   </span>
                   <span className="rn-r4-meta">{semanal ? `${f.metaSemanal.toLocaleString()} pp` : 'Acum.'}</span>
                   {semanal ? f.semanas.map((s, i) => (
-                    <span key={i} className={'rn-r4-dot' + (s.conseguido ? ' on' : (s.pp > 0 ? ' mid' : ''))} title={`Semana ${i + 1}: ${s.pp.toLocaleString()} de ${s.meta.toLocaleString()} pts`}>
-                      {s.conseguido ? '✓' : (s.pp > 0 ? '·' : '✗')}
+                    <span key={i} className={'rn-r4-bar' + (s.conseguido ? ' on' : (s.pp > 0 ? ' mid' : ''))} title={`Semana ${i + 1}: ${s.pp.toLocaleString()} de ${s.meta.toLocaleString()} pts`}>
+                      <u style={{ width: Math.min(100, s.meta > 0 ? Math.round(s.pp / s.meta * 100) : 0) + '%' }}/>
+                      <b>{s.conseguido ? '✓' : (s.pp > 0 ? s.pp : '–')}</b>
                     </span>
                   )) : f.semanas.map((s, i) => (
                     <span key={i} className="rn-r4-dot" title="Nuevo afiliado: su meta es acumulada de sus primeros días, no semanal">–</span>
