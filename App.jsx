@@ -619,8 +619,19 @@ function parseExcel(data) {
 // (Mi Red > Mis Metas Promoción 4x4 > botón Excel). Formato fijo de 2 filas
 // de encabezado y 41 columnas: datos del socio + 5 bloques semanales
 // [Puntos Personales, Meta, Faltante, Conseguido, Premio] + un bloque Acumulado.
-const RETO4X4_SEMANA_COLS = [11, 16, 21, 26, 31]
-const RETO4X4_ACUM_COL = 36
+// Los bloques se detectan por los subencabezados (el reto puede durar 4 o 5 semanas):
+// cada bloque semanal empieza en una columna "Puntos Personales" y el acumulado en
+// "Puntos Personales Acumulado".
+function detectarBloquesReto4x4(subHeaderRow) {
+  const semanaCols = []
+  let acumCol = -1
+  for (let c = 0; c < (subHeaderRow || []).length; c++) {
+    const s = str(subHeaderRow[c]).toLowerCase()
+    if (s === 'puntos personales') semanaCols.push(c)
+    else if (s.startsWith('puntos personales') && s.includes('acumulado')) acumCol = c
+  }
+  return { semanaCols, acumCol }
+}
 function parseReto4x4Excel(data) {
   if (!data || data.length < 3) return { filas: [], semanaLabels: [] }
   const headerRow = data[0] || []
@@ -631,7 +642,8 @@ function parseReto4x4Excel(data) {
   // datos a partir de columnas que no corresponden.
   const esFormatoValido = str(headerRow[0]) === 'CustomerID' && str(subHeaderRow[11]) === 'Puntos Personales'
   if (!esFormatoValido) return { filas: [], semanaLabels: [] }
-  const semanaLabels = RETO4X4_SEMANA_COLS.map(c => str(headerRow[c]))
+  const { semanaCols, acumCol } = detectarBloquesReto4x4(subHeaderRow)
+  const semanaLabels = semanaCols.map(c => str(headerRow[c]))
   const bloque = (r, c) => ({
     pp: num(r[c]), meta: num(r[c + 1]), faltante: num(r[c + 2]),
     conseguido: str(r[c + 3]) === '✓',
@@ -645,7 +657,7 @@ function parseReto4x4Excel(data) {
     const nombre = str(r[1])
     if (!ein && !nombre) continue
     filas.push({
-      ein, nombre,
+      ein, nombre: nombre.replace(/\s+/g, ' ').trim(),   // NICE trae dobles espacios entre nombre y apellidos
       categoria: str(r[2]),
       tipoMeta: str(r[3]),
       generacion: num(r[4]),
@@ -654,8 +666,8 @@ function parseReto4x4Excel(data) {
       sponsorId: str(r[8]),
       telefono: str(r[9]),
       metaSemanal: num(r[10]),
-      semanas: RETO4X4_SEMANA_COLS.map(c => bloque(r, c)),
-      acumulado: bloque(r, RETO4X4_ACUM_COL),
+      semanas: semanaCols.map(c => bloque(r, c)),
+      acumulado: acumCol >= 0 ? bloque(r, acumCol) : { pp: 0, meta: 0, faltante: 0, conseguido: false, premio: 0 },
     })
   }
   return { filas, semanaLabels }
@@ -1896,6 +1908,20 @@ function PanelReto4x4({ data, setData, afiliados }) {
     return premioGanado(b) - premioGanado(a)
   })
 
+  // Fecha en que termina la última semana ("24 de septiembre al 30 de septiembre"). El año no
+  // viene en el Excel: se toma el más cercano a hoy hacia atrás.
+  const finPeriodo = (() => {
+    const m = (semanaLabels[ultimaIdx] || '').toLowerCase().match(/(\d{1,2}) de ([a-záéíóú]+)\s*$/)
+    if (!m) return null
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+    const mes = meses.indexOf(m[2] === 'setiembre' ? 'septiembre' : m[2])
+    if (mes < 0) return null
+    const hoy = new Date()
+    let d = new Date(hoy.getFullYear(), mes, +m[1])
+    if (d.getTime() - hoy.getTime() > 45 * 86400000) d = new Date(hoy.getFullYear() - 1, mes, +m[1])
+    return d
+  })()
+  const periodoTerminado = !!(finPeriodo && finPeriodo.getTime() + 86400000 <= Date.now())
   const rango = () => {
     if (!semanaLabels.length) return ''
     const inicio = semanaLabels[0].split(' al ')[0]
@@ -1923,7 +1949,7 @@ function PanelReto4x4({ data, setData, afiliados }) {
         </div>
         {data && (
           <>
-            <div className="rn-welcomebar__head">Esta semana <span>Semana {ultimaIdx + 1} de {semanaLabels.length}</span></div>
+            <div className="rn-welcomebar__head">{periodoTerminado ? 'Reto terminado' : 'Esta semana'} <span>{periodoTerminado ? `Terminó el ${finPeriodo.getDate()} de ${finPeriodo.toLocaleDateString('es-MX', { month: 'long' })}` : `Semana ${ultimaIdx + 1} de ${semanaLabels.length}`}</span></div>
             <div className="rn-sumgrid">
               <div className="rn-sumcard">
                 <div className="rn-sumcard__t">Con al menos 1 semana</div>
@@ -1940,7 +1966,7 @@ function PanelReto4x4({ data, setData, afiliados }) {
               <div className="rn-sumcard">
                 <div className="rn-sumcard__t">No cumplieron</div>
                 <div className="rn-sumcard__star"><span><Icons.Alert/></span><b>{fallaronUltima}</b><small>última semana</small></div>
-                <div className="rn-sumcard__l">Hoy toca escribirles</div>
+                <div className="rn-sumcard__l">{periodoTerminado ? 'En la última semana del reto' : 'Hoy toca escribirles'}</div>
                 <span className="rn-pill" style={{ background: 'var(--win-red-l)', color: 'var(--win-red)' }}>Semana {ultimaIdx + 1} de {semanaLabels.length}</span>
               </div>
             </div>
