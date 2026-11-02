@@ -529,6 +529,24 @@
       .rn-vias { grid-template-columns: minmax(0, 1fr); }
       .rn-via-plus { justify-content: center; font-size: 18px; line-height: 1; }
     }
+    /* Seguimiento Reto 4x4: tabla en semáforo, semana por semana */
+    .rn-r4-grid { display: flex; flex-direction: column; gap: 6px; }
+    .rn-r4-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 74px repeat(5, 30px) 84px; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--win-surface); border: 1px solid var(--win-border); }
+    .rn-r4-row--head { background: none; border: none; padding: 0 12px; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; color: var(--win-muted); text-transform: uppercase; }
+    .rn-r4-row--head span:nth-child(n+2) { text-align: center; }
+    .rn-r4-nombre { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .rn-r4-nombre b { font-size: 13px; font-weight: 700; color: var(--win-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rn-r4-nombre small { font-size: 11px; color: var(--win-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rn-r4-meta { font-size: 12px; font-weight: 600; color: var(--win-text); text-align: center; }
+    .rn-r4-dot { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 12px; font-weight: 800; background: var(--win-surface2); color: var(--win-muted); border: 1px solid var(--win-border); }
+    .rn-r4-dot.on { background: var(--win-green-l); color: var(--win-green); border-color: var(--win-green); }
+    .rn-r4-dot.mid { background: var(--nice-tile); color: var(--nice-indigo); border-color: var(--nice-indigo); }
+    .rn-r4-premio { font-size: 13px; font-weight: 800; color: var(--win-title); text-align: right; }
+    @media (max-width: 720px) {
+      .rn-r4-row, .rn-r4-row--head { grid-template-columns: minmax(0, 1fr) repeat(5, 24px) 70px; }
+      .rn-r4-meta { display: none; }
+      .rn-r4-row--head span:nth-child(2) { display: none; }
+    }
     @media (max-width: 720px) {
       .rn-chq-overlay { padding: 0; align-items: flex-end; }
       .rn-chq { max-height: 96dvh; border-radius: 26px 26px 0 0; }

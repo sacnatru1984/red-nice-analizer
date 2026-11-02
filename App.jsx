@@ -615,6 +615,53 @@ function parseExcel(data) {
   return rows
 }
 
+// ── Reto 4x4: parser del Excel "Revisión de Metas" del backoffice NICE ──
+// (Mi Red > Mis Metas Promoción 4x4 > botón Excel). Formato fijo de 2 filas
+// de encabezado y 41 columnas: datos del socio + 5 bloques semanales
+// [Puntos Personales, Meta, Faltante, Conseguido, Premio] + un bloque Acumulado.
+const RETO4X4_SEMANA_COLS = [11, 16, 21, 26, 31]
+const RETO4X4_ACUM_COL = 36
+function parseReto4x4Excel(data) {
+  if (!data || data.length < 3) return { filas: [], semanaLabels: [] }
+  const headerRow = data[0] || []
+  const semanaLabels = RETO4X4_SEMANA_COLS.map(c => str(headerRow[c]))
+  const bloque = (r, c) => ({
+    pp: num(r[c]), meta: num(r[c + 1]), faltante: num(r[c + 2]),
+    conseguido: str(r[c + 3]) === '✓',
+    premio: num(r[c + 4]),
+  })
+  const filas = []
+  for (let i = 2; i < data.length; i++) {
+    const r = data[i]
+    if (!r) continue
+    const ein = str(r[0])
+    const nombre = str(r[1])
+    if (!ein && !nombre) continue
+    filas.push({
+      ein, nombre,
+      categoria: str(r[2]),
+      tipoMeta: str(r[3]),
+      generacion: num(r[4]),
+      ciudad: str(r[6]),
+      estado: str(r[7]),
+      sponsorId: str(r[8]),
+      telefono: str(r[9]),
+      metaSemanal: num(r[10]),
+      semanas: RETO4X4_SEMANA_COLS.map(c => bloque(r, c)),
+      acumulado: bloque(r, RETO4X4_ACUM_COL),
+    })
+  }
+  return { filas, semanaLabels }
+}
+async function parseReto4x4File(file) {
+  const buffer = await file.arrayBuffer()
+  const workbook = new window.ExcelJS.Workbook()
+  await workbook.xlsx.load(buffer)
+  const worksheet = workbook.worksheets[0]
+  const data = worksheet.getSheetValues().slice(1).map((row) => Array.isArray(row) ? row.slice(1) : [])
+  return parseReto4x4Excel(data)
+}
+
 function detectarDuplicados(afiliados) {
   const duplicados = []
   const einMap = {}
@@ -1779,10 +1826,178 @@ function ChequeModal({ afiliados, onClose }) {
   return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
 }
 
-function PanelMiRed({ afiliados, tc }) {
+// ── Modal de seguimiento del Reto 4x4 — mismo estilo visual que la Calculadora
+// de Cheque (franja navy, tarjetas blancas rn-sumcard, pills) para que se sienta
+// parte de la misma app. Muestra, semana por semana, quién cumplió su meta
+// personal del Reto 4x4 (datos tal cual los calcula NICE en Revisión de Metas).
+function Reto4x4Modal({ data, setData, onClose }) {
+  const isMobile = useIsMobile()
+  const fileRef = useRef()
+  const [q, setQ] = useState('')
+  const [soloRiesgo, setSoloRiesgo] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleFile = (e) => {
+    const f = e.target.files[0]; if (!f) return
+    setError('')
+    parseReto4x4File(f).then((parsed) => {
+      if (!parsed.filas.length) setError('No se reconoció el formato. Usa el Excel del botón "Excel" en Mi Red → Mis Metas Promoción 4X4.')
+      else setData(parsed)
+    }).catch(() => setError('No se pudo leer el archivo.'))
+    e.target.value = ''
+  }
+
+  const filas = data ? data.filas : []
+  const semanaLabels = data ? data.semanaLabels : []
+  const total = filas.length
+  const ultimaIdx = semanaLabels.length - 1
+  // "RETO 4X4 NUEVOS" (Tipo de Meta = ACUMULADO) no se mide semana por semana:
+  // es una sola meta acumulada de sus primeros días, no 5 metas semanales.
+  const esSemanal = f => f.tipoMeta !== 'ACUMULADO'
+  const vaAlDia = f => esSemanal(f) ? !!(ultimaIdx >= 0 && f.semanas[ultimaIdx] && f.semanas[ultimaIdx].conseguido) : f.acumulado.conseguido
+  // El "Premio" de una semana/meta que aún no se marca Conseguido es solo una
+  // proyección de NICE (se ve, ej., en la semana en curso) — no dinero asegurado.
+  // Solo contamos lo que ya está Conseguido=✓, para no inflar el total.
+  const premioGanado = f => esSemanal(f)
+    ? f.semanas.reduce((sum, s) => sum + (s.conseguido ? s.premio : 0), 0)
+    : (f.acumulado.conseguido ? f.acumulado.premio : 0)
+  const conAlMenos1 = filas.filter(f => esSemanal(f) ? f.semanas.some(s => s.conseguido) : f.acumulado.conseguido).length
+  const premioTotal = filas.reduce((sum, f) => sum + premioGanado(f), 0)
+  const rachaPerfecta = filas.filter(f => esSemanal(f) ? (f.semanas.length && f.semanas.every(s => s.conseguido)) : f.acumulado.conseguido).length
+  const fallaronUltima = filas.filter(f => !vaAlDia(f)).length
+
+  let filtradas = filas.filter(f => !q || f.nombre.toLowerCase().includes(q.toLowerCase()) || f.ein.includes(q))
+  if (soloRiesgo) filtradas = filtradas.filter(f => !vaAlDia(f))
+  filtradas = [...filtradas].sort((a, b) => {
+    const aOk = vaAlDia(a) ? 1 : 0
+    const bOk = vaAlDia(b) ? 1 : 0
+    if (aOk !== bOk) return aOk - bOk
+    return premioGanado(b) - premioGanado(a)
+  })
+
+  const rango = () => {
+    if (!semanaLabels.length) return ''
+    const inicio = semanaLabels[0].split(' al ')[0]
+    const fin = (semanaLabels[semanaLabels.length - 1].split(' al ')[1]) || semanaLabels[semanaLabels.length - 1]
+    return `${inicio} – ${fin}`.toUpperCase()
+  }
+
+  const fmtMXN = v => v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
+
+  const nodo = (
+    <div className="rn-chq-overlay" onClick={onClose}>
+      <div className="rn-chq" onClick={e => e.stopPropagation()}>
+        <div className="rn-chq__head" style={{ marginBottom: data ? 70 : 24 }}>
+          <div className="rn-chq__bar">
+            <span className="rn-chq__kicker">RETO 4X4 · SEGUIMIENTO{rango() ? ' · ' + rango() : ''}</span>
+            <button className="rn-chq__close" onClick={onClose} aria-label="Cerrar">✕</button>
+          </div>
+          <div className="rn-chq__who">
+            <div style={{ minWidth: 0 }}>
+              <div className="rn-chq__title">Seguimiento del Reto 4x4</div>
+              <div className="rn-chq__name">{data ? `${total} personas en seguimiento` : 'Sube el Excel para empezar'}</div>
+            </div>
+            <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFile}/>
+              <button onClick={() => fileRef.current.click()} style={{ padding: '9px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,.3)', background: 'rgba(255,255,255,.12)', color: '#fff', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                {data ? 'Actualizar Excel' : 'Cargar Excel'}
+              </button>
+            </div>
+          </div>
+          {data && (
+            <div className="rn-chq__sum">
+              <div className="rn-sumcard">
+                <div className="rn-sumcard__t">Con al menos 1 semana</div>
+                <NiceRing value={conAlMenos1} max={total || 1} unidad="" size={isMobile ? 84 : 92}/>
+                <div className="rn-sumcard__l">De {total} en seguimiento</div>
+                <span className="rn-pill">{total ? Math.round(conAlMenos1 / total * 100) : 0}%</span>
+              </div>
+              <div className="rn-sumcard rn-chq__total">
+                <div className="rn-sumcard__t">Premio ya ganado por tu red</div>
+                <div className="rn-chq__amount">{fmtMXN(premioTotal)}</div>
+                <div className="rn-sumcard__l">Racha perfecta (todas las semanas)</div>
+                <span className="rn-pill rn-pill--indigo">{rachaPerfecta} persona{rachaPerfecta !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="rn-sumcard">
+                <div className="rn-sumcard__t">No cumplieron</div>
+                <div className="rn-sumcard__star"><span><Icons.Alert/></span><b>{fallaronUltima}</b><small>última semana</small></div>
+                <div className="rn-sumcard__l">Hoy toca escribirles</div>
+                <span className="rn-pill" style={{ background: 'var(--win-red-l)', color: 'var(--win-red)' }}>Semana {ultimaIdx + 1} de {semanaLabels.length}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rn-chq__body">
+          {!data && (
+            <div className="rn-chq__card" style={{ textAlign: 'center', padding: '34px 20px' }}>
+              <span className="rn-chq__tile" style={{ margin: '0 auto 14px' }}><Icons.Target/></span>
+              <div className="rn-chq__card-t" style={{ fontSize: 17, marginBottom: 6 }}>Sube el Excel del Reto 4x4</div>
+              <div className="rn-chq__card-d" style={{ maxWidth: 420, margin: '0 auto 16px' }}>
+                En el backoffice NICE: <b>Mi Red → Mis Metas Promoción 4X4 → botón Excel</b>. Súbelo aquí cada semana para ver quién va cumpliendo.
+              </div>
+              <button onClick={() => fileRef.current.click()} style={{ padding: '10px 22px', borderRadius: 12, border: 'none', background: 'var(--win-accent)', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Elegir archivo</button>
+              {error && <div style={{ marginTop: 14, color: 'var(--win-red)', fontSize: 12.5, fontWeight: 600 }}>{error}</div>}
+            </div>
+          )}
+
+          {data && (
+            <>
+              <div className="rn-chq__search" style={{ margin: '0 0 14px' }}>
+                <span className="rn-chq__search-ico"><Icons.Search/></span>
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o EIN…"/>
+                <button onClick={() => setSoloRiesgo(v => !v)} style={soloRiesgo ? { background: 'var(--win-red)' } : undefined}>
+                  {soloRiesgo ? 'Viendo: no cumplieron' : 'Solo los que no cumplieron'}
+                </button>
+              </div>
+
+              <div className="rn-r4-grid">
+                <div className="rn-r4-row rn-r4-row--head">
+                  <span>Socio</span>
+                  <span>Meta sem.</span>
+                  {semanaLabels.map((l, i) => <span key={i} title={l}>S{i + 1}</span>)}
+                  <span>Premio</span>
+                </div>
+                {filtradas.map(f => {
+                  const semanal = esSemanal(f)
+                  return (
+                    <div key={f.ein} className="rn-r4-row">
+                      <span className="rn-r4-nombre">
+                        <b>{f.nombre.split(' ').filter(Boolean).slice(0, 3).join(' ')}</b>
+                        <small>EIN {f.ein}{f.ciudad ? ' · ' + f.ciudad : ''}{!semanal ? ' · nuevo afiliado' : ''}</small>
+                      </span>
+                      <span className="rn-r4-meta">{semanal ? `${f.metaSemanal.toLocaleString()} pp` : 'Acum.'}</span>
+                      {semanal ? f.semanas.map((s, i) => (
+                        <span key={i} className={'rn-r4-dot' + (s.conseguido ? ' on' : (s.pp > 0 ? ' mid' : ''))} title={`Semana ${i + 1}: ${s.pp.toLocaleString()} de ${s.meta.toLocaleString()} pts`}>
+                          {s.conseguido ? '✓' : (s.pp > 0 ? '·' : '✗')}
+                        </span>
+                      )) : f.semanas.map((s, i) => (
+                        <span key={i} className="rn-r4-dot" title="Nuevo afiliado: su meta es acumulada de sus primeros días, no semanal">–</span>
+                      ))}
+                      <span className="rn-r4-premio">{fmtMXN(premioGanado(f))}</span>
+                    </div>
+                  )
+                })}
+                {filtradas.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: 'var(--win-muted)', fontSize: 13 }}>Sin resultados.</div>}
+              </div>
+
+              <div className="rn-chq__how">
+                Datos tal cual los calcula NICE en <b>Revisión de Metas</b> (Puntos Personales, Meta y Conseguido). El <b>Premio</b> de la tabla solo cuenta semanas o metas ya marcadas <b>Conseguido ✓</b> — NICE a veces muestra un premio en semanas aún abiertas que todavía no se gana, así que no lo sumamos. El punto gris (·) es una semana en curso con puntos parciales; el guion (–) es un <b>nuevo afiliado</b> cuya meta es acumulada de sus primeros días, no semanal. Vuelve a subir el Excel cada semana para mantener esto al día.
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+  return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(nodo, document.body) : nodo
+}
+
+function PanelMiRed({ afiliados, tc, reto4x4, setReto4x4 }) {
   const isMobile = useIsMobile()
   const [showDB, setShowDB] = useState(false)
   const [showCheque, setShowCheque] = useState(false)
+  const [showReto4x4, setShowReto4x4] = useState(false)
   const [verPuntos, setVerPuntos] = useState(false)
   const total = afiliados.length
   const activos = afiliados.filter(a => (a.pp||0)+(a.pg||0)>0).length
@@ -1818,6 +2033,7 @@ function PanelMiRed({ afiliados, tc }) {
     <div>
       {showDB && <BaseDatosModal afiliados={afiliados} onClose={()=>setShowDB(false)}/>}
       {showCheque && <ChequeModal afiliados={afiliados} onClose={()=>setShowCheque(false)}/>}
+      {showReto4x4 && <Reto4x4Modal data={reto4x4} setData={setReto4x4} onClose={()=>setShowReto4x4(false)}/>}
 
       {/* Bienvenida estilo app NICE: franja azul marino + resumen con anillos */}
       {self && (() => {
@@ -1904,6 +2120,7 @@ function PanelMiRed({ afiliados, tc }) {
       <div className="rn-actions-list">
         <NiceAction icon={Icons.Calc} sub="Calculadora de cheque" titulo="Simula el cheque de este mes" onClick={() => setShowCheque(true)}/>
         <NiceAction icon={Icons.Grid} sub="Toda tu red" titulo="Base de datos de afiliados" onClick={() => setShowDB(true)}/>
+        <NiceAction icon={Icons.Target} sub="Promoción activa" titulo="Seguimiento Reto 4x4" onClick={() => setShowReto4x4(true)}/>
       </div>
 
       {NivelesPorRed && raizMiRed && <NivelesPorRed raiz={raizMiRed} tc={tc}/>}
@@ -3132,6 +3349,7 @@ function App() {
   const PanelSemana = useExternal('PanelSemana')
   const [tab, setTab] = useState('red')
   const [afiliados, setAfiliados] = useState([])
+  const [reto4x4, setReto4x4] = useState(null)
   const [archivos, setArchivos] = useState([])
   const [duplicados, setDuplicados] = useState([])
   const [periodos, setPeriodos] = useState([])
@@ -3472,7 +3690,7 @@ function App() {
         )}
         {(cargado||tab==='rangos'||tab==='archivos'||tab==='anuncios')&&tab!=='reportes'&&(
           <>
-            {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc} tc={tc}/>}
+            {tab==='red'&&<PanelMiRed afiliados={afiliadosCalc} tc={tc} reto4x4={reto4x4} setReto4x4={setReto4x4}/>}
             {tab==='arbol'&&(PanelArbol?<PanelArbol afiliados={afiliadosCalc} onGenealogia={irAGenealogia} onPlanAccion={irAPlan} periodos={periodos}/>:<PanelCargando/>)}
             {tab==='genealogia'&&(PanelGenealogia?<PanelGenealogia afiliados={afiliadosCalc} rootEin={genealogiaEin} onChangeRoot={setGenealogiaEin} tc={tc} periodos={periodos} onPlanAccion={irAPlan} onSalir={()=>setTab('red')}/>:<PanelCargando/>)}
             {tab==='plan'&&(PanelPlan?<PanelPlan afiliados={afiliadosCalc} tc={tc} umbralUSD={umbralUSD} preselectEin={planEin} periodos={periodos}/>:<PanelCargando/>)}
