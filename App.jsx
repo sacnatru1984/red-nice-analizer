@@ -139,7 +139,7 @@ function getProgresoPct(afiliado, siguiente) {
   if (siguiente.id === 'COBRE') return Math.min(100, Math.round((combinado / 700) * 100))
   if (siguiente.id === 'BRONCE') return Math.min(100, Math.round((combinado / 1000) * 100))
   if (siguiente.id === 'PLATA') return Math.min(100, Math.round((combinado / 2000) * 100))
-  if (siguiente.id === 'ORO') return Math.min(100, Math.round((combinado / 3000) * 100))
+  if (siguiente.id === 'ORO') return rutaOro(afiliado).pct
   if (siguiente.tipo === 'personal') return Math.min(100, Math.round((pp / siguiente.ppReq) * 100))
   if (siguiente.tipo === 'equipo') {
     const frontalesActivos = frontalesQueCuentan(afiliado)
@@ -370,6 +370,149 @@ const RECOMPENSA_PERSONAL = {
   PLATINO: 'Cupón de $20,000 en producto o $10,000 en efectivo',
 }
 
+// ── Ruta más corta a Oro (plan de carrera NICE) ──
+// A) 3,000 PP personales en 1-2 períodos · B) 4,000 PP+PG en 2 períodos con mínimo 2,000 PP.
+// (Las rutas por equipo — 1,000 PP + líneas con PG — se explican en el detalle del Plan.)
+function rutaOro(a) {
+  const pp = a.pp || 0, pg = a.pg || 0
+  const faltaA = Math.max(0, 3000 - pp)
+  const faltaB = Math.max(0, 4000 - (pp + pg), 2000 - pp)
+  const esA = faltaA <= faltaB
+  const req = esA ? 3000 : 4000
+  const falta = esA ? faltaA : faltaB
+  return { falta, req, ruta: esA ? 'A' : 'B', label: esA ? '3,000 PP personales' : '4,000 PP+PG (mín. 2,000 PP)', pct: Math.max(0, Math.min(100, Math.round((1 - falta / req) * 100))) }
+}
+
+function nombreBonito(n) {
+  return String(n || '').toLowerCase().replace(/\s+/g, ' ').trim().split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ')
+}
+
+// Enlace de WhatsApp con mensaje listo. 10 dígitos → se asume México (+52).
+function waUrl(tel, msg) {
+  let d = String(tel || '').replace(/\D/g, '')
+  if (!d) return null
+  if (d.length === 10) d = '52' + d
+  return 'https://wa.me/' + d + (msg ? '?text=' + encodeURIComponent(msg) : '')
+}
+
+// Plan de la semana (pantalla "Plan"): UNA meta, hasta 3 acciones concretas con nombre y
+// WhatsApp, y el siguiente paso de cada persona directa. Todo sale de datos reales de la red.
+// Cada acción responde: ¿quién crece? y ¿cómo?  `esYo` = se está viendo a uno mismo.
+function getPlanSemana(sel, afiliados, tc, umbral, esYo) {
+  if (!sel) return null
+  const s = !!esYo
+  const U = umbral || UMBRAL_DESC_USD
+  const n = v => Math.round(v).toLocaleString('es-MX')
+  const corto = a => nombreBonito(a.nombre).split(' ').slice(0, 2).join(' ')
+  const primer = a => nombreBonito(a.nombre).split(' ')[0]
+  const sig = getSiguienteRangoObjetivo(sel)
+  const pp = sel.pp || 0, pg = sel.pg || 0
+  const directos = (afiliados || []).filter(a => a.einPresentador === sel.ein)
+
+  // ── Siguiente paso de cada persona directa ──
+  const msgs = {
+    nuevo: a => `Hola ${primer(a)} 👋 ¡Qué gusto tenerte en el equipo! ¿Ya pudiste hacer tu primer pedido? Quiero ayudarte a arrancar bien. ¿Platicamos 5 minutos hoy?`,
+    'oro-inactivo': a => `Hola ${primer(a)}, ¿cómo vas? Vi que este mes aún no tienes movimiento y quiero apoyarte. ¿Qué te ha frenado y cómo te ayudo a arrancar esta semana?`,
+    cerca: (a, f) => `Hola ${primer(a)}, vas avanzando muy bien 👏 ${f.corto} Si quieres, armamos un plan sencillo para lograrlo este mes. ¿Cuándo platicamos?`,
+    'sin-mov': a => `Hola ${primer(a)}, ¿cómo estás? Quiero saber cómo te puedo ayudar a arrancar este mes con tu negocio. ¿Hablamos un momento?`,
+    ok: a => `Hola ${primer(a)}, felicidades por tu avance 🙌 ¿Cómo te puedo apoyar para sostenerlo este mes?`,
+  }
+  const filas = directos.map(a => {
+    const pts = (a.pp || 0) + (a.pg || 0)
+    const dias = diasDesde(a.fechaContrato)
+    const nuevo = dias !== null && dias >= 0 && dias <= 15
+    let grupo, paso, corto2 = '', pct = 0
+    if (esOroPlus(a)) {
+      const rem = calcularReembolsoNivelOro(a, afiliados, tc, U)
+      pct = Math.min(100, Math.round(rem.usd / U * 100))
+      if (pts === 0) { grupo = 'oro-inactivo'; paso = 'Oro sin movimiento este mes: escríbele para reactivar su negocio' }
+      else if (rem.cumple200) { grupo = 'ok'; pct = 100; paso = `Ya cuenta como frontal (USD ${Math.round(rem.usd)} de ${U}). Apóyale a sostenerlo` }
+      else { grupo = 'cerca'; paso = `Genera USD ${Math.round(rem.usd)} de ${U}: ayúdale a crecer su red`; corto2 = `Tu línea genera USD ${Math.round(rem.usd)} de los ${U} que piden para contar como frontal.` }
+    } else {
+      const sa = getSiguienteRangoObjetivo(a)
+      let falta = 0
+      if (sa && sa.id === 'ORO') { const ro = rutaOro(a); falta = ro.falta; pct = ro.pct }
+      else if (sa) { const req = ({ COBRE: 700, BRONCE: 1000, PLATA: 2000 })[sa.id] || 0; falta = Math.max(0, req - pts); pct = req ? Math.min(100, Math.round(pts / req * 100)) : 0 }
+      if (nuevo && pts === 0) { grupo = 'nuevo'; paso = `Nuevo (día ${dias} de 15): ayúdale a hacer su primer pedido` }
+      else if (pts === 0) { grupo = 'sin-mov'; paso = getRango(a.rango).id === 'SIN' ? 'Aún no activa su kit de afiliación: pregúntale qué le detiene' : 'Sin movimiento este mes: pregúntale cómo apoyarle' }
+      else if (sa && falta > 0) { grupo = 'cerca'; paso = `Le faltan ${n(falta)} pts para ${sa.label}`; corto2 = `Te faltan ${n(falta)} puntos para ${sa.label}.` }
+      else { grupo = 'ok'; pct = 100; paso = sa ? `Ya cumple ${sa.label}: que sostenga el período` : 'Sostener su actividad' }
+    }
+    const f = { a, grupo, paso, pct, dias, corto: corto2 }
+    f.msg = msgs[grupo](a, f)
+    return f
+  })
+  const ORDEN = { nuevo: 0, 'oro-inactivo': 1, cerca: 2, 'sin-mov': 3, ok: 4 }
+  filas.sort((x, y) => (ORDEN[x.grupo] - ORDEN[y.grupo]) || (x.grupo === 'nuevo' ? (y.dias - x.dias) : (y.pct - x.pct)) || String(x.a.nombre).localeCompare(String(y.a.nombre)))
+
+  // ── Meta + primera acción (según el tipo de rango que sigue) ──
+  const acciones = []
+  let meta = null
+  if (sig) {
+    const pct = getProgresoPct(sel, sig)
+    if (sig.tipo === 'desc' || sig.tipo === 'personal') {
+      let falta, frase, porque
+      if (sig.id === 'ORO') {
+        const ro = rutaOro(sel); falta = ro.falta
+        frase = falta > 0 ? `${s ? 'Te faltan' : 'Le faltan'} ${n(falta)} puntos por la ruta más corta (${ro.label}).` : `${s ? 'Ya cumples' : 'Ya cumple'} la ruta a Oro (${ro.label}). Sostenlo el período que falte.`
+        porque = ro.ruta === 'A' ? 'Para esta ruta cuentan los puntos de tus propias compras (PP).' : 'Esta ruta suma PP + PG de 2 períodos seguidos, con mínimo 2,000 PP propios.'
+      } else if (sig.tipo === 'desc') {
+        const req = ({ COBRE: 700, BRONCE: 1000, PLATA: 2000 })[sig.id]; falta = Math.max(0, req - (pp + pg))
+        frase = falta > 0 ? `${s ? 'Te faltan' : 'Le faltan'} ${n(falta)} puntos (PP + PG) este mes.` : `${s ? 'Ya cumples' : 'Ya cumple'} ${n(req)} puntos. Sostenlo hasta el cierre del período.`
+        porque = 'Cuentan juntos el pedido propio y los pedidos de la gente de la línea (PP + PG).'
+      } else {
+        const req = sig.ppReq; falta = Math.max(0, req - pp)
+        frase = falta > 0 ? `${s ? 'Te faltan' : 'Le faltan'} ${n(falta)} PP este mes. Hay que sostener ${n(req)} PP durante 3 meses seguidos.` : `${s ? 'Ya llegaste' : 'Ya llegó'} a ${n(req)} PP este mes: sostenlo 3 meses seguidos.`
+        porque = 'Solo cuentan los puntos de las compras propias (PP).'
+      }
+      meta = { label: sig.label, pct, frase }
+      if (falta > 0) {
+        acciones.push(s
+          ? { tipo: 'meta', titulo: `Suma ${n(falta)} puntos este mes`, porque: `${porque} Haz tu pedido y apoya a quien esté más cerca de su propio paso.` }
+          : { tipo: 'meta', ein: sel.ein, titulo: `Apoya a ${primer(sel)} para sumar ${n(falta)} puntos`, porque: `${porque} Pregúntale qué necesita para hacer su pedido.`, tel: sel.telefono, msg: `Hola ${primer(sel)}, estoy revisando tu avance: te faltan ${n(falta)} puntos para ${sig.label}. ¿Cómo te ayudo a lograrlo este mes?` })
+      }
+    } else if (sig.tipo === 'equipo') {
+      const { lineas } = calcularLineasOro(sel, afiliados, tc, U)
+      const cuentan = lineas.filter(l => l.cumple200).length
+      const req = sig.frontalesOro
+      const faltan = Math.max(0, req - cuentan)
+      meta = { label: sig.label, pct, frase: faltan > 0 ? `${s ? 'Tienes' : 'Tiene'} ${cuentan} de ${req} frontal${req > 1 ? 'es' : ''} Oro que generan $${U} USD. ${s ? 'Te' : 'Le'} ${faltan > 1 ? 'faltan' : 'falta'} ${faltan}.` : `${s ? 'Ya cumples' : 'Ya cumple'} con ${cuentan} frontal${cuentan > 1 ? 'es' : ''} Oro de $${U} USD. Mantenlos activos.` }
+      if (faltan > 0) {
+        const cercana = lineas.find(l => !l.cumple200 && frontalOroCalifica(l.frontal))
+        if (cercana) {
+          const fr = cercana.frontal
+          acciones.push({ tipo: 'meta', ein: fr.ein, titulo: `Apoya a ${corto(fr)}: su línea genera USD ${Math.round(cercana.usd)} de ${U}`, porque: 'Cada línea que llega a $200 USD cuenta como frontal para el rango. Es la más cercana.', tel: fr.telefono, msg: `Hola ${primer(fr)}, estoy viendo cómo apoyarte para que tu línea llegue a los $${U} USD de Descuento por Red. ¿Nos juntamos esta semana?` })
+        } else {
+          const cand = analizarFrontales(sel, afiliados, tc, U).candidatos[0]
+          const faltaOro = cand ? rutaOro(cand.a).falta : 0
+          if (cand) acciones.push({ tipo: 'meta', ein: cand.a.ein, titulo: `Impulsa a ${corto(cand.a)} para que sea Oro`, porque: `Le faltan ${n(faltaOro)} pts por su ruta más corta. Un frontal Oro nuevo abre una línea más para el rango.`, tel: cand.a.telefono, msg: `Hola ${primer(cand.a)}, vas muy bien. Te faltan ${n(faltaOro)} puntos para ser Oro. ¿Armamos un plan para lograrlo?` })
+          else acciones.push({ tipo: 'meta', titulo: 'Invita y activa nuevas personas directas', porque: `Necesitas ${faltan} frontal${faltan > 1 ? 'es' : ''} Oro más. Todo empieza con una persona nueva que compre.` })
+        }
+      }
+    }
+  }
+
+  // Persona registrada que aún no activa su kit ("Sin Descuento"): su meta es afiliarse
+  if (!sig && getRango(sel.rango).id === 'SIN') {
+    meta = { label: 'Activar su afiliación (kit)', pct: 0, frase: `${s ? 'Aún no activas' : 'Aún no activa'} el kit de afiliación. Primer paso: resolver qué ${s ? 'te detiene' : 'le detiene'} y hacer el primer pedido.` }
+    if (!s) acciones.push({ tipo: 'meta', ein: sel.ein, titulo: `Escríbele a ${primer(sel)}: aún no activa su kit`, porque: 'Sin kit no hay descuento ni puntos. Pregúntale qué duda tiene y ofrécele acompañamiento.', tel: sel.telefono, msg: `Hola ${primer(sel)}, ¿cómo estás? Vi que aún no activas tu kit de afiliación. ¿Tienes alguna duda en la que te pueda ayudar para arrancar?` })
+  }
+
+  // ── Completar hasta 3 acciones con la gente directa (prioridad: nuevos → Oro sin movimiento → cerca → sin movimiento) ──
+  const usados = new Set(acciones.map(a => a.ein).filter(Boolean))
+  const de = g => filas.filter(f => f.grupo === g && !usados.has(f.a.ein))
+  const meter = (f, titulo, porque) => { usados.add(f.a.ein); acciones.push({ tipo: f.grupo, ein: f.a.ein, titulo, porque, tel: f.a.telefono, msg: f.msg }) }
+  if (acciones.length < 3) { const f = de('nuevo')[0]; if (f) meter(f, `Activa a ${corto(f.a)} (nuevo)`, `Está en el día ${f.dias} de 15 y aún no hace su primer pedido. Acompañarlo ahora evita que se enfríe.`) }
+  if (acciones.length < 3) { const f = de('oro-inactivo')[0]; if (f) meter(f, `Reactiva a ${corto(f.a)}`, `Es ${getRango(f.a.rango).label} sin movimiento este mes. Un Oro activo abre una línea y cuenta para el rango.`) }
+  if (acciones.length < 3) { const f = de('cerca')[0]; if (f) meter(f, `Impulsa a ${corto(f.a)}`, f.paso) }
+  if (acciones.length < 3) {
+    const g = de('sin-mov').slice(0, 3)
+    if (g.length) { const f = g[0]; g.forEach(x => usados.add(x.a.ein)); acciones.push({ tipo: 'sin-mov', ein: f.a.ein, titulo: `Escríbele a ${g.map(x => primer(x.a)).join(', ')}`, porque: 'No tienen movimiento este mes. Una pregunta sencilla ("¿cómo te ayudo?") los reactiva.', tel: f.a.telefono, msg: f.msg }) }
+  }
+
+  return { meta, acciones: acciones.slice(0, 3), filas, empezar: filas.length && filas[0].grupo !== 'ok' ? filas[0] : null }
+}
+
 // Plan de acción: siempre con UN objetivo claro (paso 1, numérico y verificable)
 // y como máximo 2 pasos más de apoyo — solo cuando hay algo específico que decir
 // (datos reales de la red o la recompensa), nunca relleno genérico.
@@ -401,12 +544,13 @@ function getPlanAccion(afiliado, siguiente, afiliados, tc, umbral) {
 
   // Oro (45%): un solo camino recomendado (el más rápido), la alternativa de equipo como nota breve
   if (siguiente.id === 'ORO') {
-    const falta = Math.max(0, 3000 - (pp + pg))
+    const ro = rutaOro(afiliado)
+    const falta = ro.falta
     return [
       {
         num: 1, color: '#DC2626',
-        title: falta > 0 ? `Objetivo: 3,000 PP/PG combinados · vas ${(pp + pg).toLocaleString()}/3,000` : 'Ya alcanzaste los 3,000 PP/PG combinados',
-        desc: falta > 0 ? `Te faltan ${falta.toLocaleString()} puntos. Es el camino más directo a Oro (45%), en 1 o 2 períodos consecutivos.` : 'Sostenlo el período que falte (si lo hiciste en 2 meses) para calificar a Oro (45%).'
+        title: falta > 0 ? `Objetivo: ${ro.label} · te faltan ${falta.toLocaleString()} puntos` : `Ya cumples la ruta a Oro (${ro.label})`,
+        desc: falta > 0 ? 'Es tu camino más corto a Oro (45%), sostenido 1 o 2 períodos consecutivos según la ruta.' : 'Sostenlo el período que falte (si lo hiciste en 2 meses) para calificar a Oro (45%).'
       },
       {
         num: 2, color: '#16A34A', title: 'Si no llegas sola/o, súmate en equipo',
@@ -3375,7 +3519,7 @@ function getContactosDirectos(afiliados, ein) {
 Object.assign(window, {
   getRango, getSiguienteRangoObjetivo, getProgresoPct, esOroPlus, valorPuntoDe, frontalGenera, getPlanAccion,
   computeFrontalesOro, buildTree, getInitials, useIsMobile, RankBadge, RANGO_IMG, RANGOS, TC_FALLBACK, Icons, S,
-  parseWorkbookFile, MESES_ES, MESES_CORTO, exportAffiliateReport, diasDesde, getContactosDirectos,
+  parseWorkbookFile, MESES_ES, MESES_CORTO, exportAffiliateReport, diasDesde, getContactosDirectos, getPlanSemana, waUrl, rutaOro,
 })
 
 function ModalBackoffice({ onClose, onSaved }) {

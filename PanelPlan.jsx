@@ -1,10 +1,14 @@
 const { useState, useRef, useCallback, useEffect, useMemo } = React
-let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro, frontalesQueCuentan
+let getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro, frontalesQueCuentan, getPlanSemana, waUrl, rutaOro
 
 function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
-  ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro, frontalesQueCuentan } = window)
+  ;({ getRango, getSiguienteRangoObjetivo, getSiguienteRangoVenta, getPotencialEquipo, getProgresoPct, getPlanAccion, getInitials, useIsMobile, RankBadge, RANGO_IMG, Icons, exportAffiliateReport, esOroPlus, calcularLineasOro, frontalesQueCuentan, getPlanSemana, waUrl, rutaOro } = window)
   // Respaldo: si el runtime aún no expone la función de App.jsx, se usa la misma regla aquí.
   if (typeof frontalesQueCuentan !== 'function') frontalesQueCuentan = (a) => a.frontalesOro200 != null ? a.frontalesOro200 : (a.frontalesOro || 0)
+  if (typeof getPlanSemana !== 'function') getPlanSemana = () => null
+  if (typeof waUrl !== 'function') waUrl = (tel, msg) => { const d = String(tel || '').replace(/\D/g, ''); return d ? 'https://wa.me/' + (d.length === 10 ? '52' + d : d) + (msg ? '?text=' + encodeURIComponent(msg) : '') : null }
+  if (typeof rutaOro !== 'function') rutaOro = (a) => ({ falta: Math.max(0, 3000 - (a.pp || 0)), req: 3000, label: '3,000 PP personales', pct: 0 })
+  const nombreBonitoCorto = (a) => String(a.nombre || '').toLowerCase().replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ')
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(null)
@@ -13,8 +17,10 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   const [lineaExpandida, setLineaExpandida] = useState(null)
   const [nivelExpandido, setNivelExpandido] = useState(null)
   const [simExpandida, setSimExpandida] = useState(null)
+  const [verGente, setVerGente] = useState(false)
+  const [verDetalle, setVerDetalle] = useState(false)
   const res = q.length > 1 ? afiliados.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase()) || a.ein.includes(q)).slice(0, 8) : []
-  const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false); setVerTodosInactivos(false); setLineaExpandida(null); setNivelExpandido(null) }
+  const elegir = (a) => { setSel(a); setQ(a.nombre); setDrop(false); setVerTodosInactivos(false); setLineaExpandida(null); setNivelExpandido(null); setVerGente(false) }
   const limpiar = () => { setSel(null); setQ(''); setDrop(false) }
   const hasData = afiliados.length > 0
   useEffect(() => {
@@ -37,6 +43,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
   const sig = sel ? getSiguienteRangoObjetivo(sel) : null
   const pct = sel && sig ? getProgresoPct(sel, sig) : 0
   const pasos = sel ? getPlanAccion(sel, sig, afiliados, tc, umbralUSD) : []
+  const ps = sel ? getPlanSemana(sel, afiliados, tc, umbralUSD, esUnoMismo) : null
   const potencial = sel ? getPotencialEquipo(sel) : null
   const tienePotencialExtra = potencial && (!sig || potencial.id !== sig.id)
 
@@ -77,6 +84,7 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
     if (!sig) return ''
     if (sig.tipo === 'personal') return sel.pp + ' de ' + sig.ppReq.toLocaleString() + ' PP × 3 meses consecutivos'
     if (sig.tipo === 'equipo') return frontalesQueCuentan(sel) + ' de ' + sig.frontalesOro + ' frontales Oro con $200 USD'
+    if (sig.id === 'ORO') { const ro = rutaOro(sel); return ro.falta > 0 ? 'Ruta más corta: ' + ro.label + ' · te faltan ' + ro.falta.toLocaleString() + ' puntos' : 'Cumples la ruta a Oro (' + ro.label + ')' }
     const req = sig.id === 'COBRE' ? 700 : sig.id === 'BRONCE' ? 1000 : sig.id === 'PLATA' ? 2000 : 3000
     return (sel.pp + sel.pg).toLocaleString() + ' de ' + req.toLocaleString() + ' PP/PG combinados'
   }
@@ -89,8 +97,12 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
       { ok: propioPts >= 2000, txt: 'Meta mínima: 2,000 PP/PG combinados', sub: 'Tiene ' + propioPts.toLocaleString() + ' de 2,000' + (propioPts < 2000 ? ' · le faltan ' + (2000 - propioPts).toLocaleString() : ' · completo') + ' — desbloquea el mejor % de Descuento por Red y es la base para llegar a Diamante+' },
     ]
     if (sig.tipo === 'desc') {
-      const req = sig.id === 'COBRE' ? 700 : sig.id === 'BRONCE' ? 1000 : sig.id === 'PLATA' ? 2000 : 3000
-      checks.push({ ok: propioPts >= req, txt: 'Alcanzar ' + req.toLocaleString() + ' PP/PG combinados', sub: 'Tiene ' + propioPts.toLocaleString() + ' de ' + req.toLocaleString() + ' puntos' })
+      checks.splice(1, 1)   // los 2,000 solo importan para el % de Descuento por Red (Oro en adelante)
+      if (sig.id === 'ORO') { const ro = rutaOro(sel); checks.push({ ok: ro.falta === 0, txt: 'Ruta a Oro: ' + ro.label, sub: ro.falta > 0 ? 'Te faltan ' + ro.falta.toLocaleString() + ' puntos' : 'Cumples la ruta · sostenla el período que falte' }) }
+      else {
+        const req = sig.id === 'COBRE' ? 700 : sig.id === 'BRONCE' ? 1000 : 2000
+        checks.push({ ok: propioPts >= req, txt: 'Alcanzar ' + req.toLocaleString() + ' PP/PG combinados', sub: 'Tiene ' + propioPts.toLocaleString() + ' de ' + req.toLocaleString() + ' puntos' })
+      }
     }
     if (sig.tipo === 'personal') checks.push({ ok: sel.pp >= sig.ppReq, txt: 'Alcanzar ' + sig.ppReq.toLocaleString() + ' PP × 3 meses consecutivos', sub: 'Este mes: ' + sel.pp + ' PP de ' + sig.ppReq.toLocaleString() + ' requeridos' })
     if (sig.tipo === 'equipo') {
@@ -181,6 +193,104 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
               </div>
             )}
 
+            {/* ── Plan de la semana: 1 meta + 3 acciones concretas + siguiente paso de tu gente ── */}
+            {ps && (() => {
+              const card = { background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 12, overflow: 'hidden' }
+              const head = { padding: '12px 16px', borderBottom: '1px solid var(--win-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }
+              const titulo = { fontSize: 14, fontWeight: 700, color: 'var(--win-title)' }
+              const wa = (tel, msg, txt) => { const u = waUrl(tel, msg); return u ? <a href={u} target='_blank' rel='noopener noreferrer' title='Abre WhatsApp con un mensaje listo para enviar' style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, background: '#25D36620', color: '#128C7E', fontSize: 11.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', border: '1px solid #25D36640', flexShrink: 0 }}>📲 {txt || 'WhatsApp'}</a> : null }
+              const GRUPO = { nuevo: ['🆕', 'Nuevo', '#2563EB'], 'oro-inactivo': ['🔴', 'Reactivar', '#DC2626'], cerca: ['⭐', 'Avanzando', '#C47F17'], 'sin-mov': ['⚪', 'Sin movimiento', '#6B7280'], ok: ['✅', 'Cumpliendo', '#16A34A'] }
+              const COLOR_ACC = { meta: '#DC2626', nuevo: '#2563EB', 'oro-inactivo': '#DC2626', cerca: '#C47F17', 'sin-mov': '#6B7280' }
+              const filasVis = verGente ? ps.filas : ps.filas.slice(0, 5)
+              return (
+                <>
+                  <div style={card}>
+                    <div style={head}>
+                      <span style={titulo}>{esUnoMismo ? 'Tu meta' : `Meta de ${nombreBonitoCorto(sel)}`}{ps.meta ? `: ${ps.meta.label}` : ''}</span>
+                      {ps.meta && <span style={{ fontSize: 20, fontWeight: 700, color: ps.meta.pct >= 100 ? 'var(--win-green)' : 'var(--win-accent)' }}>{ps.meta.pct}%</span>}
+                    </div>
+                    <div style={{ padding: '14px 16px' }}>
+                      {ps.meta ? (
+                        <>
+                          <div style={{ height: 10, background: 'var(--win-surface2)', borderRadius: 5, overflow: 'hidden', border: '1px solid var(--win-border)', marginBottom: 10 }}>
+                            <div style={{ width: ps.meta.pct + '%', height: '100%', background: ps.meta.pct >= 100 ? 'var(--win-green)' : 'var(--win-accent)', borderRadius: 4, transition: '.6s ease' }}/>
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--win-text)', lineHeight: 1.5 }}>{ps.meta.frase}</div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 13, color: 'var(--win-text)' }}>{esUnoMismo ? 'Ya tienes el rango más alto.' : `${nombreBonitoCorto(sel)} ya tiene el rango más alto.`} Lo que sigue es sostenerlo y ayudar a crecer a tu gente.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={card}>
+                    <div style={head}><span style={titulo}>{esUnoMismo ? 'Tus acciones de esta semana' : `Acciones para ${nombreBonitoCorto(sel)} esta semana`}</span></div>
+                    {ps.acciones.length === 0 ? (
+                      <div style={{ padding: '14px 16px', fontSize: 13, color: 'var(--win-muted)' }}>No hay pendientes urgentes. Sostén la actividad y felicita a quienes van cumpliendo.</div>
+                    ) : ps.acciones.map((ac, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 16px', alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap', borderBottom: i < ps.acciones.length - 1 ? '1px solid var(--win-border)' : 'none' }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: COLOR_ACC[ac.tipo] || '#6B7280', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--win-title)', marginBottom: 3 }}>{ac.titulo}</div>
+                          <div style={{ fontSize: 12, color: 'var(--win-muted)', lineHeight: 1.55 }}>{ac.porque}</div>
+                        </div>
+                        {wa(ac.tel, ac.msg, 'Escribirle')}
+                      </div>
+                    ))}
+                  </div>
+
+                  {ps.filas.length > 0 && (
+                    <div style={card}>
+                      <div style={head}>
+                        <span style={titulo}>{esUnoMismo ? 'Crecimiento de tu gente' : `Crecimiento de la gente de ${nombreBonitoCorto(sel)}`}</span>
+                        <span style={{ fontSize: 11.5, color: 'var(--win-muted)' }}>{ps.filas.length} persona{ps.filas.length > 1 ? 's' : ''} directa{ps.filas.length > 1 ? 's' : ''}</span>
+                      </div>
+                      {ps.empezar && (
+                        <div style={{ padding: '10px 16px', background: 'var(--win-accent-l)', fontSize: 12.5, color: 'var(--win-title)', borderBottom: '1px solid var(--win-border)' }}>
+                          💡 <b>Empieza por {nombreBonitoCorto(ps.empezar.a)}</b> — {ps.empezar.paso.charAt(0).toLowerCase() + ps.empezar.paso.slice(1)}.
+                        </div>
+                      )}
+                      {filasVis.map((f, i) => {
+                        const g = GRUPO[f.grupo]
+                        const rr = getRango(f.a.rango)
+                        return (
+                          <div key={f.a.ein} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexWrap: isMobile ? 'wrap' : 'nowrap', borderBottom: i < filasVis.length - 1 ? '1px solid var(--win-border)' : 'none' }}>
+                            <div style={{ width: 30, height: 30, borderRadius: '50%', background: rr.bg, border: `2px solid ${rr.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                              {RANGO_IMG[rr.id] ? <img src={RANGO_IMG[rr.id]} alt='' style={{ width: 24, height: 24, objectFit: 'contain' }} /> : <span style={{ fontSize: 9, fontWeight: 700, color: rr.color }}>{getInitials(f.a.nombre)}</span>}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--win-title)' }}>{nombreBonitoCorto(f.a)}</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: g[2], border: `1px solid ${g[2]}55`, borderRadius: 10, padding: '1px 7px', whiteSpace: 'nowrap' }}>{g[0]} {g[1]}</span>
+                              </div>
+                              <div style={{ fontSize: 11.5, color: 'var(--win-muted)', marginTop: 2, lineHeight: 1.45 }}>{rr.label} · {f.paso}</div>
+                              {f.grupo === 'cerca' && (
+                                <div style={{ height: 5, background: 'var(--win-surface2)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--win-border)', marginTop: 5, maxWidth: 260 }}>
+                                  <div style={{ width: f.pct + '%', height: '100%', background: '#C47F17' }}/>
+                                </div>
+                              )}
+                            </div>
+                            {wa(f.a.telefono, f.msg, 'WhatsApp')}
+                          </div>
+                        )
+                      })}
+                      {ps.filas.length > 5 && (
+                        <button onClick={() => setVerGente(v => !v)} style={{ width: '100%', textAlign: 'left', padding: '10px 16px', background: 'var(--win-surface2)', border: 'none', borderTop: '1px solid var(--win-border)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, color: 'var(--win-accent)', fontWeight: 600 }}>
+                          {verGente ? 'Ver menos' : `Ver las ${ps.filas.length - 5} personas restantes`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+
+            <button onClick={() => setVerDetalle(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', marginBottom: 12, background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--win-title)' }}>
+              <span>{verDetalle ? 'Ocultar detalle y cálculos' : 'Ver detalle y cálculos (requisitos, líneas de Oro, simulaciones)'}</span>
+              <span style={{ color: 'var(--win-accent)' }}>{verDetalle ? '▲' : '▼'}</span>
+            </button>
+            {verDetalle && (
+            <div>
             {/* ── Meta y progreso (fusiona stats + barra + checklist) ── */}
             <div style={{ background: 'var(--win-surface)', border: '1px solid var(--win-border)', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', marginBottom: 12, overflow: 'hidden' }}>
               {sig ? (
@@ -628,6 +738,8 @@ function PanelPlan({ afiliados, tc, umbralUSD, preselectEin, periodos }) {
                   )
                 })}
               </div>
+            )}
+            </div>
             )}
           </div>
           )
