@@ -148,7 +148,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
       const afs = await parseWorkbookFile(file)
       setPMes(detectarMesDeNombre(file.name)); setPAnio(detectarAnioDeNombre(file.name))
       setPendiente({ nombre: file.name, afiliados: computeFrontalesOro(afs) })
-    } catch(e) { console.error('Error al cargar período:', e) }
+    } catch(e) { console.error('Error al cargar período:', e); if (window.avisoExcel) window.avisoExcel(e, file.name) }
   }
 
   const procesarMultipleFiles = async (files) => {
@@ -166,7 +166,7 @@ function PanelReportes({ periodos, onAgregarPeriodo, onEliminarPeriodo, tc }) {
           labelLargo: `${MESES_ES[mes-1]} ${año}`,
           fecha: new Date().toLocaleDateString('es-MX')
         })
-      } catch(e) { console.error('Error al cargar período:', file.name, e) }
+      } catch(e) { console.error('Error al cargar período:', file.name, e); if (window.avisoExcel) window.avisoExcel(e, file.name) }
     }
   }
 

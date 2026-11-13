@@ -816,13 +816,56 @@ function parseReto4x4Excel(data) {
   }
   return { filas, semanaLabels }
 }
+// ── ¿Qué Excel es? Avisa cuando suben uno que no corresponde a la pantalla ──
+// 'reto4x4' = "Revisión de Metas" (Mis Metas Promoción 4X4) · 'red' = tablero de afiliados
+// (Mis Afiliados) · 'vacio' · 'desconocido'.
+function tipoExcel(data) {
+  if (!data || data.length < 2) return 'vacio'
+  const h0 = data[0] || [], h1 = data[1] || []
+  const sub = h1.map(v => str(v).toLowerCase())
+  if (str(h0[0]) === 'CustomerID' || (sub.includes('puntos personales') && sub.includes('faltante'))) return 'reto4x4'
+  const { score, idx } = detectHeaderRow(data)
+  if (score >= 3 && idx.nombre != null && (idx.pp != null || idx.pg != null)) return 'red'
+  // Respaldo (exportes sin encabezados reconocibles): se acepta si tiene forma de tablero
+  const cols = Math.max(0, ...data.slice(0, 10).map(r => (r || []).length))
+  const hayPuntos = data.slice(2, 40).some(r => r && (typeof r[9] === 'number' || typeof r[10] === 'number'))
+  if (score < 3 && cols >= 12 && hayPuntos) return 'red'
+  return 'desconocido'
+}
+
+// Mensaje claro con el archivo correcto. donde: 'red' (Mi Red / Archivos / Reportes) o 'reto'.
+function avisoExcelIncorrecto(donde, tipo) {
+  const PASOS_RED = ['Entra al backoffice de NICE → Mis Afiliados.', 'Elige el periodo y da clic en el botón "Excel".', 'Sube ese archivo aquí.']
+  const PASOS_RETO = ['Entra al backoffice de NICE → Mi Red → Mis Metas Promoción 4X4.', 'Da clic en el botón "Excel".', 'Sube ese archivo en la pestaña Reto 4x4.']
+  if (donde === 'red') {
+    if (tipo === 'reto4x4') return { titulo: 'Ese es el Excel del Reto 4x4', mensaje: 'Este archivo es de "Mis Metas Promoción 4X4", no el tablero de tu red. Súbelo en la pestaña Reto 4x4, y aquí carga el tablero de afiliados.', pasos: PASOS_RED, boton: { label: 'Ir a Reto 4x4', tab: 'reto4x4' } }
+    if (tipo === 'vacio') return { titulo: 'El archivo no trae afiliados', mensaje: 'No encontramos datos en este Excel. Descarga de nuevo el tablero de tu red y súbelo sin modificar.', pasos: PASOS_RED }
+    return { titulo: 'No reconocemos este Excel', mensaje: 'Para ver tu red necesitas el tablero de afiliados de NICE (con columnas como EIN, Nombre, PP y PG).', pasos: PASOS_RED }
+  }
+  if (tipo === 'red') return { titulo: 'Ese es el Excel de tu red', mensaje: 'Este archivo es el tablero de afiliados, no el del Reto 4x4. Para ver el reto necesitas el Excel de "Mis Metas Promoción 4X4".', pasos: PASOS_RETO }
+  if (tipo === 'vacio') return { titulo: 'No encontramos datos del reto', mensaje: 'Descarga de nuevo el Excel de "Mis Metas Promoción 4X4" y súbelo sin modificar.', pasos: PASOS_RETO }
+  return { titulo: 'No reconocemos este Excel', mensaje: 'Para ver el reto necesitas el Excel de "Revisión de Metas" (Mis Metas Promoción 4X4).', pasos: PASOS_RETO }
+}
+function errorExcel(aviso) { const e = new Error(aviso.titulo); e.aviso = aviso; return e }
+
+// Lee la primera hoja; si el archivo no es un .xlsx válido, avisa con un mensaje claro.
+async function leerFilasExcel(buffer) {
+  try {
+    const workbook = new window.ExcelJS.Workbook()
+    await workbook.xlsx.load(buffer)
+    const worksheet = workbook.worksheets[0]
+    return worksheet.getSheetValues().slice(1).map((row) => Array.isArray(row) ? row.slice(1) : [])
+  } catch (e) {
+    throw errorExcel({ titulo: 'No se pudo leer el archivo', mensaje: 'Debe ser un Excel .xlsx descargado del backoffice de NICE, sin abrirlo ni guardarlo en otro programa.', pasos: [] })
+  }
+}
 async function parseReto4x4File(file) {
-  const buffer = await file.arrayBuffer()
-  const workbook = new window.ExcelJS.Workbook()
-  await workbook.xlsx.load(buffer)
-  const worksheet = workbook.worksheets[0]
-  const data = worksheet.getSheetValues().slice(1).map((row) => Array.isArray(row) ? row.slice(1) : [])
-  return parseReto4x4Excel(data)
+  const data = await leerFilasExcel(await file.arrayBuffer())
+  const tipo = tipoExcel(data)
+  if (tipo !== 'reto4x4') throw errorExcel(avisoExcelIncorrecto('reto', tipo))
+  const parsed = parseReto4x4Excel(data)
+  if (!parsed.filas.length) throw errorExcel(avisoExcelIncorrecto('reto', 'vacio'))
+  return parsed
 }
 
 function detectarDuplicados(afiliados) {
@@ -900,21 +943,20 @@ function contarPorRango(afiliados) {
 // ===== App =====
 const { useState, useRef, useCallback, useEffect, useMemo } = React
 
+// Valida que sea el tablero de afiliados (no el Excel del Reto 4x4 ni otro archivo).
+function afiliadosDeFilas(data) {
+  const tipo = tipoExcel(data)
+  if (tipo !== 'red') throw errorExcel(avisoExcelIncorrecto('red', tipo))
+  const afs = normalizeAfiliados(parseExcel(data))
+  if (!afs.length) throw errorExcel(avisoExcelIncorrecto('red', 'vacio'))
+  return afs
+}
 async function parseWorkbookFile(file) {
-  const buffer = await file.arrayBuffer()
-  const workbook = new window.ExcelJS.Workbook()
-  await workbook.xlsx.load(buffer)
-  const worksheet = workbook.worksheets[0]
-  const data = worksheet.getSheetValues().slice(1).map((row) => Array.isArray(row) ? row.slice(1) : [])
-  return normalizeAfiliados(parseExcel(data))
+  return afiliadosDeFilas(await leerFilasExcel(await file.arrayBuffer()))
 }
 
 async function parseWorkbookBuffer(buffer) {
-  const workbook = new window.ExcelJS.Workbook()
-  await workbook.xlsx.load(buffer)
-  const worksheet = workbook.worksheets[0]
-  const data = worksheet.getSheetValues().slice(1).map((row) => Array.isArray(row) ? row.slice(1) : [])
-  return normalizeAfiliados(parseExcel(data))
+  return afiliadosDeFilas(await leerFilasExcel(buffer))
 }
 
 // Si el Excel no trae EIN ni "Número de presentador" (ej. exportes anonimizados),
@@ -2017,10 +2059,10 @@ function PanelReto4x4({ data, setData, afiliados }) {
   const handleFile = (e) => {
     const f = e.target.files[0]; if (!f) return
     setError('')
-    parseReto4x4File(f).then((parsed) => {
-      if (!parsed.filas.length) setError('Ese no es el Excel del Reto 4x4 (parece el Excel normal de tu red). En el backoffice ve a Mi Red → Mis Metas Promoción 4X4 → botón "Excel" y sube ese archivo.')
-      else setData(parsed)
-    }).catch(() => setError('No se pudo leer el archivo.'))
+    parseReto4x4File(f).then((parsed) => setData(parsed)).catch((err) => {
+      if (window.avisoExcel) window.avisoExcel(err, f.name)
+      else setError(err && err.aviso ? err.aviso.mensaje : 'No se pudo leer el archivo.')
+    })
     e.target.value = ''
   }
 
@@ -3410,13 +3452,45 @@ function PanelRangos({ afiliados = [] }) {
   )
 }
 
+// Aviso cuando se sube un Excel que no corresponde (ver tipoExcel / avisoExcelIncorrecto)
+function AvisoExcel({ aviso, onClose, onIr }) {
+  return (
+    <div role="alertdialog" aria-label={aviso.titulo} onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(15,23,42,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--win-surface)', borderRadius: 14, maxWidth: 460, width: '100%', padding: '22px 22px 18px', boxShadow: '0 20px 50px rgba(0,0,0,.35)', border: '1px solid var(--win-border)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--win-red-l)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>⚠️</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--win-title)', lineHeight: 1.25 }}>{aviso.titulo}</div>
+        </div>
+        {aviso.archivo && <div style={{ fontSize: 11.5, color: 'var(--win-muted)', marginBottom: 8, wordBreak: 'break-all' }}>Archivo: {aviso.archivo}</div>}
+        <div style={{ fontSize: 13.5, color: 'var(--win-text)', lineHeight: 1.55, marginBottom: 12 }}>{aviso.mensaje}</div>
+        {aviso.pasos && aviso.pasos.length > 0 && (
+          <div style={{ background: 'var(--win-surface2)', border: '1px solid var(--win-border)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--win-title)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>Cómo conseguir el archivo correcto</div>
+            {aviso.pasos.map((p, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12.5, color: 'var(--win-text)', lineHeight: 1.5, marginBottom: i < aviso.pasos.length - 1 ? 4 : 0 }}>
+                <b style={{ color: 'var(--win-accent)' }}>{i + 1}.</b><span>{p}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {aviso.boton && <button onClick={() => onIr(aviso.boton.tab)} style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--win-accent)', background: 'transparent', color: 'var(--win-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{aviso.boton.label}</button>}
+          <button onClick={onClose} autoFocus style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: 'var(--win-accent)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Entendido</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PanelArchivos({ archivos, onCargar, duplicados }) {
   const [drag, setDrag] = useState(false)
   const fileRef = useRef()
   const procesar = async (file) => {
-    const afiliados = await parseWorkbookFile(file)
-    const dups = detectarDuplicados(afiliados)
-    onCargar(file.name, afiliados, dups)
+    try {
+      const afiliados = await parseWorkbookFile(file)
+      const dups = detectarDuplicados(afiliados)
+      onCargar(file.name, afiliados, dups)
+    } catch (err) { if (window.avisoExcel) window.avisoExcel(err, file.name) }
   }
   return (
     <div style={{maxWidth:700}}>
@@ -3431,7 +3505,7 @@ function PanelArchivos({ archivos, onCargar, duplicados }) {
             <button style={{display:'inline-flex',alignItems:'center',gap:8,padding:'9px 22px',borderRadius:8,background:'var(--win-accent)',color:'white',fontSize:13,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'inherit'}}>
               <div style={{width:16,height:16}}><Icons.Upload/></div> Seleccionar archivo
             </button>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f)procesar(f)}}/>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f)procesar(f);e.target.value=''}}/>
           </div>
         </div>
       </div>
@@ -3714,6 +3788,12 @@ function App() {
   // Pantalla de entrada. Por ahora "Acceder" solo la cierra (sin autenticación);
   // más adelante se conectará a la base de datos de usuarios con acceso.
   const [splash, setSplash] = useState(true)
+  const [avisoArchivo, setAvisoArchivo] = useState(null)
+  // Los paneles avisan por aquí cuando suben un Excel que no corresponde (ver AvisoExcel)
+  window.avisoExcel = (err, archivo) => {
+    const av = (err && err.aviso) || { titulo: 'No se pudo leer el archivo', mensaje: 'Verifica que sea el Excel .xlsx descargado del backoffice de NICE e inténtalo de nuevo.', pasos: [] }
+    setAvisoArchivo(prev => prev || { ...av, archivo })
+  }
   // Hoja inferior "Más" de la barra de navegación en celular (estilo app NICE)
   const [masAbierto, setMasAbierto] = useState(false)
 
@@ -3857,7 +3937,8 @@ function App() {
     const f = e.target.files[0]; if(!f) return
     parseWorkbookFile(f).then((nuevos) => {
       onCargar(f.name, nuevos, detectarDuplicados(nuevos))
-    })
+    }).catch((err) => { if (window.avisoExcel) window.avisoExcel(err, f.name) })
+    e.target.value = ''
   }
 
   const TABS = [{id:'red',l:'Mi Red',I:Icons.Home},{id:'reto4x4',l:'Reto 4x4',I:Icons.Target},{id:'genealogia',l:'Genealogía',I:Icons.GitBranch},{id:'plan',l:'Plan',I:Icons.Plan},{id:'reportes',l:'Reportes',I:Icons.TrendUp},{id:'rangos',l:'Rangos NICE',I:Icons.Trophy},{id:'anuncios',l:'Anuncios',I:Icons.Megaphone},{id:'archivos',l:'Archivos',I:Icons.Upload}]
@@ -3878,6 +3959,7 @@ function App() {
           </button>
         </div>
       )}
+      {avisoArchivo&&<AvisoExcel aviso={avisoArchivo} onClose={()=>setAvisoArchivo(null)} onIr={(t)=>{setTab(t);setAvisoArchivo(null)}}/>}
       {showBackoffice&&<ModalBackoffice onClose={()=>setShowBackoffice(false)} onSaved={()=>setBackofficeConectado(true)}/>}
       {/* Taskbar */}
       <div className="rn-taskbar" style={{height:isMobile?56:48,background:'var(--win-surface)',backdropFilter:'blur(12px)',borderBottom:'1px solid var(--win-border)',display:'flex',alignItems:'center',padding:isMobile?'0 10px':'0 16px',gap:isMobile?8:12,flexShrink:0,zIndex:100}}>
